@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mission Multiply</title>
+<meta name="description" content="Times tables practice for BC classrooms.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+</head>
+<body>
+<div class="sky" aria-hidden="true"><div class="stars"></div><div class="clouds"></div><div class="sun"></div><div class="earth"><svg viewBox="0 0 200 200" width="100%" height="100%"><defs><radialGradient id="eOcean" cx=".38" cy=".35" r=".75"><stop offset="0" stop-color="#5FB4FF"/><stop offset=".6" stop-color="#1E6FD9"/><stop offset="1" stop-color="#0B3A8C"/></radialGradient><radialGradient id="eShade" cx=".3" cy=".3" r=".85"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient><clipPath id="eClip"><circle cx="100" cy="100" r="80"/></clipPath></defs><circle cx="100" cy="100" r="92" fill="#6FC3FF" opacity=".18"/><circle cx="100" cy="100" r="85" fill="#6FC3FF" opacity=".22"/><circle cx="100" cy="100" r="80" fill="url(#eOcean)"/><g clip-path="url(#eClip)" fill="#3FAE5A"><path d="M48 52 Q62 38 82 44 Q96 48 92 62 Q86 72 92 84 Q96 98 84 104 Q72 108 70 120 Q66 132 56 126 Q50 112 52 98 Q40 92 36 78 Q36 62 48 52Z"/><path d="M112 34 Q130 30 146 40 Q156 48 150 58 Q138 62 132 72 Q140 82 154 86 Q166 94 160 112 Q152 132 136 140 Q122 150 116 136 Q120 120 110 110 Q100 100 108 88 Q114 78 106 66 Q100 50 112 34Z"/><path d="M70 150 Q86 146 100 156 Q104 168 90 172 Q74 170 70 150Z"/><path d="M60 178 Q100 168 140 178 L140 200 L60 200Z" fill="#EEF6FF"/></g><g clip-path="url(#eClip)" fill="#FFFFFF" opacity=".85"><path d="M30 70 Q50 64 70 70 Q60 76 40 76Z"/><path d="M100 96 Q124 88 150 96 Q132 102 108 102Z"/><path d="M60 136 Q80 130 100 138 Q84 142 66 142Z"/><path d="M120 54 Q136 48 152 54 Q140 58 126 58Z"/></g><circle cx="100" cy="100" r="80" fill="url(#eShade)"/><path d="M52 60 Q66 40 92 34" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round" opacity=".45"/></svg></div><div class="confetti"></div><div class="hills"></div></div>
+
+<div class="app">
+  <header class="top" id="top"></header>
+
+
+  <!-- STUDENT LOGIN: class code, then 4-digit code -->
+  <section class="screen" id="login" hidden>
+    <div class="card" style="align-items:center;text-align:center">
+      <form class="classform" id="classForm" hidden>
+        <h1>Log in</h1>
+        <p class="muted">Type your class code</p>
+        <input id="classCode" class="codeinput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" aria-label="Class code" placeholder="ABC123">
+        <div class="fb no" id="classFb" aria-live="assertive"></div>
+        <button class="go" type="submit">Next</button>
+      </form>
+      <div id="pinStep" hidden style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%">
+        <h1 id="loginTitle">Log in</h1>
+        <p class="muted" id="loginSub">Enter your 4-digit code</p>
+        <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+        <div class="fb no" id="loginFb" aria-live="assertive"></div>
+        <div class="pad" id="loginPad"></div>
+        <button class="linkbtn" id="changeClass">Not your class? Change class code</button>
+      </div>
+    </div>
+    <div class="loginlinks"><button class="linkbtn" id="toTeacher">Teachers</button></div>
+    <p class="note demo" id="demoHint" hidden>Demo mode: class code <b>DEMO</b>, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
+  </section>
+
+  <!-- TEACHER SIGN IN / SIGN UP / SCHOOL SETUP -->
+  <section class="screen" id="teach" hidden>
+    <div class="card teachcard">
+      <form id="tSignIn" class="tform">
+        <h1>Teachers</h1>
+        <label>Email<input id="tEmail" type="email" autocomplete="email" required></label>
+        <label>Password<input id="tPass" type="password" autocomplete="current-password" minlength="8" required></label>
+        <div class="fb no" id="tFb" aria-live="assertive"></div>
+        <div class="row"><button class="go" type="submit" style="flex:1">Sign in</button><button class="btn" type="button" id="tSignUpBtn" style="flex:1">Create account</button></div>
+        <div class="row" id="tOauth"><button class="btn" type="button" data-oauth="google" style="flex:1">Sign in with Google</button><button class="btn" type="button" data-oauth="azure" style="flex:1">Sign in with Microsoft</button></div>
+        <button class="linkbtn" type="button" id="tBack">Back to student login</button>
+      </form>
+      <form id="tSetup" class="tform" hidden>
+        <h1>Set up your school</h1>
+        <label>Your name (as students will see it)<input id="tName" required maxlength="80" placeholder="Ms Smith"></label>
+        <fieldset class="tchoice">
+          <label><input type="radio" name="tMode" value="new" checked> My school is new to Mission Multiply</label>
+          <label><input type="radio" name="tMode" value="join"> Join my school (I have a school code)</label>
+        </fieldset>
+        <label id="tSchoolNameRow">School name<input id="tSchoolName" maxlength="120" placeholder="Smithers Elementary"></label>
+        <label id="tJoinRow" hidden>School code<input id="tJoinCode" maxlength="12" autocapitalize="characters"></label>
+        <div class="fb no" id="tSetupFb" aria-live="assertive"></div>
+        <button class="go" type="submit">Continue</button>
+        <button class="linkbtn" type="button" id="tSetupOut">Sign out</button>
+      </form>
+    </div>
+  </section>
+
+
+  <!-- STARTING CHECK INTRO -->
+  <section class="screen" id="intro" hidden>
+    <div class="card" style="align-items:center;text-align:center">
+      <div id="introAvatar"></div>
+      <h1 id="introTitle">Hi!</h1>
+      <p>Let's start with a quick check: 22 questions, two from every times table. There's no clock, so take your time.</p>
+      <p class="muted">It shows what you already know, so your rounds are full of answers you can get right, plus a few to practise.</p>
+      <button class="go" id="introGo">Start my check</button>
+      <button class="linkbtn" id="introSkip">Skip for now</button>
+    </div>
+  </section>
+
+  <!-- HOME: side tabs (bottom bar on phones) -->
+  <section class="screen" id="home" hidden>
+    <div class="kidapp">
+      <nav class="rail" role="tablist" aria-label="Sections">
+        <button role="tab" data-tab="play" aria-selected="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.5 4.8v14.4a.8.8 0 0 0 1.2.7l11.3-7.2a.8.8 0 0 0 0-1.4L8.7 4.1a.8.8 0 0 0-1.2.7z"/></svg><span>Play</span></button>
+        <button role="tab" data-tab="board" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4"/></svg><span>Top 10</span></button>
+        <button role="tab" data-tab="badges" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="14" r="6"/><path d="M8.5 9L6 2h4l2 5M15.5 9L18 2h-4l-2 5"/></svg><span>Badges</span></button>
+        <button role="tab" data-tab="shop" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Shop</span></button>
+        <button data-tab="logout" class="out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg><span>Log out</span></button>
+      </nav>
+
+      <div class="panels">
+        <!-- PLAY -->
+        <div class="panel" id="tab-play" role="tabpanel">
+          <div class="playwrap">
+            <div class="card playcard">
+              <div class="duelmini" id="duelAlert"></div>
+              <div id="heroAvatar"></div>
+              <h1 id="playTitle"></h1>
+              <p class="jmsg" id="journeyMsg"></p>
+              <div class="ptsline" id="playPts"></div>
+              <button class="go" id="start">▶ PLAY</button>
+            </div>
+            <div class="journeycard">
+              <h2 class="jtitle">Your journey</h2>
+              <div class="vj" id="journey"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LEADERBOARD -->
+        <div class="panel" id="tab-board" role="tabpanel" hidden>
+          <div class="card">
+            <div class="spread"><h2 id="boardTitle">Top players this week</h2></div>
+            <div class="board" id="board"></div>
+            <p class="muted" id="boardMe"></p>
+          </div>
+        </div>
+
+        <!-- BADGES -->
+        <div class="panel" id="tab-badges" role="tabpanel" hidden>
+          <div class="card">
+            <div class="spread"><h2>Badges</h2><span class="muted num" id="badgeCount"></span></div>
+            <div class="badges" id="badgeGrid"></div>
+          </div>
+        </div>
+
+        <!-- SHOP PANEL -->
+        <div class="panel" id="tab-shop" role="tabpanel" hidden>
+          <div class="card">
+            <div class="spread"><h2>Shop</h2><span class="coins"><span class="coin"></span><span id="shopCoins">0</span></span></div>
+            <div class="tabs" role="tablist"><button role="tab" data-tab="skins" aria-selected="true">Characters</button><button role="tab" data-tab="rockets" aria-selected="false">Rockets</button></div>
+          </div>
+          <div class="shop" id="shop"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAY SCREEN -->
+  <section class="screen" id="play" hidden>
+    <div class="gametop">
+      <button class="backbtn" id="quit">← Go back</button>
+      <span class="row" style="gap:8px"><span id="gameMuteWrap"></span><span class="coins gamecoins" aria-label="Stars this round"><span class="coin"></span><span id="pcoins">0</span></span></span>
+    </div>
+    <div class="gamewrap">
+      <div class="console">
+        <div class="console-head">
+          <div class="ring" id="ring"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" class="ring-bg"/><circle cx="22" cy="22" r="19" class="ring-fg" id="ringFg"/></svg><span id="ringTxt" class="num">60</span></div>
+          <div class="qblock"><div class="nextq num" id="nextq"></div><div class="q" id="q" aria-live="polite"></div></div>
+          <div class="scorecol"><div class="scorebox"><span>Score</span><b id="score" class="num">0</b><span class="combo num" id="combo" hidden></span></div><div class="ghost" id="ghost" hidden><span class="gtag" id="ghostTag">Ghost</span><span class="gname" id="ghostName"></span><b class="num" id="ghostScore">0</b></div></div>
+        </div>
+        <div class="boss" id="boss" hidden><div class="bossart" id="bossArt"></div><div class="bossmain"><b id="bossName"></b><div class="bossbar"><i id="bossHp"></i></div><span id="bossInfo"></span></div></div>
+        <div class="ans" id="ans"></div>
+        <div class="fb" id="fb" aria-live="assertive"></div>
+        <div class="pad" id="pad"></div>
+        <div id="checkProg" hidden></div>
+      </div>
+      <div class="speedcol">
+        <span class="sclabel">Speed</span>
+        <div class="track" id="track"><div class="trail"></div><svg class="tstation" viewBox="0 0 60 30" aria-hidden="true"><defs><radialGradient id="gx"><stop offset="0" stop-color="#FFF3D6"/><stop offset=".35" stop-color="#C79BFF"/><stop offset="1" stop-color="#C79BFF" stop-opacity="0"/></radialGradient></defs><ellipse cx="30" cy="15" rx="27" ry="12" fill="url(#gx)" opacity=".75"/><path d="M30 15 C38 9 49 12 50 17 M30 15 C22 21 11 18 10 13 M30 15 C35 21 45 22 52 19 M30 15 C25 9 15 8 8 11" stroke="#FFFFFF" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".85"/><circle cx="30" cy="15" r="3.5" fill="#FFF8E6"/></svg><svg class="tblade" viewBox="0 0 46 27" aria-hidden="true"><path d="M0 22 Q23 19 46 22 V27 H0Z" fill="#4E7A55"/><rect x="9" y="18" width="28" height="4" rx="1" fill="#9AA6B8" stroke="#1B1D2E" stroke-width="1"/><path d="M35 18 V3 M39 18 V3 M35 5 L39 9 M39 5 L35 9 M35 11 L39 15 M39 11 L35 15" stroke="#FF7A1A" stroke-width="1.4"/></svg><div class="rider" id="mark"></div></div>
+        <span class="gl" id="gl">Go!</span>
+      </div>
+    </div>
+  </section>
+
+<!-- ROUND RESULTS -->
+  <section class="screen" id="results" hidden>
+    <div class="card resmain">
+      <h1 id="resTitle">Round over</h1>
+      <div class="scorebig"><span class="coin"></span><b class="num">+<span id="resStars">0</span></b><span>stars</span></div>
+      <div class="reschips">
+        <span class="rchip"><b class="num" id="resCorrect">0</b> right</span>
+        <span class="rchip" id="resTierBox"><b id="resTier">—</b><span id="resTierNote"></span></span>
+      </div>
+    </div>
+    <div class="card duelres" id="resDuel" hidden></div>
+    <div class="row"><button class="go" id="again" style="flex:1 1 200px">Play again</button><button class="btn" id="resHome" style="flex:1 1 140px">Home</button></div>
+  </section>
+
+  <!-- CHECK RESULTS -->
+  <section class="screen" id="checkres" hidden>
+    <div class="card">
+      <h1>Check done!</h1>
+      <p id="crSummary"></p>
+      <div class="facts" id="crTables"></div>
+      <div class="legend"><span><i style="background:var(--h4)"></i>Strong</span><span><i style="background:var(--h3)"></i>Nearly there</span><span><i style="background:var(--h2)"></i>Let's practise</span></div>
+      <p class="muted">Your rounds will mostly ask facts you know, with a few practice questions mixed in.</p>
+    </div>
+    <button class="go" id="crGo">Let's play</button>
+  </section>
+
+<!-- GROWN-UPS: progress dashboard -->
+  <section class="screen" id="grown" hidden>
+    <div class="spread"><h1 id="gTitle">Class progress</h1><div class="row"><span class="muted" id="gWho"></span><button class="btn" id="grownBack">Sign out</button></div></div>
+    <div class="card classbar">
+      <div class="row" style="align-items:center">
+        <label class="muted" for="gClass">Class</label>
+        <select id="gClass"></select>
+        <button class="btn" id="gNewClass">+ New class</button>
+        <span class="classcode">Class code <b class="num" id="gCode"></b></span>
+      </div>
+      <div class="row settingsrow" id="gSettings">
+        <label>Tables up to <select id="setMax"><option value="10">10 × 10 (BC curriculum)</option><option value="12">12 × 12</option></select></label>
+        <label><input type="checkbox" id="setDiv"> Division</label>
+        <label><input type="checkbox" id="setSound"> Sound</label>
+        <label><input type="checkbox" id="setBattles"> Battles</label>
+        <button class="linkbtn" id="gArchive">Archive class</button>
+      </div>
+      <p class="note" id="gSchool" style="background:none;padding:0"></p>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <div class="spread"><h2>Add students</h2><div class="row"><button class="btn primary" id="addStudent">+ Add a student</button><button class="btn" id="showCards">Show code cards</button></div></div>
+      <p class="muted">Each new student gets a made-up space name and a 4-digit code, so no real names are stored. Give them their card with the class code. The first time they log in, they do a quick starting check.</p>
+      <p class="note" id="addMsg" aria-live="polite" style="background:none;padding:0"></p>
+      <div class="codecards" id="codecards" hidden></div>
+    </div>
+    <div class="card">
+      <div class="spread"><h2>Students</h2><span class="note">Tap a student to see their details</span></div>
+      <div class="tbl-wrap"><table class="tbl" id="tbl"></table></div>
+    </div>
+    <div class="card" id="gdetail"></div>
+  </section>
+</div>
+
+<div class="overlay" id="overlay" hidden role="dialog" aria-modal="true" aria-label="Celebration"><div class="ovcard" id="ovcard"></div></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

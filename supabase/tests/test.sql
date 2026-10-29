@@ -1,0 +1,120 @@
+-- Local test of the migration's rules. Run after supabase_stub.sql + the migration.
+\set ON_ERROR_STOP on
+\pset format unaligned
+\pset tuples_only on
+create temp table t (k text primary key, v text);
+grant all on t to anon, authenticated;
+
+insert into auth.users values
+ ('11111111-1111-1111-1111-111111111111','a@school.ca'),
+ ('22222222-2222-2222-2222-222222222222','b@other.ca'),
+ ('33333333-3333-3333-3333-333333333333','c@school.ca');
+
+-- Teacher A creates a school and a class with 3 students
+set role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+select 'create_school ok: ' || (public.create_school('Smithers Elementary','Ms A') is not null);
+insert into public.classes (name) values ('Grade 5 Ravens');
+insert into t select 'class', id::text from public.classes;
+insert into t select 'code', code from public.classes;
+select 'class code format ok: ' || (code ~ '^[A-HJ-NP-Z2-9]{6}$') from public.classes;
+insert into public.students (class_id, name) select id, 'Comet Fox' from public.classes;
+insert into public.students (class_id, name) select id, 'Nova Falcon' from public.classes;
+insert into public.students (class_id, name) select id, 'Lunar Otter' from public.classes;
+select 'pins ok: ' || bool_and(pin ~ '^[0-9]{4}$') || ' distinct=' || (count(distinct pin) = 3) from public.students;
+insert into t select 'pin_fox', pin from public.students where name = 'Comet Fox';
+insert into t select 'id_fox', id::text from public.students where name = 'Comet Fox';
+insert into t select 'id_nova', id::text from public.students where name = 'Nova Falcon';
+insert into t select 'pin_nova', pin from public.students where name = 'Nova Falcon';
+select 'join code: ' || (join_code ~ '^[0-9A-F]{8}$') from public.schools;
+insert into t select 'join', join_code from public.schools;
+
+-- Teacher C joins school A with the join code and can see the class
+select set_config('request.jwt.claim.sub','33333333-3333-3333-3333-333333333333',false);
+select 'join_school ok: ' || (public.join_school((select v from t where k='join'),'Mr C') is not null);
+select 'teacher C sees class: ' || (count(*) = 1) from public.classes;
+select 'teacher C sees 3 students: ' || (count(*) = 3) from public.students;
+
+-- Teacher B at another school sees nothing of school A
+select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false);
+select 'create_school B ok: ' || (public.create_school('Other School','Ms B') is not null);
+select 'teacher B sees 0 classes: ' || (count(*) = 0) from public.classes;
+select 'teacher B sees 0 students: ' || (count(*) = 0) from public.students;
+select 'teacher B sees 1 school: ' || (count(*) = 1) from public.schools;
+do $$ begin
+  begin
+    insert into public.students (class_id, name) values ((select v::uuid from t where k='class'), 'Intruder');
+    raise notice 'FAIL: teacher B inserted into school A';
+  exception when others then raise notice 'teacher B blocked from adding to school A: true';
+  end;
+end $$;
+update public.students set name = 'Hacked';
+
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+select 'teacher B could not rename A students: ' || not exists (select 1 from public.students where name = 'Hacked');
+
+-- Anonymous visitor: no direct table access at all
+reset role;
+set role anon;
+select set_config('request.jwt.claim.sub','',false);
+do $$ begin
+  begin perform 1 from public.students; raise notice 'FAIL: anon read students';
+  exception when insufficient_privilege then raise notice 'anon blocked from students table: true'; end;
+  begin perform 1 from public.student_sessions; raise notice 'FAIL: anon read sessions';
+  exception when insufficient_privilege then raise notice 'anon blocked from sessions table: true'; end;
+end $$;
+
+-- Student login
+select 'wrong code: ' || public.student_login((select v from t where k='code'), '0000')::text;
+select 'no class: ' || public.student_login('ZZZZZZ', '1234')::text;
+insert into t select 'tok_fox', (public.student_login(lower((select v from t where k='code')), (select v from t where k='pin_fox')) ->> 'token');
+select 'fox token issued (class code not case sensitive): ' || (length(v) = 64) from t where k='tok_fox';
+insert into t select 'tok_nova', (public.student_login((select v from t where k='code'), (select v from t where k='pin_nova')) ->> 'token');
+
+-- State: me with facts, classmates without facts
+select 'save ok: ' || public.student_save((select v from t where k='tok_fox'), '{"coins": 42, "facts": {"7,8": {"r": [1]}}, "rounds": [], "pin": "9999"}')::text;
+select 'state me coins: ' || (public.student_state((select v from t where k='tok_fox')) -> 'me' -> 'data' ->> 'coins');
+select 'pin not stored in data: ' || ((public.student_state((select v from t where k='tok_fox')) -> 'me' -> 'data') ->> 'pin' is null);
+select 'classmates count 2: ' || (json_array_length(public.student_state((select v from t where k='tok_nova')) -> 'classmates') = 2);
+select 'classmate facts hidden: ' || not exists (
+  select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e where (e -> 'data')::jsonb ? 'facts');
+select 'classmate coins visible: ' || exists (
+  select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e where (e -> 'data' ->> 'coins') = '42');
+select 'bad token: ' || public.student_state('nope')::text;
+
+-- Battles
+insert into t select 'ch', public.challenge_create((select v from t where k='tok_fox'), (select v::uuid from t where k='id_nova'), 12345) ->> 'id';
+select 'battle created: ' || (length(v) = 36) from t where k='ch';
+select 'battle vs self refused: ' || public.challenge_create((select v from t where k='tok_fox'), (select v::uuid from t where k='id_fox'), 1)::text;
+select 'fox score: ' || public.challenge_score((select v from t where k='tok_fox'), (select v::uuid from t where k='ch'), '{"c": 20, "ms": 2100}')::text;
+select 'fox score twice refused: ' || public.challenge_score((select v from t where k='tok_fox'), (select v::uuid from t where k='ch'), '{"c": 99}')::text;
+select 'nova score: ' || public.challenge_score((select v from t where k='tok_nova'), (select v::uuid from t where k='ch'), '{"c": 18, "ms": 2500}')::text;
+select 'nova sees battle with both scores: ' || ((public.student_state((select v from t where k='tok_nova')) -> 'challenges' -> 0 -> 'scores')::jsonb ?& array[(select v from t where k='id_fox'), (select v from t where k='id_nova')]);
+
+-- Logout ends the session
+select public.student_logout((select v from t where k='tok_fox'));
+select 'after logout: ' || public.student_state((select v from t where k='tok_fox'))::text;
+
+-- Brute force guard
+do $$ declare i int; r json; begin
+  for i in 1..35 loop r := public.student_login('ABCDEF', lpad(i::text,4,'0')); end loop;
+  raise notice 'after 35 bad tries: %', r;
+end $$;
+
+-- Archived class: students can no longer log in or play
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+update public.classes set archived_at = now();
+reset role;
+set role anon;
+select 'archived class state: ' || public.student_state((select v from t where k='tok_nova'))::text;
+
+-- Anon cannot call teacher-only or internal functions
+do $$ begin
+  begin perform public.create_school('x','y'); raise notice 'FAIL: anon create_school';
+  exception when insufficient_privilege then raise notice 'anon blocked from create_school: true'; end;
+  begin perform public._student_from_token('x'); raise notice 'FAIL: anon internal fn';
+  exception when insufficient_privilege then raise notice 'anon blocked from internal function: true'; end;
+end $$;
+reset role;

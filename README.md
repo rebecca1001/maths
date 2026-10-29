@@ -1,0 +1,105 @@
+# Mission Multiply
+
+Times tables practice for BC classrooms (grades 4 to 6). Kids log in with a **class code** and their own **4-digit code**, play 1-minute rounds that adapt to what they know, earn stars, unlock characters and rockets, climb from Ground to Galaxy, and battle classmates. Teachers sign in with email (or Google / Microsoft), set up classes, print code cards and see each student's progress.
+
+No real student names are stored. Every student gets a made-up space name (for example "Comet Fox").
+
+## Try it with no setup (demo mode)
+
+```bash
+npm install
+npm run dev
+```
+
+Open the address it prints. Without Supabase keys the app runs in **demo mode**: everything is saved in your browser only.
+
+- Students: class code `DEMO`, then `1111`, `2222`, `3333` or `4444`
+- Teachers: tap **Teachers**, enter any email and an 8+ character password, tap **Create account**
+
+## Set it up for real schools
+
+You need two free accounts: **Supabase** (database and teacher logins) and a static web host (**Vercel** or **Netlify**).
+
+### 1. Create the Supabase project (in Canada)
+
+1. Go to <https://supabase.com>, sign up, and click **New project**.
+2. Name it `mission-multiply`, set a strong database password (save it somewhere safe), and pick the region **Canada (Central)**. Keeping data in Canada makes school district privacy reviews (PIAs) much easier.
+3. When it's ready, open **SQL Editor**, click **New query**, paste the whole file `supabase/migrations/20261028000000_init.sql`, and click **Run**.
+4. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key.
+
+### 2. Teacher sign-in settings
+
+In Supabase, open **Authentication**:
+
+- **URL Configuration**: set **Site URL** to your website address (from step 4), and add it under **Redirect URLs**.
+- **Providers → Email**: leave **Confirm email** on, so teachers confirm their address.
+- Optional: **Providers → Google** and **Providers → Azure** (Microsoft) let teachers use their school accounts. Each needs a client ID and secret from Google Cloud or Microsoft Entra; Supabase's page for each provider links to the steps.
+
+### 3. Delete old data automatically
+
+In Supabase open **Database → Extensions**, enable **pg_cron**, then run this in the **SQL Editor**:
+
+```sql
+select cron.schedule('purge-old-data', '0 3 * * *', $$select public.purge_old_data()$$);
+```
+
+Every night this deletes classes archived more than 12 months ago (with their students and battles), expired logins, and battles older than 60 days.
+
+### 4. Put the website online
+
+1. Push this folder to GitHub (it already is, if you're reading this there).
+2. Go to <https://vercel.com> (or Netlify), choose **Add New → Project**, and import the GitHub repo. It detects Vite automatically.
+3. Under **Environment Variables**, add:
+   - `VITE_SUPABASE_URL` = the Project URL from step 1
+   - `VITE_SUPABASE_ANON_KEY` = the anon public key from step 1
+4. Click **Deploy**. Put the address it gives you into Supabase's **Site URL** (step 2).
+
+The anon key is meant to be public. All data is protected by the database rules in the migration, not by hiding the key.
+
+### 5. First teacher
+
+1. Open the website, tap **Teachers**, enter your email and a password, tap **Create account**, and confirm your email.
+2. Sign in, enter your name, choose **My school is new**, and type the school name. You become the school's admin.
+3. Your first class is created. Rename it by adding a new class, then use **+ Add a student** for each child and **Show code cards** to print their cards (use the browser's Print).
+4. Other teachers at your school create their own account and choose **Join my school** with the school code shown on your dashboard.
+
+## How it works
+
+| Part | Where |
+| --- | --- |
+| Page markup | `index.html` |
+| Game, screens, teacher dashboard | `src/game.js` |
+| Styles | `src/style.css` |
+| Data layer (Supabase or demo) | `src/api.js` |
+| Database tables, security rules, student login functions | `supabase/migrations/` |
+| Database tests | `supabase/tests/` |
+
+### Security model
+
+- **Teachers** use Supabase Auth. Row level security means a teacher can only see and change classes and students in **their own school**.
+- **Students** have no Auth account. They log in through the `student_login` database function with a class code and 4-digit code, and get a random session token. Every other student action (`student_state`, `student_save`, `challenge_create`, `challenge_score`) checks that token.
+- The public (anon) role has **no direct access to any table**.
+- Students see their own full progress. For classmates they only see names, characters, stars and rounds, not which facts they find hard.
+- After 30 wrong codes for a class in 10 minutes, logins for that class pause.
+- **Archiving** a class stops its students logging in. Archived classes are deleted after 12 months (see step 3).
+
+### Class settings (teacher dashboard)
+
+- **Tables up to**: 10 × 10 (BC curriculum, the default for new classes) or 12 × 12
+- **Division**: mixes division into rounds
+- **Sound**: game sounds on or off
+- **Battles**: turns battles on or off
+
+## Run the database tests
+
+The tests need a local PostgreSQL 16 server. They load a small stand-in for Supabase's `auth` schema, apply the migration, and check that schools are kept separate, student login and battles work, and anon users are blocked.
+
+```bash
+PGHOST=localhost PGPORT=5432 PGUSER=postgres npm run test:db
+```
+
+## Build
+
+```bash
+npm run build   # outputs to dist/
+```
