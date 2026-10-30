@@ -1020,13 +1020,14 @@ function renderDuels(){
   const others=S.order.filter(id=>id!==p.id);
   $('duelAlert').innerHTML=incoming.length
     ?incoming.slice(0,2).map(([cid,ch])=>`<div class="duelalert" role="status">${av(ch.from)}<span><b>${nm(ch.from)}</b> wants to battle you!</span><button class="btn" data-play="${cid}">Play</button></div>`).join('')
-    :`<div class="duelalert quiet"><span><b>Battle a classmate</b>${(()=>{const d=done[0],wt=waiting[0];if(wt&&(!d||wt[1].d>d[1].d))return `<small>Waiting for ${nm(wt[1].to)}…</small>`;if(d){const w=duelResult(d[1]),opp=d[1].from===p.id?d[1].to:d[1].from,me=d[1].scores[p.id].c,th=d[1].scores[opp].c;return `<small>${w==='draw'?'Drew with':w===p.id?'Beat':'Lost to'} ${nm(opp)} ${me}–${th}</small>`}return ''})()}</span><button class="btn" id="duelQuick" ${others.length?'':'disabled'}>Battle</button></div>`;
+    :`<div class="duelalert quiet"><span><b>Battle a classmate</b>${(()=>{const d=done[0],wt=waiting[0];if(wt&&(!d||wt[1].d>d[1].d))return `<small>Waiting for ${nm(wt[1].to)}…</small>`;if(d){const w=duelResult(d[1]),opp=d[1].from===p.id?d[1].to:d[1].from,me=d[1].scores[p.id].c,th=d[1].scores[opp].c;return `<small>${w==='draw'?'Drew with':w===p.id?'Beat':'Lost to'} ${nm(opp)} ${me}–${th}</small>`}return ''})()}</span><button class="btn" id="duelQuick">Battle</button></div>`;
 }
 $('duelAlert').addEventListener('click',e=>{
   const pl=e.target.closest('[data-play]');if(pl){startDuel(pl.dataset.play);return}
   if(e.target.closest('#duelQuick'))openDuelPicker()});
 function openDuelPicker(){
   const p=P(),others=S.order.filter(id=>id!==p.id);
+  if(!others.length){celebrate(`<span class="label">Battle</span><h1>No classmates yet</h1><p class="muted">Battles are against other students in your class. Once your teacher adds more students, you can battle them here.</p>`,'OK');return}
   $('ovcard').innerHTML=`<span class="label">Battle</span><h1>Who do you want to battle?</h1><p class="muted">You play first. They race your ghost later, with the same questions.</p>
     <div class="duelgrid pickgrid">${others.map(id=>{const o=S.players[id];return `<button class="duelmate" data-mate="${id}">${avatar(o.skin,30)}<span>${esc(o.name)}</span></button>`}).join('')}</div>
     <button class="btn" data-pickcancel style="width:100%">Cancel</button>`;
