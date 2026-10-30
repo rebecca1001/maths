@@ -24,7 +24,7 @@ You need two free accounts: **Supabase** (database and teacher logins) and a sta
 
 1. Go to <https://supabase.com>, sign up, and click **New project**.
 2. Name it `mission-multiply`, set a strong database password (save it somewhere safe), and pick the region **Canada (Central)**. Keeping data in Canada makes school district privacy reviews (PIAs) much easier.
-3. When it's ready, open **SQL Editor**, click **New query**, paste the whole file `supabase/migrations/20261028000000_init.sql`, and click **Run**.
+3. When it's ready, open **SQL Editor**, click **New query**, paste the whole file `supabase/migrations/20261028000000_init.sql`, and click **Run**. If you set up the database before 29 Oct 2026, also run `supabase/migrations/20261029000000_fix_extensions_search_path.sql` (new installs don't need it, but it is safe to run).
 4. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key.
 
 ### 2. Teacher sign-in settings

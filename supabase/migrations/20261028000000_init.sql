@@ -81,18 +81,18 @@ create index login_failures_idx on public.login_failures (class_code, at);
 -- ---------------------------------------------------------------------------
 -- The school of the signed-in teacher (null for students and strangers)
 create or replace function public.my_school() returns uuid
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select school_id from public.teachers where id = auth.uid()
 $$;
 
 create or replace function public.is_school_admin() returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select exists (select 1 from public.teachers where id = auth.uid() and role = 'admin')
 $$;
 
 -- Class codes: 6 characters, no look-alike letters (no O/0, I/1/L)
 create or replace function public.new_class_code() returns text
-language plpgsql volatile set search_path = public as $$
+language plpgsql volatile set search_path = public, extensions as $$
 declare
   alphabet constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   c text;
@@ -109,7 +109,7 @@ end $$;
 
 -- A 4-digit code that is unique in the class and not too easy (no 1111, 1234, 4321)
 create or replace function public.new_student_pin(p_class uuid) returns text
-language plpgsql volatile set search_path = public as $$
+language plpgsql volatile set search_path = public, extensions as $$
 declare
   p text;
   tries int := 0;
@@ -126,7 +126,7 @@ begin
 end $$;
 
 create or replace function public.classes_before_insert() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   new.school_id := coalesce(new.school_id, public.my_school());
   new.teacher_id := coalesce(new.teacher_id, auth.uid());
@@ -138,7 +138,7 @@ create trigger classes_before_insert before insert on public.classes
   for each row execute function public.classes_before_insert();
 
 create or replace function public.students_before_write() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   if tg_op = 'INSERT' and (new.pin is null or new.pin = '') then
     new.pin := public.new_student_pin(new.class_id);
@@ -197,7 +197,7 @@ grant select, delete on public.challenges to authenticated;
 -- ---------------------------------------------------------------------------
 -- First teacher at a school: creates the school and becomes its admin
 create or replace function public.create_school(p_school_name text, p_teacher_name text) returns uuid
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare s uuid;
 begin
   if auth.uid() is null then raise exception 'sign in first'; end if;
@@ -209,7 +209,7 @@ end $$;
 
 -- Other teachers join with the school's join code
 create or replace function public.join_school(p_join_code text, p_teacher_name text) returns uuid
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare s uuid;
 begin
   if auth.uid() is null then raise exception 'sign in first'; end if;
@@ -227,7 +227,7 @@ grant execute on function public.create_school(text, text), public.join_school(t
 -- Student functions (callable without an account; the token proves who you are)
 -- ---------------------------------------------------------------------------
 create or replace function public._student_from_token(p_token text) returns public.students
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select s.* from public.student_sessions ss
   join public.students s on s.id = ss.student_id
   join public.classes c on c.id = s.class_id
@@ -236,7 +236,7 @@ $$;
 
 -- Log in with class code + 4-digit code. Returns a session token.
 create or replace function public.student_login(p_class_code text, p_pin text) returns json
-language plpgsql volatile security definer set search_path = public as $$
+language plpgsql volatile security definer set search_path = public, extensions as $$
 declare
   cc text := upper(trim(coalesce(p_class_code, '')));
   st public.students;
@@ -262,13 +262,13 @@ begin
 end $$;
 
 create or replace function public.student_logout(p_token text) returns void
-language sql volatile security definer set search_path = public as $$
+language sql volatile security definer set search_path = public, extensions as $$
   delete from public.student_sessions where token = p_token
 $$;
 
 -- Everything the game needs after login: me (full), classmates (no per-fact data), class settings, battles
 create or replace function public.student_state(p_token text) returns json
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare me public.students;
 begin
   me := public._student_from_token(p_token);
@@ -288,7 +288,7 @@ end $$;
 
 -- Save my own game data (stars, rounds, facts, characters...)
 create or replace function public.student_save(p_token text, p_data jsonb) returns json
-language plpgsql volatile security definer set search_path = public as $$
+language plpgsql volatile security definer set search_path = public, extensions as $$
 declare me public.students;
 begin
   me := public._student_from_token(p_token);
@@ -300,7 +300,7 @@ end $$;
 
 -- Start a battle against a classmate. Returns the new challenge id.
 create or replace function public.challenge_create(p_token text, p_to uuid, p_seed bigint) returns json
-language plpgsql volatile security definer set search_path = public as $$
+language plpgsql volatile security definer set search_path = public, extensions as $$
 declare me public.students; cid uuid;
 begin
   me := public._student_from_token(p_token);
@@ -317,7 +317,7 @@ end $$;
 
 -- Record my score in a battle I am part of
 create or replace function public.challenge_score(p_token text, p_challenge uuid, p_score jsonb) returns json
-language plpgsql volatile security definer set search_path = public as $$
+language plpgsql volatile security definer set search_path = public, extensions as $$
 declare me public.students;
 begin
   me := public._student_from_token(p_token);
@@ -342,7 +342,7 @@ grant execute on function public.my_school(), public.is_school_admin() to authen
 -- Deletes classes archived more than 12 months ago (students, battles and sessions go with them)
 -- ---------------------------------------------------------------------------
 create or replace function public.purge_old_data() returns void
-language sql volatile security definer set search_path = public as $$
+language sql volatile security definer set search_path = public, extensions as $$
   delete from public.classes where archived_at is not null and archived_at < now() - interval '12 months';
   delete from public.student_sessions where expires_at < now();
   delete from public.challenges where created_at < now() - interval '60 days';

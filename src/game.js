@@ -290,6 +290,7 @@ async function loginSubmit(){
   let r;try{r=await api.studentLogin(L.classCode,L.entry)}catch(e){r={error:'network'}}
   if(r&&r.token){SESSION={token:r.token};setLocal({token:r.token,classCode:L.classCode});L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
+  if(e&&!['wrong_code','no_class','too_many_tries'].includes(e))console.error('Student login failed:',e);
   if(e==='no_class'){L.classCode='';setLocal({classCode:''});L.busy=false;L.entry='';renderLogin();$('classFb').textContent="We couldn't find that class code. Check it with your teacher.";return}
   if(e==='too_many_tries')return loginFail('Too many tries. Wait a few minutes, then try again.');
   if(e==='network'||(e&&e!=='wrong_code'))return loginFail('Could not connect. Check the internet and try again.');
@@ -1104,7 +1105,9 @@ function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'class
 // ---------- boot ----------
 export async function boot(){
   const q=new URLSearchParams(location.search);
-  if(q.get('teacher')||location.hash.includes('access_token')){openTeacher();return}
+  if(q.get('teacher')||location.hash.includes('access_token')){
+    setTimeout(()=>{try{history.replaceState(null,'',location.pathname)}catch(e){}},1500); // tidy the address bar after the email link
+    openTeacher();return}
   const t=local().token;
   if(t){SESSION={token:t};const ok=await loadStudent();if(ok){enterPlayer();return}}
   openLogin();
