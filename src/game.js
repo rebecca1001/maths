@@ -899,6 +899,8 @@ async function openTeacher(){
   TEACH={info,classes:[],classId:local().teacherClass||null};
   await loadClasses();show('grown');
 }
+// Sign-in messages: green for progress and info, red for problems
+function say(id,text,good){const el=$(id);el.textContent=text;el.className='fb '+(good?'ok':'no')}
 let tMode='signin';
 function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b=>{b.classList.toggle('on',b.dataset.tmode===m);b.setAttribute('aria-selected',b.dataset.tmode===m)});
   $('tSubmit').textContent=m==='create'?'Create account':'Sign in';$('tPass').autocomplete=m==='create'?'new-password':'current-password';$('tPassHint').hidden=m!=='create';$('tFb').textContent=''}
@@ -906,16 +908,16 @@ document.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>setTMode(b.da
 $('tSignIn').addEventListener('submit',async e=>{
   e.preventDefault();const email=$('tEmail').value.trim(),pw=$('tPass').value;
   if(tMode==='create'){
-    if(!email||pw.length<8){$('tFb').textContent='Enter your school email and a password of at least 8 characters.';return}
-    $('tFb').textContent='Creating your account…';
+    if(!email||pw.length<8){say('tFb','Enter your school email and a password of at least 8 characters.');return}
+    say('tFb','Creating your account…',true);
     const r=await api.teacherSignUp(email,pw);
-    if(r.error){$('tFb').textContent=r.error;return}
-    if(r.needsConfirm){$('tFb').textContent='Check your email and tap the link to confirm your account, then sign in here.';setTMode('signin');$('tFb').textContent='Check your email and tap the link to confirm your account, then sign in here.';return}
+    if(r.error){say('tFb',r.error);return}
+    if(r.needsConfirm){setTMode('signin');say('tFb','Check your email and tap the link to confirm your account, then sign in here.',true);return}
     openTeacher();return;
   }
-  $('tFb').textContent='Signing in…';
+  say('tFb','Signing in…',true);
   const r=await api.teacherSignIn(email,pw);
-  if(r.error){$('tFb').textContent=/invalid/i.test(r.error)?'Wrong email or password. New here? Tap Create account at the top.':r.error;return}
+  if(r.error){say('tFb',/invalid/i.test(r.error)?'Wrong email or password. New here? Tap Create account at the top.':r.error);return}
   openTeacher();
 });
 document.querySelectorAll('input[name="tMode"]').forEach(r=>r.onchange=()=>{const j=document.querySelector('input[name="tMode"]:checked').value==='join';$('tJoinRow').hidden=!j;$('tSchoolNameRow').hidden=j});

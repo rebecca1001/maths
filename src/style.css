@@ -585,3 +585,4 @@ body{margin:0}
 .tmode{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:color-mix(in srgb,var(--ink) 10%,transparent)}
 .tmode button{border:0;background:none;color:inherit;font-weight:800;font-size:1rem;padding:10px;border-radius:10px;opacity:.75}
 .tmode button.on{background:var(--accent);color:var(--accent-ink);opacity:1}
+.fb.ok{color:#2E7D32}
