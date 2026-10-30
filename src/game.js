@@ -31,6 +31,15 @@ let SESSION=null;   // {token} for a logged-in student
 let CLASS=null;     // {id,name,settings} for the student's class
 let TEACH=null;     // teacher mode: {info, classes, classId}
 const LS='mm.local.v1';
+const TAB='mm.tab.token';
+// When a new version of the site is published, reload open pages (only between games, never mid-round)
+const myBuild=(document.querySelector('script[type=module][src*="/assets/"]')||{}).src||'';
+setInterval(async()=>{
+  if(!myBuild||document.hidden||G||screen==='play')return;
+  const ae=document.activeElement;if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName))return;
+  try{const h=await (await fetch('/?v='+Date.now(),{cache:'no-store'})).text();const m=h.match(/\/assets\/index-[\w-]+\.js/);
+    if(m&&!myBuild.endsWith(m[0])&&!G&&screen!=='play')location.reload()}catch(e){}
+},60000);
 function local(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return{}}}
 function setLocal(o){try{localStorage.setItem(LS,JSON.stringify({...local(),...o}))}catch(e){}}
 let saveTimer=null,saving=Promise.resolve();
@@ -253,7 +262,8 @@ let L=null;
 function toLogin(expired){
   if(SESSION){flushSave();if(!expired)api.studentLogout(SESSION.token);}
   closeClassLive();SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:false};
-  setLocal({token:null});applyWorld();openLogin();
+  try{const mine=sessionStorage.getItem(TAB);sessionStorage.removeItem(TAB);if(!mine||local().token===mine)setLocal({token:null})}catch(e){setLocal({token:null})}
+  applyWorld();openLogin();
   if(expired)$('loginFb').textContent='Please log in again.';
 }
 function openLogin(){
@@ -288,7 +298,7 @@ function loginFail(msg){
 }
 async function loginSubmit(){
   let r;try{r=await api.studentLogin(L.classCode,L.entry)}catch(e){r={error:'network'}}
-  if(r&&r.token){SESSION={token:r.token};setLocal({token:r.token,classCode:L.classCode});L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  if(r&&r.token){SESSION={token:r.token};setLocal({token:r.token,classCode:L.classCode});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
   if(e&&!['wrong_code','no_class','too_many_tries'].includes(e))console.error('Student login failed:',e);
   if(e==='no_class'){L.classCode='';setLocal({classCode:''});L.busy=false;L.entry='';renderLogin();$('classFb').textContent="We couldn't find that class code. Check it with your teacher.";return}
@@ -1212,7 +1222,8 @@ export async function boot(){
   if(q.get('teacher')||location.hash.includes('access_token')){
     setTimeout(()=>{try{history.replaceState(null,'',location.pathname)}catch(e){}},1500); // tidy the address bar after the email link
     openTeacher();return}
-  const t=local().token;
+  let t=null;try{t=sessionStorage.getItem(TAB)}catch(e){}
+  t=t||local().token; // this tab's student first, so several tabs can stay logged in as different students
   if(t){SESSION={token:t};const ok=await loadStudent();if(ok){enterPlayer();return}}
   openLogin();
 }
