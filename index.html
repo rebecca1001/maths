@@ -49,9 +49,17 @@
         <label>Email<input id="tEmail" type="email" autocomplete="email" required></label>
         <label>Password<input id="tPass" type="password" autocomplete="current-password" minlength="8" required></label>
         <p class="muted small" id="tPassHint" hidden>At least 8 characters.</p>
+        <button class="linkbtn small" type="button" id="tForgot">Forgot password?</button>
         <div class="fb no" id="tFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="tSubmit">Sign in</button>
         <button class="linkbtn" type="button" id="tBack">Back to student login</button>
+      </form>
+      <form id="tReset" class="tform" hidden>
+        <h1>Choose a new password</h1>
+        <label>New password<input id="tNewPass" type="password" autocomplete="new-password" minlength="8" required></label>
+        <p class="muted small">At least 8 characters.</p>
+        <div class="fb" id="tResetFb" aria-live="assertive"></div>
+        <button class="go" type="submit">Save new password</button>
       </form>
       <form id="tSetup" class="tform" hidden>
         <h1>Set up your school</h1>

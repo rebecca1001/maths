@@ -33,6 +33,8 @@ let CLASS=null;     // {id,name,settings} for the student's class
 let TEACH=null;     // teacher mode: {info, classes, classId}
 const LS='mm.local.v1';
 const TAB='mm.tab.token';
+// Opened from a 'reset your password' email (read now, before the sign-in library tidies the address)
+const RECOVERY=/type=recovery/.test(location.hash)||new URLSearchParams(location.search).has('reset');
 // When a new version of the site is published, reload open pages (only between games, never mid-round)
 const myBuild=(document.querySelector('script[type=module][src*="/assets/"]')||{}).src||'';
 setInterval(async()=>{
@@ -899,8 +901,23 @@ async function openTeacher(){
 function say(id,text,good){const el=$(id);el.textContent=text;el.className='fb '+(good?'ok':'no')}
 let tMode='signin';
 function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b=>{b.classList.toggle('on',b.dataset.tmode===m);b.setAttribute('aria-selected',b.dataset.tmode===m)});
+  $('tForgot').hidden=m==='create';
   $('tSubmit').textContent=m==='create'?'Create account':'Sign in';$('tPass').autocomplete=m==='create'?'new-password':'current-password';$('tPassHint').hidden=m!=='create';$('tFb').textContent=''}
 document.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>setTMode(b.dataset.tmode));
+$('tForgot').onclick=async()=>{
+  const email=$('tEmail').value.trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){say('tFb','Type your email above first, then tap Forgot password.');$('tEmail').focus();return}
+  say('tFb','Sending…',true);const r=await api.teacherResetPassword(email);
+  if(r.error){say('tFb',/rate|seconds/i.test(r.error)?'Please wait a minute before asking for another email.':r.error);return}
+  say('tFb',`If ${email} has an account, we've emailed it a link to choose a new password. Check your junk folder too.`,true);
+};
+$('tReset').addEventListener('submit',async e=>{
+  e.preventDefault();const pw=$('tNewPass').value;
+  if(pw.length<8){say('tResetFb','Use at least 8 characters.');return}
+  say('tResetFb','Saving…',true);const r=await api.teacherSetPassword(pw);
+  if(r.error){say('tResetFb',r.error==='expired'?'This link has expired or was already used. Go back and tap Forgot password again.':r.error);return}
+  $('tReset').hidden=true;$('tNewPass').value='';say('tFb','Password changed.',true);openTeacher();
+});
 $('tSignIn').addEventListener('submit',async e=>{
   e.preventDefault();const email=$('tEmail').value.trim(),pw=$('tPass').value;
   if(tMode==='create'){
@@ -1208,6 +1225,8 @@ function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'class
 // ---------- boot ----------
 export async function boot(){
   const q=new URLSearchParams(location.search);
+  if(RECOVERY){setTimeout(()=>{try{history.replaceState(null,'',location.pathname)}catch(e){}},1500);
+    ['tSignIn','tSetup'].forEach(id=>$(id).hidden=true);$('tReset').hidden=false;show('teach');return}
   if(q.get('teacher')||location.hash.includes('access_token')){
     setTimeout(()=>{try{history.replaceState(null,'',location.pathname)}catch(e){}},1500); // tidy the address bar after the email link
     openTeacher();return}

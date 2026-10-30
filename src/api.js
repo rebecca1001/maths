@@ -46,6 +46,16 @@ function supabaseApi() {
       return error ? { error: error.message } : { ok: true };
     },
     async teacherSignOut() { await sb.auth.signOut(); },
+    async teacherResetPassword(email) {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/?reset=1' });
+      return error ? { error: error.message } : { ok: true };
+    },
+    async teacherSetPassword(password) {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return { error: 'expired' };
+      const { error } = await sb.auth.updateUser({ password });
+      return error ? { error: error.message } : { ok: true };
+    },
     createSchool: (schoolName, teacherName) => rpc('create_school', { p_school_name: schoolName, p_teacher_name: teacherName }),
     joinSchool: (code, teacherName) => rpc('join_school', { p_join_code: code, p_teacher_name: teacherName }),
     listClasses: () => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').is('archived_at', null).order('created_at')),
@@ -126,6 +136,8 @@ function demoApi() {
     teacherSignUp(email) { db.teacher = { email, name: null }; persist(); return ok({ ok: true, needsConfirm: false }); },
     teacherSignInWith() { db.teacher = { email: 'demo@school.ca', name: 'Demo teacher' }; persist(); return ok({ ok: true }); },
     teacherSignOut() { db.teacher = null; persist(); return ok(null); },
+    teacherResetPassword() { return ok({ ok: true }); },
+    teacherSetPassword() { return ok({ ok: true }); },
     createSchool(schoolName, teacherName) { db.school.name = schoolName; db.teacher.name = teacherName; persist(); return ok('demo-school'); },
     joinSchool(code, teacherName) { db.teacher.name = teacherName; persist(); return ok('demo-school'); },
     listClasses: () => ok(db.classes.filter(c => !c.archived_at).map(c => ({ teacher_id: 'me', ...c }))),
