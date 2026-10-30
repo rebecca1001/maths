@@ -1039,7 +1039,8 @@ $('ovcard').addEventListener('click',e=>{
   const p=P(),to=mate.dataset.mate;$('overlay').hidden=true;
   const seed=Math.floor(Math.random()*1e9);
   api.challengeCreate(SESSION.token,to,seed).then(r=>{
-    if(!r||!r.id){celebrate(`<span class="label">Battle</span><h1>Battles are switched off</h1><p class="muted">${r&&r.error==='battles_off'?'Your teacher has turned battles off for now.':'Could not start the battle. Try again in a moment.'}</p>`,'OK');return}
+    if(!r||!r.id){const e=(r&&r.error)||'no reply';if(e!=='battles_off')console.error('Battle failed:',e);
+      celebrate(e==='battles_off'?`<span class="label">Battle</span><h1>Battles are switched off</h1><p class="muted">Your teacher has turned battles off for now.</p>`:`<span class="label">Battle</span><h1>Could not start the battle</h1><p class="muted">Try again in a moment.</p><p class="note" style="font-size:.8rem">Details: ${esc(e)}</p>`,'OK');return}
     S.challenges[r.id]={from:p.id,to,seed,d:Date.now(),scores:{}};startDuel(r.id);
   }).catch(()=>{});
 });
