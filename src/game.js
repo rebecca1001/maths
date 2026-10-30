@@ -1150,6 +1150,7 @@ function openClassLive(){
     const forMe=(m.t==='invite'&&m.to===p.id)||(m.t==='scored'&&S.challenges[m.cid]&&(S.challenges[m.cid].from===p.id||S.challenges[m.cid].to===p.id));
     if(!forMe)return;
     renderHome.pulled=0;
+    if(m.t==='scored'&&screen==='results'&&lastDuel===m.cid){refreshDuel(m.cid);return}
     if(screen==='home'&&!G)cloudPullChallenges();
   });
 }
@@ -1157,16 +1158,33 @@ function closeClassLive(){if(classLive)classLive.close();classLive=null;classLiv
 function finishDuel(g,p){
   const ch=S.challenges[g.duel];const box=$('resDuel');if(!ch){box.hidden=true;return}
   ch.scores[p.id]={c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):99999,d:Date.now(),trace:(g.trace||[]).slice(0,150).map(Math.round)};
-  if(SESSION)api.challengeScore(SESSION.token,g.duel,ch.scores[p.id]).then(()=>{if(classLive)classLive.send({t:'scored',cid:g.duel})}).catch(()=>{});
+  lastDuel=g.duel;lastDuelOpp=g.opp;renderHome.pulled=0;
+  if(SESSION)api.challengeScore(SESSION.token,g.duel,ch.scores[p.id]).then(()=>{if(classLive)classLive.send({t:'scored',cid:g.duel});refreshDuel(g.duel)}).catch(()=>{});
+  // Wait on the results screen for the other player's score
+  clearInterval(duelWait);const cid=g.duel,t0=Date.now();
+  duelWait=setInterval(()=>{if(screen!=='results'||lastDuel!==cid||duelResult(S.challenges[cid]||{scores:{}})||Date.now()-t0>180000){clearInterval(duelWait);return}refreshDuel(cid)},4000);
   if(duelResult(ch)){p.seenBattles=[...new Set([...(p.seenBattles||[]),'r:'+g.duel,'i:'+g.duel])]}
   else p.seenBattles=[...new Set([...(p.seenBattles||[]),'i:'+g.duel])];
   save();renderDuelCard(g.duel);
+}
+let lastDuel=null,lastDuelOpp=null,duelWait=null;
+// Fetch the latest scores for one battle; if it now has a winner, show it
+async function refreshDuel(cid){
+  if(!SESSION)return;let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
+  if(!st||st.error)return;
+  const c=st.challenges.find(x=>x.id===cid),ch=S.challenges[cid],p=P();if(!c||!ch||!p)return;
+  const had=!!duelResult(ch);Object.assign(ch.scores,c.scores||{});
+  if(!had&&duelResult(ch)){
+    p.seenBattles=[...new Set([...(p.seenBattles||[]),'r:'+cid,'i:'+cid])];save();
+    if(screen==='results'&&lastDuel===cid){renderDuelCard(cid);if(duelResult(ch)===p.id){confettiBurst();SFX.end()}}
+  }
 }
 function renderDuelCard(cid){
   const p=P(),ch=S.challenges[cid],box=$('resDuel');if(!ch||!p)return;
   const opp=ch.from===p.id?ch.to:ch.from,o=S.players[opp],w=duelResult(ch),mine=ch.scores[p.id];
   box.hidden=false;
-  if(!w)box.innerHTML=`<h2>Battle vs ${o?esc(o.name):'classmate'}</h2><p>You got <b>${mine.c}</b> right. Now it's ${o?esc(o.name)+"'s":'their'} turn. They'll race your ghost!</p>`;
+  const playing=lastDuel===cid&&lastDuelOpp&&lastDuelOpp.state==='live';
+  if(!w)box.innerHTML=`<h2>Battle vs ${o?esc(o.name):'classmate'}</h2><p>You got <b>${mine.c}</b> right. ${playing?`Waiting for ${o?esc(o.name):'them'} to finish…`:`Now it's ${o?esc(o.name)+"'s":'their'} turn. They'll race your ghost! You'll see who won when they finish.`}</p>`;
   else{const them=ch.scores[opp];box.innerHTML=`<h2>${w==='draw'?"It's a draw!":w===p.id?'You won the battle!':`${o?esc(o.name):'They'} won this time`}</h2><div class="duelscore">${avatar(p.skin,54)}<b class="num">${mine.c}</b><span>–</span><b class="num">${them.c}</b>${o?avatar(o.skin,54):''}</div><p class="muted">${w===p.id?'Great job!':w==='draw'?'So close!':'Battle them again to get your revenge!'}</p>`}
 }
 
