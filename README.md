@@ -2,7 +2,7 @@
 
 Times tables practice for BC classrooms (grades 4 to 6). Kids log in with a **class code** and their own **4-digit code**, play 1-minute rounds that adapt to what they know, earn stars, unlock characters and rockets, climb from Ground to Galaxy, and race the ghost of their own best round. Teachers sign in with email (or Google / Microsoft), set up classes, print code cards and see each student's progress.
 
-No real student names are stored. Every student gets a made-up space name (for example "Comet Fox").
+Every student plays under a made-up space name (for example "Comet Fox"). Teachers can add each child's real name, which only teachers and admins at that school can see. It is never sent to students or shown in the game.
 
 ## Try it with no setup (demo mode)
 
@@ -60,7 +60,7 @@ The anon key is meant to be public. All data is protected by the database rules 
 
 1. Open the website, tap **Teachers**, enter your email and a password, tap **Create account**, and confirm your email.
 2. Sign in, enter your name, choose **My school is new**, and type the school name. You become the school's admin.
-3. Your first class is created. Rename it by adding a new class, then use **+ Add a student** for each child and **Show code cards** to print their cards (use the browser's Print).
+3. Your first class is created. Rename it by adding a new class, then type your students' names (one per line) under **Add students** and tap **Print login cards**.
 4. Other teachers at your school create their own account and choose **Join my school** with the school code shown on your dashboard.
 
 ## How it works

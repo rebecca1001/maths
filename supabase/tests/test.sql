@@ -53,6 +53,15 @@ update public.students set name = 'Hacked';
 select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
 select 'teacher B could not rename A students: ' || not exists (select 1 from public.students where name = 'Hacked');
 
+-- Real names: teachers at the school only
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+update public.students set real_name = 'Ava Smith' where name = 'Comet Fox';
+select 'teacher A sees real name: ' || ((select real_name from public.students where name = 'Comet Fox') = 'Ava Smith');
+select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false);
+select 'teacher B (other school) cannot see it: ' || not exists (select 1 from public.students where real_name is not null);
+reset role;
+set role authenticated;
+
 -- Anonymous visitor: no direct table access at all
 reset role;
 set role anon;
@@ -81,6 +90,8 @@ select 'classmate facts hidden: ' || not exists (
 select 'classmates get only skin + week totals: ' || not exists (
   select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e
   where exists (select 1 from jsonb_object_keys((e -> 'data')::jsonb) k where k not in ('skin','wkStars','wkMins')));
+select 'real name never sent to students: ' || (position('Ava' in public.student_state((select v from t where k='tok_fox'))::text) = 0
+  and position('Ava' in public.student_state((select v from t where k='tok_nova'))::text) = 0);
 select 'my own data still complete: ' || ((public.student_state((select v from t where k='tok_fox')) -> 'me' -> 'data') ->> 'coins' = '42');
 select 'bad token: ' || public.student_state('nope')::text;
 

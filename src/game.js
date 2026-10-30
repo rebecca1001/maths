@@ -707,6 +707,8 @@ function confettiBurst(){
 }
 // ---------- grown-ups: progress dashboard ----------
 let GSel=null;
+// Teachers see the real name (if added) with the space name underneath
+function whoHTML(p){return p.realName?`<span class="who"><b>${esc(p.realName)}</b><small>${esc(p.name)}</small></span>`:`<span class="who"><b>${esc(p.name)}</b></span>`}
 function lastPlayed(p){if(!p.rounds.length)return 'Never';const d=Math.floor((Date.now()-p.rounds[p.rounds.length-1].d)/864e5);return d<=0?'Today':d===1?'Yesterday':d+' days ago'}
 function spark(p){
   const rs=p.rounds.slice(-8).map(rate);if(rs.length<2)return '<span class="muted">—</span>';
@@ -736,7 +738,7 @@ function renderGrown(){
     players.map(p=>{
       const ti=tierIndex(statusSecs(p)),wa=weekAcc(p,wk),f=focusOf(p);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
-        <td><span class="stu">${avatar(p.skin,26)}${esc(p.name)}</span></td>
+        <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td>
         <td><span class="tpill">${ti<0?'New':TIERS[ti].name}</span></td>
         <td class="r">${p.rounds.filter(r=>r.d>=wk).length}</td>
         <td class="r">${wa==null?'—':wa+'%'}</td>
@@ -752,9 +754,10 @@ function renderGrown(){
   for(let a=1;a<=mx;a++){hm+=`<div class="h">${a}</div>`;for(let b=1;b<=mx;b++)hm+=`<div class="cell l${level(p.facts[a+','+b])}" title="${a} × ${b}"></div>`}
   const recent=p.rounds.slice(-6).reverse();
   $('gdetail').innerHTML=`
+    <form class="row realrow" id="gdRealForm"><label for="gdReal">Real name</label><input id="gdReal" maxlength="80" placeholder="Only teachers see this" value="${esc(p.realName||'')}"><button class="btn" type="submit">Save</button></form>
     <div class="row" id="gdActions" style="justify-content:flex-end"><button class="btn" id="gdNewCode">Give a new code</button><button class="btn danger" id="gdRemove">Remove student</button></div>
     <p class="note" id="gdMsg" aria-live="polite" style="background:none;padding:0"></p>
-    <div class="kid-head">${avatar(p.skin,56)}<div style="min-width:0"><h2>${esc(p.name)}</h2><span class="muted">${ti<0?'No status yet':TIERS[ti].name+' · '+statusSecs(p).toFixed(1)+' s per answer'} · login code <b class="num">${esc(p.pin)}</b></span></div></div>
+    <div class="kid-head">${avatar(p.skin,56)}<div style="min-width:0"><h2>${esc(p.realName||p.name)}</h2><span class="muted">${p.realName?'Space name '+esc(p.name)+' · ':''}${ti<0?'No status yet':TIERS[ti].name+' · '+statusSecs(p).toFixed(1)+' s per answer'} · login code <b class="num">${esc(p.pin)}</b></span></div></div>
     <div class="gd-grid">
       <div class="gd-col"><span class="label">Each times table</span><div class="tbars">${bars}</div></div>
       <div class="gd-col"><span class="label">Every fact</span><div class="hm-wrap"><div class="hm" style="grid-template-columns:repeat(${mx+1},minmax(22px,1fr))">${hm}</div></div>
@@ -768,7 +771,7 @@ $('tbl').addEventListener('click',async e=>{
   if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
   const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
 $('tbl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-id]');if(tr){e.preventDefault();selectStudent(tr)}}});
-$('grownBack').onclick=$('sOut').onclick=async()=>{await api.teacherSignOut();TEACH=null;toLogin()};
+$('grownBack').onclick=$('sOut').onclick=async()=>{await api.teacherSignOut();setLocal({teacher:false});TEACH=null;toLogin()};
 
 // ---------- celebration pop-ups (rank ups, new badges, shop unboxing) ----------
 const ovQueue=[];
@@ -894,7 +897,7 @@ async function openTeacher(){
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
-  TEACH={info,classes:[],classId:local().teacherClass||null};
+  TEACH={info,classes:[],classId:local().teacherClass||null};setLocal({teacher:true});
   await loadClasses();show('grown');
 }
 // Sign-in messages: green for progress and info, red for problems
@@ -960,9 +963,10 @@ async function loadClassStudents(){
   const c=curClass();setLocal({teacherClass:c.id});applySettings(c.settings);
   const list=await api.listStudents(c.id);
   S={players:{},order:[],current:null,showBoard:true,muted:true,goal:S.goal};
-  list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin});S.order.push(st.id)});
-  GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
+  list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,realName:st.real_name||''});S.order.push(st.id)});
+  sortStudents();GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
+function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
 function renderTeacherBar(){
   const c=curClass(),t=TEACH.info.teacher,me=myId();
   const opt=x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}${isAdmin()&&x.teacher_id!==me?' ('+esc(teacherName(x.teacher_id))+')':''}</option>`;
@@ -1001,7 +1005,7 @@ function renderGoal(){
     <div class="row"><button class="btn primary" id="goalSave">${set?'Update goal':'Set goal'}</button>${set?'<button class="btn" id="goalClear">Clear goal</button>':''}</div>
     <p class="note" id="goalMsg" aria-live="polite"></p>
     ${set?`<hr><div class="spread"><h3>Progress this week</h3><b>${done} of ${players.length} done</b></div>
-    <div class="glist">${players.map(p=>{const n=goalRounds(p),ok=n>=N;return `<div class="gitem ${ok?'ok':''}">${avatar(p.skin,28)}<span class="gname">${esc(p.name)}</span><span class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></span><span class="gnum num">${Math.min(n,N)}/${N}${ok?' ✓':''}</span></div>`}).join('')||'<p class="muted">No students yet.</p>'}</div>`:''}`;
+    <div class="glist">${players.map(p=>{const n=goalRounds(p),ok=n>=N;return `<div class="gitem ${ok?'ok':''}">${avatar(p.skin,28)}<span class="gname">${whoHTML(p)}</span><span class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></span><span class="gnum num">${Math.min(n,N)}/${N}${ok?' ✓':''}</span></div>`}).join('')||'<p class="muted">No students yet.</p>'}</div>`:''}`;
 }
 $('goalCard').addEventListener('click',async e=>{
   const t=e.target.closest('[data-gt]'),r=e.target.closest('[data-gr]');
@@ -1024,9 +1028,9 @@ function renderHelp(){
   const classTricky=Object.entries(tally).filter(([,t])=>t.miss>0).sort((a,b)=>b[1].miss/b[1].n-a[1].miss/a[1].n||b[1].miss-a[1].miss).slice(0,10);
   $('helpBox').innerHTML=`
     <div class="card"><div class="spread"><h2>Haven't played this week</h2><b>${idle.length} of ${players.length}</b></div>
-      ${idle.length?`<div class="glist">${idle.map(p=>`<div class="gitem">${avatar(p.skin,28)}<span class="gname">${esc(p.name)}</span><span class="muted">Last played: ${lastPlayed(p)}</span></div>`).join('')}</div>`:'<p class="muted">Everyone has played this week. 🎉</p>'}</div>
+      ${idle.length?`<div class="glist">${idle.map(p=>`<div class="gitem">${avatar(p.skin,28)}<span class="gname">${whoHTML(p)}</span><span class="muted">Last played: ${lastPlayed(p)}</span></div>`).join('')}</div>`:'<p class="muted">Everyone has played this week. 🎉</p>'}</div>
     <div class="card"><h2>Finding it hard</h2><p class="muted small">Students under 80% right this week, or with several facts they keep missing.</p>
-      ${hard.length?`<div class="glist">${hard.map(x=>`<div class="gitem">${avatar(x.p.skin,28)}<span class="gname">${esc(x.p.name)}</span><span class="muted">${x.acc==null?'No rounds this week':x.acc+'% right'}</span><span>${x.f.map(f=>`<span class="fchip">${f}</span>`).join(' ')}</span></div>`).join('')}</div>`:'<p class="muted">Nobody is struggling right now.</p>'}</div>
+      ${hard.length?`<div class="glist">${hard.map(x=>`<div class="gitem">${avatar(x.p.skin,28)}<span class="gname">${whoHTML(x.p)}</span><span class="muted">${x.acc==null?'No rounds this week':x.acc+'% right'}</span><span>${x.f.map(f=>`<span class="fchip">${f}</span>`).join(' ')}</span></div>`).join('')}</div>`:'<p class="muted">Nobody is struggling right now.</p>'}</div>
     <div class="card"><h2>Class's trickiest facts</h2><p class="muted small">The facts this class gets wrong most often. Good ones to teach together.</p>
       ${classTricky.length?`<div class="tchips">${classTricky.map(([k,t])=>`<span class="fchip big">${k.replace(',',' × ')} <small>${Math.round(t.miss/t.n*100)}% wrong</small></span>`).join('')}</div>`:'<p class="muted">Not enough answers yet.</p>'}</div>`;
 }
@@ -1052,26 +1056,33 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div><b>${esc(p.name)}</b><span>Class code <b class="num">${esc(code)}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span></div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>Class code <b class="num">${esc(code)}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span></div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 $('addStudent').onclick=async()=>{
-  const btn=$('addStudent'),n=Math.max(1,Math.min(40,Math.floor(+$('addCount').value||1)));btn.disabled=true;
-  $('addMsg').textContent=n>1?`Adding ${n} students…`:'';
+  const real=[...new Set($('addNames').value.split(/\r?\n/).map(x=>x.trim().slice(0,80)).filter(Boolean))].slice(0,60);
+  if(!real.length){$('addMsg').textContent='Type at least one name first, one per line.';$('addNames').focus();return}
+  const btn=$('addStudent');btn.disabled=true;$('addMsg').textContent=`Adding ${real.length} student${real.length>1?'s':''}…`;
   try{
-    const names=[];for(let i=0;i<n;i++){let nm;do{nm=spaceName()}while(names.includes(nm));names.push(nm)}
-    const list=await api.addStudents(TEACH.classId,names);
-    list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin});S.order.push(st.id)});
-    GSel=list.length?list[list.length-1].id:GSel;renderGrown();if(!$('codecards').hidden)renderCodeCards();
-    $('addMsg').textContent=list.length===1?`Added ${list[0].name}. Their code is ${list[0].pin} (class code ${curClass().code}).`:`Added ${list.length} students. Tap Print login cards to hand out their codes.`;
-    $('addCount').value=1;
+    const names=[];for(let i=0;i<real.length;i++){let nm;do{nm=spaceName()}while(names.includes(nm));names.push(nm)}
+    const list=await api.addStudents(TEACH.classId,names,real);
+    list.forEach((st,i)=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,realName:st.real_name||real[i]});S.order.push(st.id)});
+    sortStudents();renderGrown();if(!$('codecards').hidden)renderCodeCards();
+    $('addMsg').textContent=list.length===1?`Added ${real[0]} as ${list[0].name}. Their code is ${list[0].pin} (class code ${curClass().code}).`:`Added ${list.length} students. Tap Print login cards to hand out their codes.`;
+    $('addNames').value='';
   }catch(e){$('addMsg').textContent='Could not add students: '+e.message}
   btn.disabled=false;
 };
+$('gdetail').addEventListener('submit',async e=>{
+  if(!e.target.closest('#gdRealForm'))return;e.preventDefault();
+  const p=S.players[GSel];if(!p)return;const v=$('gdReal').value.trim().slice(0,80);
+  try{await api.setRealName(p.id,v);p.realName=v;sortStudents();renderGrown();$('gdMsg').textContent=v?`Saved: ${p.name} is ${v}.`:'Real name removed.'}
+  catch(err){$('gdMsg').textContent='Could not save: '+err.message}
+});
 $('showCards').onclick=()=>{renderCodeCards();$('codecards').hidden=false;setTimeout(()=>window.print(),300)};
 $('gdetail').addEventListener('click',async e=>{
   const p=S.players[GSel];if(!p)return;const box=$('gdActions');
   if(e.target.closest('#gdNewCode')){p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('gdMsg').textContent=`New code for ${p.name}: ${p.pin}`;return}
-  if(e.target.closest('#gdRemove')){box.innerHTML=`<span style="font-weight:700">Remove ${esc(p.name)} and all their progress?</span><button class="btn danger" id="gdYes">Remove</button><button class="btn" id="gdNo">Keep</button>`;return}
+  if(e.target.closest('#gdRemove')){box.innerHTML=`<span style="font-weight:700">Remove ${esc(p.realName||p.name)} and all their progress?</span><button class="btn danger" id="gdYes">Remove</button><button class="btn" id="gdNo">Keep</button>`;return}
   if(e.target.closest('#gdNo')){renderGrown();return}
   if(e.target.closest('#gdYes')){await api.removeStudent(p.id);delete S.players[p.id];S.order=S.order.filter(x=>x!==p.id);GSel=null;renderGrown();if(!$('codecards').hidden)renderCodeCards();return}
 });
@@ -1233,5 +1244,8 @@ export async function boot(){
   let t=null;try{t=sessionStorage.getItem(TAB)}catch(e){}
   t=t||local().token; // this tab's student first, so several tabs can stay logged in as different students
   if(t){SESSION={token:t};const ok=await loadStudent();if(ok){enterPlayer();return}}
+  if(local().teacher){ // a teacher still signed in on this device goes straight back to their class
+    let info=null;try{info=await api.teacherSession()}catch(e){}
+    if(info){openTeacher();return}setLocal({teacher:false})}
   openLogin();
 }

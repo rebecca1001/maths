@@ -227,13 +227,10 @@
       <div class="kpis" id="kpis"></div>
       <div class="card addcard">
         <h2>Add students</h2>
-        <div class="row" style="align-items:center">
-          <label class="muted" for="addCount">How many?</label>
-          <input id="addCount" type="number" min="1" max="40" value="1" inputmode="numeric">
-          <button class="btn primary" id="addStudent">Add</button>
-          <button class="btn" id="showCards">Print login cards</button>
-        </div>
-        <p class="muted small">Each student gets a made-up space name and a 4-digit code, so no real names are stored. Students log in with the class code and their code.</p>
+        <label class="muted small" for="addNames">Type or paste your students' names, one per line. Each one gets a space name and a 4-digit login code.</label>
+        <textarea id="addNames" rows="4" placeholder="Ava S&#10;Noah K&#10;Liam P"></textarea>
+        <div class="row"><button class="btn primary" id="addStudent">Add students</button><button class="btn" id="showCards">Print login cards</button></div>
+        <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
         <div class="codecards" id="codecards" hidden></div>
       </div>

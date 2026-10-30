@@ -61,9 +61,10 @@ function supabaseApi() {
     listClasses: () => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').is('archived_at', null).order('created_at')),
     createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
-    listStudents: (classId) => q(sb.from('students').select('id,name,pin,data,created_at').eq('class_id', classId).order('created_at')),
+    listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,data,created_at').eq('class_id', classId).order('created_at')),
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
-    addStudents: (classId, names) => q(sb.from('students').insert(names.map((name) => ({ class_id: classId, name }))).select('id,name,pin,data')),
+    addStudents: (classId, names, realNames) => q(sb.from('students').insert(names.map((name, i) => ({ class_id: classId, name, real_name: (realNames && realNames[i]) || null }))).select('id,name,real_name,pin,data')),
+    setRealName: (id, realName) => q(sb.from('students').update({ real_name: realName || null }).eq('id', id)),
     async countStudents() { const rows = await q(sb.from('students').select('class_id')); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
     // school admin
     listTeachers: () => q(sb.from('teachers').select('id,name,email,role,created_at').order('created_at')),
@@ -153,7 +154,12 @@ function demoApi() {
       let pin; do { pin = randomPin(); } while (db.students.some(s => s.class_id === cid && s.pin === pin));
       const s = { id: id(), class_id: cid, name, pin, data: {} }; db.students.push(s); persist(); return ok(s);
     },
-    addStudents(cid, names) { return Promise.all(names.map(n => methods.addStudent(cid, n))); },
+    async addStudents(cid, names, realNames) {
+      const out = await Promise.all(names.map(n => methods.addStudent(cid, n)));
+      out.forEach((st, i) => { const s = db.students.find(x => x.id === st.id); s.real_name = st.real_name = (realNames && realNames[i]) || null; });
+      persist(); return out;
+    },
+    setRealName(sid, realName) { const s = db.students.find(x => x.id === sid); if (s) { s.real_name = realName || null; persist(); } return ok(null); },
     countStudents() { const n = {}; db.students.forEach(s => { n[s.class_id] = (n[s.class_id] || 0) + 1; }); return ok(n); },
     listTeachers() {
       const others = db.otherTeachers || (db.otherTeachers = [{ id: 'demo-lee', name: 'Mr Lee', email: 'lee@demo.school', role: 'teacher' }]);
