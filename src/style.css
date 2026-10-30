@@ -168,7 +168,7 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--line);backg
 .kpi b{font-family:var(--display);font-size:1.9rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
 .kpi small{font-size:.9rem;color:var(--muted);font-weight:600}
 .tbl-wrap{overflow-x:auto;margin-inline:-6px}
-.tbl{width:100%;min-width:720px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tbl{width:100%;min-width:640px;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .tbl th{text-align:left;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--line);white-space:nowrap}
 .tbl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
 .tbl .r{text-align:right}
@@ -532,3 +532,56 @@ body{margin:0}
 .lfin{position:absolute;right:0;top:0;bottom:0;width:8px;background:repeating-conic-gradient(#FFFFFF 0 25%,#1B1D2E 0 50%) 0 0/8px 8px;opacity:.8}
 .lane b{font-family:var(--display);font-size:1.25rem;text-align:right}
 .lane.lead b{color:#FFE27A}
+
+/* Teacher + school admin */
+#grown,#school{max-width:1100px;margin-inline:auto;display:flex;flex-direction:column;gap:14px}
+.ttop{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.ttitle span{color:#DCE3F5;font-weight:700;font-size:.9rem}
+.ttitle h1{color:#FFFFFF;text-shadow:0 2px 8px rgba(0,0,0,.5);margin:0}
+.ttabs{display:flex;gap:6px;flex-wrap:wrap;background:rgba(255,255,255,.12);padding:5px;border-radius:14px;width:fit-content;max-width:100%}
+.ttabs button{border:0;background:none;color:#FFFFFF;font-weight:800;padding:8px 16px;border-radius:10px;font-size:.95rem}
+.ttabs button.on{background:var(--surface);color:var(--ink)}
+.gpane{display:flex;flex-direction:column;gap:14px}
+.gpane[hidden]{display:none}
+.small{font-size:.85rem}
+.note:empty{display:none}
+.card h2,.card h3{margin:0}
+.card hr{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
+#addCount{width:80px}
+#addCount,.setcard input,.setcard select,#school input,#school select,#school textarea{font:inherit;padding:7px 10px;border-radius:10px;border:2px solid var(--line);background:var(--surface);color:var(--ink)}
+.setcard{max-width:560px}
+.setcard>label{display:flex;flex-direction:column;gap:4px;font-weight:700}
+.setcard>label.chk{flex-direction:row;align-items:center;gap:8px}
+.btn.danger,.linkbtn.danger{color:#C62828}
+.btn.danger{border-color:#F3B6B6;width:fit-content}
+.tbl .pin{font-family:var(--display);letter-spacing:.08em;color:var(--accent);margin-right:6px}
+.tbl.plain tbody tr{cursor:default}
+.tbl.plain select{max-width:180px}
+.tchips{display:flex;flex-wrap:wrap;gap:8px}
+.tchip{border:2px solid var(--line);background:var(--surface);color:var(--ink);font-weight:800;font-size:1rem;padding:6px 12px;border-radius:12px;min-width:52px}
+.tchip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.fchip.big{font-size:1rem;padding:4px 10px}
+.fchip.big small{font-weight:600;opacity:.75;margin-left:4px}
+.glist{display:flex;flex-direction:column;gap:6px}
+.gitem{display:grid;grid-template-columns:28px minmax(110px,180px) 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:12px;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.gitem.ok{background:color-mix(in srgb,#2E7D32 12%,transparent)}
+.gname{font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gnum{font-weight:800;text-align:right;min-width:48px}
+.gbar{display:block;height:10px;border-radius:6px;background:color-mix(in srgb,var(--ink) 10%,transparent);overflow:hidden}
+.gbar i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.gitem.ok .gbar i{background:#2E7D32}
+.addclass input{flex:1 1 220px}
+.invite{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.invite textarea{width:100%;resize:vertical}
+/* Student home: weekly goal */
+.goalbox{width:100%;max-width:420px;margin:2px auto 0;padding:10px 14px;border-radius:14px;background:var(--accent-soft);display:flex;flex-direction:column;gap:6px;text-align:center}
+.goalbox .gline{font-weight:700}
+.goalbox .gbar{height:12px}
+.goalbox.done{background:color-mix(in srgb,#2E7D32 15%,transparent)}
+.goalbox.done .gbar i{background:#2E7D32}
+.gdone{font-weight:800;color:#2E7D32}
+@media (max-width:560px){.gitem{grid-template-columns:28px 1fr auto}.gitem .gbar{grid-column:1/-1}.classcode{margin-left:0}}
+@media print{#school,.ttop,.ttabs,.addcard>h2,.addcard>.row,.addcard>p{display:none!important}}
+.tmode{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.tmode button{border:0;background:none;color:inherit;font-weight:800;font-size:1rem;padding:10px;border-radius:10px;opacity:.75}
+.tmode button.on{background:var(--accent);color:var(--accent-ink);opacity:1}

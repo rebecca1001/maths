@@ -82,14 +82,8 @@ select 'classmate coins visible: ' || exists (
   select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e where (e -> 'data' ->> 'coins') = '42');
 select 'bad token: ' || public.student_state('nope')::text;
 
--- Battles
-insert into t select 'ch', public.challenge_create((select v from t where k='tok_fox'), (select v::uuid from t where k='id_nova'), 12345) ->> 'id';
-select 'battle created: ' || (length(v) = 36) from t where k='ch';
-select 'battle vs self refused: ' || public.challenge_create((select v from t where k='tok_fox'), (select v::uuid from t where k='id_fox'), 1)::text;
-select 'fox score: ' || public.challenge_score((select v from t where k='tok_fox'), (select v::uuid from t where k='ch'), '{"c": 20, "ms": 2100}')::text;
-select 'fox score twice refused: ' || public.challenge_score((select v from t where k='tok_fox'), (select v::uuid from t where k='ch'), '{"c": 99}')::text;
-select 'nova score: ' || public.challenge_score((select v from t where k='tok_nova'), (select v::uuid from t where k='ch'), '{"c": 18, "ms": 2500}')::text;
-select 'nova sees battle with both scores: ' || ((public.student_state((select v from t where k='tok_nova')) -> 'challenges' -> 0 -> 'scores')::jsonb ?& array[(select v from t where k='id_fox'), (select v from t where k='id_nova')]);
+-- Battles are off for new classes
+select 'battles off: ' || public.challenge_create((select v from t where k='tok_fox'), (select v::uuid from t where k='id_nova'), 12345)::text;
 
 -- Logout ends the session
 select public.student_logout((select v from t where k='tok_fox'));
@@ -99,6 +93,34 @@ select 'after logout: ' || public.student_state((select v from t where k='tok_fo
 do $$ declare i int; r json; begin
   for i in 1..35 loop r := public.student_login('ABCDEF', lpad(i::text,4,'0')); end loop;
   raise notice 'after 35 bad tries: %', r;
+end $$;
+
+-- School admin
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub','33333333-3333-3333-3333-333333333333',false);
+select 'non-admin cannot change roles: ' || public.admin_set_role('33333333-3333-3333-3333-333333333333','admin')::text;
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+select 'admin sees both teachers with emails: ' || (count(*) = 2) from public.teachers where email is not null;
+select 'last admin cannot step down: ' || public.admin_set_role('11111111-1111-1111-1111-111111111111','teacher')::text;
+select 'make C admin: ' || public.admin_set_role('33333333-3333-3333-3333-333333333333','admin')::text;
+select 'admin cannot remove self: ' || public.admin_remove_teacher('11111111-1111-1111-1111-111111111111')::text;
+insert into t select 'oldjoin', join_code from public.schools;
+select 'new school code: ' || ((public.admin_new_join_code() ->> 'join_code') <> (select v from t where k='oldjoin'));
+select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',false);
+select 'other school admin cannot remove C: ' || public.admin_remove_teacher('33333333-3333-3333-3333-333333333333')::text;
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+update public.classes set teacher_id = '33333333-3333-3333-3333-333333333333';
+select 'assign class to C: ' || (select teacher_id = '33333333-3333-3333-3333-333333333333' from public.classes);
+select 'remove C: ' || public.admin_remove_teacher('33333333-3333-3333-3333-333333333333')::text;
+select 'class kept, no teacher: ' || (select teacher_id is null from public.classes);
+select set_config('request.jwt.claim.sub','33333333-3333-3333-3333-333333333333',false);
+select 'removed teacher sees 0 classes: ' || (count(*) = 0) from public.classes;
+reset role;
+set role anon;
+do $$ begin
+  begin perform public.admin_set_role(gen_random_uuid(),'admin'); raise notice 'FAIL: anon admin_set_role';
+  exception when insufficient_privilege then raise notice 'anon blocked from admin functions: true'; end;
 end $$;
 
 -- Archived class: students can no longer log in or play

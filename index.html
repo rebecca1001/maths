@@ -42,11 +42,15 @@
     <div class="card teachcard">
       <form id="tSignIn" class="tform">
         <h1>Teachers</h1>
+        <div class="tmode" role="tablist">
+          <button type="button" role="tab" data-tmode="create">Create account</button>
+          <button type="button" role="tab" data-tmode="signin" class="on">Sign in</button>
+        </div>
         <label>Email<input id="tEmail" type="email" autocomplete="email" required></label>
         <label>Password<input id="tPass" type="password" autocomplete="current-password" minlength="8" required></label>
+        <p class="muted small" id="tPassHint" hidden>At least 8 characters.</p>
         <div class="fb no" id="tFb" aria-live="assertive"></div>
-        <div class="row"><button class="go" type="submit" style="flex:1">Sign in</button><button class="btn" type="button" id="tSignUpBtn" style="flex:1">Create account</button></div>
-        <div class="row" id="tOauth"><button class="btn" type="button" data-oauth="google" style="flex:1">Sign in with Google</button><button class="btn" type="button" data-oauth="azure" style="flex:1">Sign in with Microsoft</button></div>
+        <button class="go" type="submit" id="tSubmit">Sign in</button>
         <button class="linkbtn" type="button" id="tBack">Back to student login</button>
       </form>
       <form id="tSetup" class="tform" hidden>
@@ -99,6 +103,7 @@
               <h1 id="playTitle"></h1>
               <p class="jmsg" id="journeyMsg"></p>
               <div class="ptsline" id="playPts"></div>
+              <div class="goalbox" id="goalBox" hidden></div>
               <button class="go" id="start">▶ PLAY</button>
             </div>
             <div class="journeycard">
@@ -193,7 +198,10 @@
 
 <!-- GROWN-UPS: progress dashboard -->
   <section class="screen" id="grown" hidden>
-    <div class="spread"><h1 id="gTitle">Class progress</h1><div class="row"><span class="muted" id="gWho"></span><button class="btn" id="grownBack">Sign out</button></div></div>
+    <div class="ttop">
+      <div class="ttitle"><span id="gWho"></span><h1 id="gTitle">Class</h1></div>
+      <div class="row"><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="grownBack">Sign out</button></div>
+    </div>
     <div class="card classbar">
       <div class="row" style="align-items:center">
         <label class="muted" for="gClass">Class</label>
@@ -201,26 +209,85 @@
         <button class="btn" id="gNewClass">+ New class</button>
         <span class="classcode">Class code <b class="num" id="gCode"></b></span>
       </div>
-      <div class="row settingsrow" id="gSettings">
-        <label>Tables up to <select id="setMax"><option value="10">10 × 10 (BC curriculum)</option><option value="12">12 × 12</option></select></label>
-        <label><input type="checkbox" id="setDiv"> Division</label>
-        <label><input type="checkbox" id="setSound"> Sound</label>
-        <button class="linkbtn" id="gArchive">Archive class</button>
+    </div>
+    <div class="ttabs" id="gTabs" role="tablist">
+      <button role="tab" data-gtab="students" class="on">Students</button>
+      <button role="tab" data-gtab="goal">Weekly goal</button>
+      <button role="tab" data-gtab="help">Needs help</button>
+      <button role="tab" data-gtab="settings">Settings</button>
+    </div>
+
+    <div class="gpane" data-gpane="students">
+      <div class="kpis" id="kpis"></div>
+      <div class="card addcard">
+        <h2>Add students</h2>
+        <div class="row" style="align-items:center">
+          <label class="muted" for="addCount">How many?</label>
+          <input id="addCount" type="number" min="1" max="40" value="1" inputmode="numeric">
+          <button class="btn primary" id="addStudent">Add</button>
+          <button class="btn" id="showCards">Print login cards</button>
+        </div>
+        <p class="muted small">Each student gets a made-up space name and a 4-digit code, so no real names are stored. Students log in with the class code and their code.</p>
+        <p class="note" id="addMsg" aria-live="polite"></p>
+        <div class="codecards" id="codecards" hidden></div>
       </div>
-      <p class="note" id="gSchool" style="background:none;padding:0"></p>
+      <div class="card">
+        <div class="spread"><h2>Students</h2><span class="note">Tap a student to see their details</span></div>
+        <div class="tbl-wrap"><table class="tbl" id="tbl"></table></div>
+      </div>
+      <div class="card" id="gdetail"></div>
     </div>
-    <div class="kpis" id="kpis"></div>
+
+    <div class="gpane" data-gpane="goal" hidden><div class="card" id="goalCard"></div></div>
+    <div class="gpane" data-gpane="help" hidden><div id="helpBox"></div></div>
+    <div class="gpane" data-gpane="settings" hidden>
+      <div class="card setcard">
+        <h2>Class settings</h2>
+        <label>Class name <input id="setName" maxlength="80"></label>
+        <label id="setTeacherRow" hidden>Teacher <select id="setTeacher"></select></label>
+        <label>Tables up to <select id="setMax"><option value="10">10 × 10 (BC curriculum)</option><option value="12">12 × 12</option></select></label>
+        <label class="chk"><input type="checkbox" id="setDiv"> Mix in division</label>
+        <label class="chk"><input type="checkbox" id="setSound"> Game sounds</label>
+        <p class="note" id="setMsg" aria-live="polite"></p>
+        <hr>
+        <button class="btn danger" id="gArchive">Archive this class</button>
+        <p class="muted small">Archived classes can't log in, and are deleted after 12 months.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCHOOL (admins) -->
+  <section class="screen" id="school" hidden>
+    <div class="ttop">
+      <div class="ttitle"><span>School</span><h1 id="sName"></h1></div>
+      <div class="row"><button class="btn" id="sBack">← Classes</button><button class="btn" id="sOut">Sign out</button></div>
+    </div>
     <div class="card">
-      <div class="spread"><h2>Add students</h2><div class="row"><button class="btn primary" id="addStudent">+ Add a student</button><button class="btn" id="showCards">Show code cards</button></div></div>
-      <p class="muted">Each new student gets a made-up space name and a 4-digit code, so no real names are stored. Give them their card with the class code. The first time they log in, they do a quick starting check.</p>
-      <p class="note" id="addMsg" aria-live="polite" style="background:none;padding:0"></p>
-      <div class="codecards" id="codecards" hidden></div>
+      <h2>Classes</h2>
+      <div class="tbl-wrap"><table class="tbl plain" id="sClasses"></table></div>
+      <form class="row addclass" id="sAddClass" style="align-items:center">
+        <input id="sClassName" placeholder="New class name, e.g. Grade 5 Ravens" maxlength="80" required>
+        <select id="sClassTeacher" aria-label="Teacher"></select>
+        <button class="btn primary" type="submit">Add class</button>
+      </form>
+      <p class="note" id="sClassMsg" aria-live="polite"></p>
     </div>
     <div class="card">
-      <div class="spread"><h2>Students</h2><span class="note">Tap a student to see their details</span></div>
-      <div class="tbl-wrap"><table class="tbl" id="tbl"></table></div>
+      <h2>Teachers</h2>
+      <div class="tbl-wrap"><table class="tbl plain" id="sTeachers"></table></div>
+      <p class="note" id="sTeachMsg" aria-live="polite"></p>
+      <div class="invite">
+        <h3>Add a teacher</h3>
+        <p class="muted small">Send them this message. They make an account and join your school with the school code.</p>
+        <textarea id="sInvite" rows="4" readonly></textarea>
+        <div class="row"><button class="btn primary" id="sCopy" type="button">Copy message</button><button class="btn" id="sNewCode" type="button">New school code</button></div>
+        <p class="muted small">A new school code stops the old one working, for example after a teacher leaves.</p>
+      </div>
     </div>
-    <div class="card" id="gdetail"></div>
+    <div class="card">
+      <h2>School name</h2>
+      <form class="row" id="sRename" style="align-items:center"><input id="sNameInput" maxlength="120" required><button class="btn" type="submit">Save</button></form>
+    </div>
   </section>
 </div>
 

@@ -28,6 +28,7 @@ let ALL=[2,3,4,5,6,7,8,9,10,11,12];   // the times tables in play; set from the 
 function newPlayerData(){return {badges:[],rockets:['classic'],rocket:'classic',skin:'blob',owned:['blob'],coins:0,facts:{},rounds:[],placed:false}}
 let S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:false};
 let SESSION=null;   // {token} for a logged-in student
+let TEACH_TAB='students';
 let CLASS=null;     // {id,name,settings} for the student's class
 let TEACH=null;     // teacher mode: {info, classes, classId}
 const LS='mm.local.v1';
@@ -56,6 +57,7 @@ function applySettings(st){
   st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
   ALL=Array.from({length:mx-1},(_,i)=>i+2);
   S.muted=st.sound===false;S.division=!!st.division;S.battles=false; // battles removed from the game
+  const g=st.goal;S.goal=g&&Array.isArray(g.tables)&&(g.tables.length||g.rounds)?{tables:g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds:Math.max(0,Math.min(50,+g.rounds||0))}:null;
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
@@ -90,6 +92,8 @@ const rate=r=>Math.round(r.c*60/(r.len||60));
 // Personal best = fastest average seconds per question in a round (rounds with 5+ right count first)
 function pb(p,rounds){const rs=(rounds||p.rounds).filter(r=>r.c>0&&r.ms>0&&r.n>=8);if(!rs.length)return null;return Math.min(...rs.map(r=>r.ms/1000))}
 const secTxt=v=>v.toFixed(1)+' s';
+function weekStart(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()} // Monday
+function goalRounds(p){return p.rounds.filter(r=>r.d>=weekStart()).length}
 function todayCount(p){const k=dayKey(Date.now());return p.rounds.filter(r=>dayKey(r.d)===k).length}
 function tableScore(p,a){let tot=0,n=0;for(let b=1;b<=12;b++){const f=p.facts[a+','+b];if(f&&f.r.length){tot+=level(f);n++}}return n?tot/n:null}
 
@@ -242,7 +246,7 @@ Object.assign(LOOK,{
 {const RO={common:0,rare:1,epic:2,legendary:3};[SKINS,ROCKETS].forEach(a=>a.sort((x,y)=>RO[x.rarity]-RO[y.rarity]||x.cost-y.cost))}
 
 // ---------- navigation ----------
-const SCREENS=['login','teach','intro','home','play','results','checkres','grown'];
+const SCREENS=['login','teach','intro','home','play','results','checkres','grown','school'];
 let screen='login';
 function show(id){screen=id;document.documentElement.dataset.screen=id;SCREENS.forEach(s=>$(s).hidden=s!==id);renderTop();window.scrollTo(0,0);if(id==='home')setTimeout(()=>{if(typeof battleNews==='function')battleNews()},500)}
 function applyWorld(){document.documentElement.dataset.world='winter'} // Moon Base is the only background
@@ -372,6 +376,10 @@ function renderHome(){
    $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(ptsSince(p,Date.now()-7*864e5))}</b>${pos>=0?` <b>#${pos+1}</b>`:''}`;
 }
   {const j=journeyHTML(p);$('journey').innerHTML=j.track;$('journeyMsg').innerHTML=j.msg;}
+  {const g=S.goal,box=$('goalBox');box.hidden=!g;
+   if(g){const n=goalRounds(p),N=g.rounds,done=N&&n>=N;
+     box.innerHTML=`<span class="label">This week's goal</span><div class="gline">${N?`<b class="num">${Math.min(n,N)} of ${N}</b> rounds`:''}${g.tables.length?`<span class="gt">${N?' · ':''}Practise ${g.tables.map(t=>`<span class="fchip">${t}×</span>`).join(' ')}</span>`:''}</div>${N?`<div class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></div>`:''}${done?'<span class="gdone">Goal done! ✓</span>':''}`;
+     box.classList.toggle('done',!!done)}}
   renderDuels();if(!renderHome.pulled||Date.now()-renderHome.pulled>20000){renderHome.pulled=Date.now();cloudPullChallenges()}
 
   $('boardTitle').textContent=S.showBoard?'Top players this week':'My stars';
@@ -418,8 +426,9 @@ function makeQ(a,b,p){const div=S.division&&a>1&&Math.random()<.4;return div?{a,
 const ORDER=[2,10,5,3,4,11,9,6,8,7,12];              // easiest -> hardest tables
 const EASY_B=[1,2,5,10];
 function facts(){const out=[],mx=ALL.at(-1);for(const a of ALL)for(let b=1;b<=mx;b++)out.push([a,b]);return out}
+function goalBoost(x){return S.goal&&S.goal.tables.length&&Array.isArray(x)&&(S.goal.tables.includes(x[0])||S.goal.tables.includes(x[1]))?3:1}
 function weighted(list,wfn){
-  const w=list.map(wfn),tot=w.reduce((s,v)=>s+v,0);let r=Math.random()*tot,i=0;
+  const w=list.map(x=>wfn(x)*goalBoost(x)),tot=w.reduce((s,v)=>s+v,0);let r=Math.random()*tot,i=0;
   while(r>w[i]&&i<list.length-1){r-=w[i];i++}return list[i];
 }
 function newFactWeight([a,b]){ // easier tables and easy multipliers first
@@ -724,18 +733,17 @@ function renderGrown(){
 
   if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Tap + Add a student.</td></tr></tbody>';$('gdetail').hidden=true;return}
   if(!GSel||!S.players[GSel])GSel=players[0].id;
-  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds (7 days)</th><th class="r">Best s / question</th><th class="r">Accuracy</th><th>Last 8 rounds</th><th>Last played</th><th>Needs practice</th></tr></thead><tbody>`+
+  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds (7 days)</th><th class="r">Accuracy</th><th>Last played</th><th>Needs practice</th><th>Login code</th></tr></thead><tbody>`+
     players.map(p=>{
       const ti=tierIndex(statusSecs(p)),wa=weekAcc(p,wk),f=focusOf(p);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
         <td><span class="stu">${avatar(p.skin,26)}${esc(p.name)}</span></td>
         <td><span class="tpill">${ti<0?'New':TIERS[ti].name}</span></td>
         <td class="r">${p.rounds.filter(r=>r.d>=wk).length}</td>
-        <td class="r">${pb(p)!=null?secTxt(pb(p)):'—'}</td>
         <td class="r">${wa==null?'—':wa+'%'}</td>
-        <td>${spark(p)}</td>
         <td>${lastPlayed(p)}</td>
         <td>${f.length?f.map(t=>`<span class="fchip">${t}×</span>`).join(' '):'<span class="muted">—</span>'}</td>
+        <td><b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button></td>
       </tr>`}).join('')+'</tbody>';
 
   const p=S.players[GSel],ti=tierIndex(statusSecs(p));$('gdetail').hidden=false;
@@ -756,9 +764,12 @@ function renderGrown(){
     <div class="gd-col"><span class="label">Recent rounds</span>${recent.length?`<div class="rr">${recent.map(r=>`<span>${new Date(r.d).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}</span><span><b>${r.c}</b> <span class="muted">/ ${r.n}</span></span><span class="muted">${r.len/60} min</span><span class="muted">${r.c?(r.ms/1000).toFixed(1)+' s':'—'}</span>`).join('')}</div>`:'<p class="muted">No rounds yet.</p>'}</div>`;
 }
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
-$('tbl').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
+$('tbl').addEventListener('click',async e=>{
+  const nb=e.target.closest('[data-newpin]');
+  if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
+  const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
 $('tbl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-id]');if(tr){e.preventDefault();selectStudent(tr)}}});
-$('grownBack').onclick=async()=>{await api.teacherSignOut();TEACH=null;toLogin()};
+$('grownBack').onclick=$('sOut').onclick=async()=>{await api.teacherSignOut();TEACH=null;toLogin()};
 
 // ---------- celebration pop-ups (rank ups, new badges, shop unboxing) ----------
 const ovQueue=[];
@@ -883,27 +894,30 @@ $('tBack').onclick=()=>openLogin();
 async function openTeacher(){
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
-  if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;$('tOauth').hidden=api.mode==='demo';show('teach');return}
+  if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
   TEACH={info,classes:[],classId:local().teacherClass||null};
   await loadClasses();show('grown');
 }
+let tMode='signin';
+function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b=>{b.classList.toggle('on',b.dataset.tmode===m);b.setAttribute('aria-selected',b.dataset.tmode===m)});
+  $('tSubmit').textContent=m==='create'?'Create account':'Sign in';$('tPass').autocomplete=m==='create'?'new-password':'current-password';$('tPassHint').hidden=m!=='create';$('tFb').textContent=''}
+document.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>setTMode(b.dataset.tmode));
 $('tSignIn').addEventListener('submit',async e=>{
-  e.preventDefault();$('tFb').textContent='Signing in…';
-  const r=await api.teacherSignIn($('tEmail').value.trim(),$('tPass').value);
-  if(r.error){$('tFb').textContent=r.error;return}
+  e.preventDefault();const email=$('tEmail').value.trim(),pw=$('tPass').value;
+  if(tMode==='create'){
+    if(!email||pw.length<8){$('tFb').textContent='Enter your school email and a password of at least 8 characters.';return}
+    $('tFb').textContent='Creating your account…';
+    const r=await api.teacherSignUp(email,pw);
+    if(r.error){$('tFb').textContent=r.error;return}
+    if(r.needsConfirm){$('tFb').textContent='Check your email and tap the link to confirm your account, then sign in here.';setTMode('signin');$('tFb').textContent='Check your email and tap the link to confirm your account, then sign in here.';return}
+    openTeacher();return;
+  }
+  $('tFb').textContent='Signing in…';
+  const r=await api.teacherSignIn(email,pw);
+  if(r.error){$('tFb').textContent=/invalid/i.test(r.error)?'Wrong email or password. New here? Tap Create account at the top.':r.error;return}
   openTeacher();
 });
-$('tSignUpBtn').onclick=async()=>{
-  const email=$('tEmail').value.trim(),pw=$('tPass').value;
-  if(!email||pw.length<8){$('tFb').textContent='Enter your school email and a password of at least 8 characters, then tap Create account.';return}
-  $('tFb').textContent='Creating your account…';
-  const r=await api.teacherSignUp(email,pw);
-  if(r.error){$('tFb').textContent=r.error;return}
-  if(r.needsConfirm){$('tFb').textContent='Check your email and tap the link to confirm your account, then sign in here.';return}
-  openTeacher();
-};
-document.querySelectorAll('[data-oauth]').forEach(b=>b.onclick=()=>api.teacherSignInWith(b.dataset.oauth));
 document.querySelectorAll('input[name="tMode"]').forEach(r=>r.onchange=()=>{const j=document.querySelector('input[name="tMode"]:checked').value==='join';$('tJoinRow').hidden=!j;$('tSchoolNameRow').hidden=j});
 $('tSetup').addEventListener('submit',async e=>{
   e.preventDefault();const name=$('tName').value.trim(),join=document.querySelector('input[name="tMode"]:checked').value==='join';
@@ -913,58 +927,132 @@ $('tSetup').addEventListener('submit',async e=>{
   openTeacher();
 });
 $('tSetupOut').onclick=async()=>{await api.teacherSignOut();openTeacher()};
+const isAdmin=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.role==='admin';
+const myId=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.id;
+// Teachers see their own classes; admins see every class in the school
+function visibleClasses(){return isAdmin()?TEACH.all:TEACH.all.filter(c=>c.teacher_id===myId())}
 async function loadClasses(){
-  TEACH.classes=await api.listClasses();
-  if(!TEACH.classes.length){TEACH.classes=[await api.createClass('My class')]}
-  if(!TEACH.classes.some(c=>c.id===TEACH.classId))TEACH.classId=TEACH.classes[0].id;
+  TEACH.all=await api.listClasses();
+  if(isAdmin()){try{TEACH.teachers=await api.listTeachers()}catch(e){TEACH.teachers=[]}}
+  if(!visibleClasses().length){TEACH.all.push(await api.createClass('My class'))}
+  TEACH.classes=visibleClasses();
+  if(!TEACH.classes.some(c=>c.id===TEACH.classId))TEACH.classId=(TEACH.classes.find(c=>c.teacher_id===myId())||TEACH.classes[0]).id;
   await loadClassStudents();
 }
 function curClass(){return TEACH.classes.find(c=>c.id===TEACH.classId)}
+const teacherName=id=>{const t=(TEACH.teachers||[]).find(x=>x.id===id);return t?t.name:id===myId()?TEACH.info.teacher.name:'No teacher'};
 async function loadClassStudents(){
   const c=curClass();setLocal({teacherClass:c.id});applySettings(c.settings);
   const list=await api.listStudents(c.id);
-  S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:true};
+  S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:true,goal:S.goal};
   list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin});S.order.push(st.id)});
-  GSel=null;renderTeacherBar();renderGrown();if(!$('codecards').hidden)renderCodeCards();
+  GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
 function renderTeacherBar(){
-  const c=curClass(),t=TEACH.info.teacher;
-  $('gClass').innerHTML=TEACH.classes.map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}</option>`).join('');
+  const c=curClass(),t=TEACH.info.teacher,me=myId();
+  const opt=x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}${isAdmin()&&x.teacher_id!==me?' ('+esc(teacherName(x.teacher_id))+')':''}</option>`;
+  const mine=TEACH.classes.filter(x=>x.teacher_id===me),others=TEACH.classes.filter(x=>x.teacher_id!==me);
+  $('gClass').innerHTML=isAdmin()&&others.length?`<optgroup label="My classes">${mine.map(opt).join('')}</optgroup><optgroup label="Other classes">${others.map(opt).join('')}</optgroup>`:TEACH.classes.map(opt).join('');
   $('gCode').textContent=c.code;$('gTitle').textContent=c.name;
   $('gWho').textContent=t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
-  const st=c.settings||{};$('setMax').value=String(st.maxTable||12);$('setDiv').checked=!!st.division;$('setSound').checked=st.sound!==false;
-  $('gSchool').textContent=t&&t.school&&t.role==='admin'?`Other teachers can join your school with the school code ${t.school.join_code}.`:'';
+  $('gSchoolBtn').hidden=!isAdmin();
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
 $('gNewClass').onclick=async()=>{
   const name=prompt('Name for the new class (for example "Grade 5 Ravens")');if(!name||!name.trim())return;
-  const c=await api.createClass(name.trim().slice(0,80));TEACH.classes.push(c);TEACH.classId=c.id;await loadClassStudents();
+  const c=await api.createClass(name.trim().slice(0,80));TEACH.all.push(c);TEACH.classes=visibleClasses();TEACH.classId=c.id;await loadClassStudents();
 };
+// ----- tabs -----
+$('gTabs').addEventListener('click',e=>{const b=e.target.closest('[data-gtab]');if(!b)return;TEACH_TAB=b.dataset.gtab;renderGTab()});
+function renderGTab(){
+  document.querySelectorAll('#gTabs [data-gtab]').forEach(b=>{b.classList.toggle('on',b.dataset.gtab===TEACH_TAB);b.setAttribute('aria-selected',b.dataset.gtab===TEACH_TAB)});
+  document.querySelectorAll('#grown [data-gpane]').forEach(p=>p.hidden=p.dataset.gpane!==TEACH_TAB);
+  if(TEACH_TAB==='goal')renderGoal();else if(TEACH_TAB==='help')renderHelp();else if(TEACH_TAB==='settings')renderSettings();
+}
+// ----- weekly goal -----
+let goalDraft=null;
+function renderGoal(){
+  const c=curClass(),g=(c.settings||{}).goal||{tables:[],rounds:5};
+  if(!goalDraft||goalDraft.cid!==c.id)goalDraft={cid:c.id,tables:[...(g.tables||[])],rounds:g.rounds||5};
+  const players=S.order.map(id=>S.players[id]),set=(c.settings||{}).goal;
+  const N=set&&set.rounds||0,done=players.filter(p=>N&&goalRounds(p)>=N).length;
+  $('goalCard').innerHTML=`<h2>This week's goal</h2>
+    <p class="muted small">Choose times tables to focus on and how many rounds each student should play this week (Monday to Sunday). Students see the goal on their home screen and get more questions from these tables. It starts again every Monday.</p>
+    <span class="label">Focus tables</span>
+    <div class="tchips">${ALL.map(t=>`<button class="tchip ${goalDraft.tables.includes(t)?'on':''}" data-gt="${t}">${t}×</button>`).join('')}</div>
+    <span class="label">Rounds this week</span>
+    <div class="tchips">${[3,5,7,10].map(n=>`<button class="tchip ${goalDraft.rounds===n?'on':''}" data-gr="${n}">${n}</button>`).join('')}</div>
+    <div class="row"><button class="btn primary" id="goalSave">${set?'Update goal':'Set goal'}</button>${set?'<button class="btn" id="goalClear">Clear goal</button>':''}</div>
+    <p class="note" id="goalMsg" aria-live="polite"></p>
+    ${set?`<hr><div class="spread"><h3>Progress this week</h3><b>${done} of ${players.length} done</b></div>
+    <div class="glist">${players.map(p=>{const n=goalRounds(p),ok=n>=N;return `<div class="gitem ${ok?'ok':''}">${avatar(p.skin,28)}<span class="gname">${esc(p.name)}</span><span class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></span><span class="gnum num">${Math.min(n,N)}/${N}${ok?' ✓':''}</span></div>`}).join('')||'<p class="muted">No students yet.</p>'}</div>`:''}`;
+}
+$('goalCard').addEventListener('click',async e=>{
+  const t=e.target.closest('[data-gt]'),r=e.target.closest('[data-gr]');
+  if(t){const n=+t.dataset.gt,i=goalDraft.tables.indexOf(n);i>=0?goalDraft.tables.splice(i,1):goalDraft.tables.push(n);goalDraft.tables.sort((a,b)=>a-b);renderGoal();return}
+  if(r){goalDraft.rounds=+r.dataset.gr;renderGoal();return}
+  const c=curClass();
+  if(e.target.closest('#goalSave')){c.settings={...c.settings,goal:{tables:goalDraft.tables,rounds:goalDraft.rounds}};await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);renderGoal();$('goalMsg').textContent='Saved. Students will see it next time they open the game.';return}
+  if(e.target.closest('#goalClear')){const st={...c.settings};delete st.goal;c.settings=st;goalDraft=null;await api.updateClass(c.id,{settings:st});applySettings(st);renderGoal();return}
+});
+// ----- needs help -----
+function trickyFacts(p,n){
+  return Object.entries(p.facts).map(([k,f])=>{const miss=f.r.filter(x=>!x).length/Math.max(1,f.r.length),m=med(f.t)||9000;return {k,miss,m,lv:level(f)}})
+    .filter(x=>x.lv>0&&x.lv<=2&&ALL.includes(+x.k.split(',')[0])).sort((a,b)=>b.miss-a.miss||b.m-a.m).slice(0,n).map(x=>x.k.replace(',',' × '));
+}
+function renderHelp(){
+  const ws=weekStart(),wk=Date.now()-7*864e5,players=S.order.map(id=>S.players[id]);
+  const idle=players.filter(p=>!p.rounds.some(r=>r.d>=ws));
+  const hard=players.map(p=>({p,acc:weekAcc(p,wk),f:trickyFacts(p,3)})).filter(x=>(x.acc!=null&&x.acc<80)||x.f.length>=3).sort((a,b)=>(a.acc??100)-(b.acc??100));
+  const tally={};players.forEach(p=>Object.entries(p.facts).forEach(([k,f])=>{if(!ALL.includes(+k.split(',')[0]))return;const t=tally[k]||(tally[k]={miss:0,n:0});t.miss+=f.r.filter(x=>!x).length;t.n+=f.r.length}));
+  const classTricky=Object.entries(tally).filter(([,t])=>t.miss>0).sort((a,b)=>b[1].miss/b[1].n-a[1].miss/a[1].n||b[1].miss-a[1].miss).slice(0,10);
+  $('helpBox').innerHTML=`
+    <div class="card"><div class="spread"><h2>Haven't played this week</h2><b>${idle.length} of ${players.length}</b></div>
+      ${idle.length?`<div class="glist">${idle.map(p=>`<div class="gitem">${avatar(p.skin,28)}<span class="gname">${esc(p.name)}</span><span class="muted">Last played: ${lastPlayed(p)}</span></div>`).join('')}</div>`:'<p class="muted">Everyone has played this week. 🎉</p>'}</div>
+    <div class="card"><h2>Finding it hard</h2><p class="muted small">Students under 80% right this week, or with several facts they keep missing.</p>
+      ${hard.length?`<div class="glist">${hard.map(x=>`<div class="gitem">${avatar(x.p.skin,28)}<span class="gname">${esc(x.p.name)}</span><span class="muted">${x.acc==null?'No rounds this week':x.acc+'% right'}</span><span>${x.f.map(f=>`<span class="fchip">${f}</span>`).join(' ')}</span></div>`).join('')}</div>`:'<p class="muted">Nobody is struggling right now.</p>'}</div>
+    <div class="card"><h2>Class's trickiest facts</h2><p class="muted small">The facts this class gets wrong most often. Good ones to teach together.</p>
+      ${classTricky.length?`<div class="tchips">${classTricky.map(([k,t])=>`<span class="fchip big">${k.replace(',',' × ')} <small>${Math.round(t.miss/t.n*100)}% wrong</small></span>`).join('')}</div>`:'<p class="muted">Not enough answers yet.</p>'}</div>`;
+}
+// ----- settings -----
+function renderSettings(){
+  const c=curClass(),st=c.settings||{};
+  $('setName').value=c.name;$('setMax').value=String(st.maxTable||12);$('setDiv').checked=!!st.division;$('setSound').checked=st.sound!==false;
+  $('setTeacherRow').hidden=!isAdmin();
+  if(isAdmin())$('setTeacher').innerHTML=`<option value="">No teacher</option>`+(TEACH.teachers||[]).map(t=>`<option value="${t.id}" ${t.id===c.teacher_id?'selected':''}>${esc(t.name)}</option>`).join('');
+  $('setMsg').textContent='';
+}
 async function saveSettings(){
-  const c=curClass();c.settings={maxTable:+$('setMax').value,division:$('setDiv').checked,sound:$('setSound').checked,battles:false};
-  await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);
+  const c=curClass();c.settings={...c.settings,maxTable:+$('setMax').value,division:$('setDiv').checked,sound:$('setSound').checked,battles:false};
+  await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);$('setMsg').textContent='Saved.';
 }
 ['setMax','setDiv','setSound'].forEach(id=>$(id).onchange=saveSettings);
+$('setName').onchange=async()=>{const c=curClass(),n=$('setName').value.trim().slice(0,80);if(!n)return;c.name=n;await api.updateClass(c.id,{name:n});renderTeacherBar();$('setMsg').textContent='Saved.'};
+$('setTeacher').onchange=async()=>{const c=curClass(),tid=$('setTeacher').value||null;c.teacher_id=tid;await api.updateClass(c.id,{teacher_id:tid});renderTeacherBar();$('setMsg').textContent=`Saved. ${tid?teacherName(tid)+' can now see this class.':''}`};
 $('gArchive').onclick=async()=>{
   const c=curClass();if(!confirm(`Archive ${c.name}? Students in it can no longer log in. Archived classes are deleted after 12 months.`))return;
-  await api.updateClass(c.id,{archived_at:new Date().toISOString()});TEACH.classId=null;await loadClasses();
+  await api.updateClass(c.id,{archived_at:new Date().toISOString()});TEACH.classId=null;TEACH_TAB='students';await loadClasses();
 };
+// ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
   $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div><b>${esc(p.name)}</b><span>Class code <b class="num">${esc(code)}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span></div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 $('addStudent').onclick=async()=>{
-  const btn=$('addStudent');btn.disabled=true;
+  const btn=$('addStudent'),n=Math.max(1,Math.min(40,Math.floor(+$('addCount').value||1)));btn.disabled=true;
+  $('addMsg').textContent=n>1?`Adding ${n} students…`:'';
   try{
-    const st=await api.addStudent(TEACH.classId,spaceName());
-    S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin});S.order.push(st.id);GSel=st.id;renderGrown();
-    if(!$('codecards').hidden)renderCodeCards();
-    $('addMsg').textContent=`Added ${st.name}. Their code is ${st.pin} (class code ${curClass().code}).`;
-  }catch(e){$('addMsg').textContent='Could not add a student: '+e.message}
+    const names=[];for(let i=0;i<n;i++){let nm;do{nm=spaceName()}while(names.includes(nm));names.push(nm)}
+    const list=await api.addStudents(TEACH.classId,names);
+    list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin});S.order.push(st.id)});
+    GSel=list.length?list[list.length-1].id:GSel;renderGrown();if(!$('codecards').hidden)renderCodeCards();
+    $('addMsg').textContent=list.length===1?`Added ${list[0].name}. Their code is ${list[0].pin} (class code ${curClass().code}).`:`Added ${list.length} students. Tap Print login cards to hand out their codes.`;
+    $('addCount').value=1;
+  }catch(e){$('addMsg').textContent='Could not add students: '+e.message}
   btn.disabled=false;
 };
-$('showCards').onclick=()=>{const c=$('codecards');c.hidden=!c.hidden;$('showCards').textContent=c.hidden?'Show code cards':'Hide code cards';if(!c.hidden)renderCodeCards()};
+$('showCards').onclick=()=>{renderCodeCards();$('codecards').hidden=false;setTimeout(()=>window.print(),300)};
 $('gdetail').addEventListener('click',async e=>{
   const p=S.players[GSel];if(!p)return;const box=$('gdActions');
   if(e.target.closest('#gdNewCode')){p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('gdMsg').textContent=`New code for ${p.name}: ${p.pin}`;return}
@@ -972,6 +1060,60 @@ $('gdetail').addEventListener('click',async e=>{
   if(e.target.closest('#gdNo')){renderGrown();return}
   if(e.target.closest('#gdYes')){await api.removeStudent(p.id);delete S.players[p.id];S.order=S.order.filter(x=>x!==p.id);GSel=null;renderGrown();if(!$('codecards').hidden)renderCodeCards();return}
 });
+
+// ---------- school page (admins) ----------
+$('gSchoolBtn').onclick=()=>openSchool();
+$('sBack').onclick=async()=>{TEACH.classes=visibleClasses();await loadClassStudents();show('grown')};
+async function openSchool(){
+  show('school');$('sClassMsg').textContent='';$('sTeachMsg').textContent='';
+  try{[TEACH.teachers,TEACH.all,TEACH.counts]=await Promise.all([api.listTeachers(),api.listClasses(),api.countStudents()])}catch(e){$('sClassMsg').textContent='Could not load the school: '+e.message}
+  renderSchool();
+}
+function renderSchool(){
+  const t=TEACH.info.teacher,sc=t.school||{},ts=TEACH.teachers||[],me=myId();
+  $('sName').textContent=sc.name||'My school';$('sNameInput').value=sc.name||'';
+  const tOpts=sel=>`<option value="">No teacher</option>`+ts.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`).join('');
+  $('sClasses').innerHTML=`<thead><tr><th>Class</th><th>Teacher</th><th class="r">Students</th><th>Class code</th><th></th></tr></thead><tbody>`+
+    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td><button class="btn" data-open="${c.id}">Open</button></td></tr>`).join('')+'</tbody>';
+  $('sClassTeacher').innerHTML=ts.map(x=>`<option value="${x.id}" ${x.id===me?'selected':''}>${esc(x.name)}</option>`).join('');
+  const nClasses=id=>TEACH.all.filter(c=>c.teacher_id===id).length,admins=ts.filter(x=>x.role==='admin').length;
+  $('sTeachers').innerHTML=`<thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="r">Classes</th><th></th></tr></thead><tbody>`+
+    ts.map(x=>`<tr><td><b>${esc(x.name)}</b>${x.id===me?' <small class="muted">(you)</small>':''}</td><td>${esc(x.email||'')}</td>
+      <td><select data-role="${x.id}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
+      <td class="r">${nClasses(x.id)}</td><td>${x.id===me?'':`<button class="linkbtn danger" data-rm="${x.id}">Remove</button>`}</td></tr>`).join('')+'</tbody>';
+  $('sInvite').value=`Hi! Our class uses Mission Multiply for times tables.\n1. Go to ${location.origin}/?teacher=1\n2. Create an account with your school email\n3. Choose "Join my school" and enter the school code: ${sc.join_code||''}`;
+}
+$('sClasses').addEventListener('change',async e=>{
+  const s=e.target.closest('[data-ct]');if(!s)return;const c=TEACH.all.find(x=>x.id===s.dataset.ct),tid=s.value||null;
+  try{await api.updateClass(c.id,{teacher_id:tid});c.teacher_id=tid;$('sClassMsg').textContent=`${c.name}: ${tid?teacherName(tid):'no teacher'}.`}catch(err){$('sClassMsg').textContent='Could not save: '+err.message}
+  renderSchool();
+});
+$('sClasses').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-open]');if(!b)return;
+  TEACH.classes=TEACH.all;TEACH.classId=b.dataset.open;TEACH_TAB='students';await loadClassStudents();show('grown');
+});
+$('sAddClass').addEventListener('submit',async e=>{
+  e.preventDefault();const name=$('sClassName').value.trim().slice(0,80);if(!name)return;
+  try{const c=await api.createClass(name,$('sClassTeacher').value||null);TEACH.all.push(c);$('sClassName').value='';$('sClassMsg').textContent=`Added ${c.name} (class code ${c.code}).`;renderSchool()}
+  catch(err){$('sClassMsg').textContent='Could not add the class: '+err.message}
+});
+$('sTeachers').addEventListener('change',async e=>{
+  const s=e.target.closest('[data-role]');if(!s)return;const r=await api.setTeacherRole(s.dataset.role,s.value);
+  if(r&&r.error){$('sTeachMsg').textContent=r.error==='last_admin'?'The school needs at least one admin.':'Could not change the role: '+r.error}
+  else{const t=TEACH.teachers.find(x=>x.id===s.dataset.role);t.role=s.value;$('sTeachMsg').textContent=`${t.name} is now ${s.value==='admin'?'an admin':'a teacher'}.`;
+    if(t.id===myId()&&s.value!=='admin'){TEACH.info.teacher.role='teacher';$('sBack').click();return}}
+  renderSchool();
+});
+$('sTeachers').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-rm]');if(!b)return;const t=TEACH.teachers.find(x=>x.id===b.dataset.rm);
+  if(!confirm(`Remove ${t.name} from the school? Their classes and students stay, and you can give the classes to another teacher.`))return;
+  const r=await api.removeTeacher(t.id);if(r&&r.error){$('sTeachMsg').textContent='Could not remove: '+r.error;return}
+  TEACH.teachers=TEACH.teachers.filter(x=>x.id!==t.id);TEACH.all.forEach(c=>{if(c.teacher_id===t.id)c.teacher_id=null});
+  $('sTeachMsg').textContent=`Removed ${t.name}. Tip: tap New school code so they can't join again with the old one.`;renderSchool();
+});
+$('sCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('sInvite').value);$('sCopy').textContent='Copied!'}catch(e){$('sInvite').select()}setTimeout(()=>$('sCopy').textContent='Copy message',1500)};
+$('sNewCode').onclick=async()=>{if(!confirm('Make a new school code? The old one will stop working.'))return;const r=await api.newJoinCode();if(r&&r.join_code){TEACH.info.teacher.school.join_code=r.join_code;renderSchool();$('sTeachMsg').textContent='New school code made.'}};
+$('sRename').addEventListener('submit',async e=>{e.preventDefault();const n=$('sNameInput').value.trim().slice(0,120);if(n.length<2)return;const sc=TEACH.info.teacher.school;await api.renameSchool(sc.id,n);sc.name=n;renderSchool();renderTeacherBar()});
 
 // ---------- stars fly into the counter ----------
 function flyStars(n){

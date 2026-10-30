@@ -31,8 +31,8 @@ function supabaseApi() {
     async teacherSession() {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return null;
-      const t = await q(sb.from('teachers').select('id,name,role,school_id,schools(name,join_code)').eq('id', session.user.id).maybeSingle());
-      return { email: session.user.email, teacher: t ? { name: t.name, role: t.role, school: t.schools } : null };
+      const t = await q(sb.from('teachers').select('id,name,role,school_id,schools(id,name,join_code)').eq('id', session.user.id).maybeSingle());
+      return { email: session.user.email, teacher: t ? { id: t.id, name: t.name, role: t.role, school: t.schools } : null };
     },
     async teacherSignIn(email, password) {
       const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -50,11 +50,19 @@ function supabaseApi() {
     async teacherSignOut() { await sb.auth.signOut(); },
     createSchool: (schoolName, teacherName) => rpc('create_school', { p_school_name: schoolName, p_teacher_name: teacherName }),
     joinSchool: (code, teacherName) => rpc('join_school', { p_join_code: code, p_teacher_name: teacherName }),
-    listClasses: () => q(sb.from('classes').select('id,name,code,settings,archived_at,created_at').is('archived_at', null).order('created_at')),
-    createClass: async (name) => (await q(sb.from('classes').insert({ name }).select('id,name,code,settings,archived_at').single())),
+    listClasses: () => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').is('archived_at', null).order('created_at')),
+    createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
     listStudents: (classId) => q(sb.from('students').select('id,name,pin,data,created_at').eq('class_id', classId).order('created_at')),
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
+    addStudents: (classId, names) => q(sb.from('students').insert(names.map((name) => ({ class_id: classId, name }))).select('id,name,pin,data')),
+    async countStudents() { const rows = await q(sb.from('students').select('class_id')); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
+    // school admin
+    listTeachers: () => q(sb.from('teachers').select('id,name,email,role,created_at').order('created_at')),
+    setTeacherRole: (id, role) => rpc('admin_set_role', { p_teacher: id, p_role: role }),
+    removeTeacher: (id) => rpc('admin_remove_teacher', { p_teacher: id }),
+    newJoinCode: () => rpc('admin_new_join_code', {}),
+    renameSchool: (schoolId, name) => q(sb.from('schools').update({ name }).eq('id', schoolId)),
     async newPin(studentId) {
       for (let i = 0; i < 20; i++) {
         const pin = randomPin();
@@ -86,7 +94,7 @@ function demoApi() {
     db = {
       school: { name: 'Demo School', join_code: 'DEMO0000' },
       teacher: null,
-      classes: [{ id: classId, name: 'Demo class', code: 'DEMO', settings: { maxTable: 12, division: false, sound: true, battles: true }, archived_at: null }],
+      classes: [{ id: classId, name: 'Demo class', code: 'DEMO', teacher_id: 'me', settings: { maxTable: 12, division: false, sound: true, battles: false }, archived_at: null }],
       students: seedDemoStudents().map(s => ({ ...s, class_id: classId })),
       challenges: [], sessions: {},
     };
@@ -128,18 +136,18 @@ function demoApi() {
       if (!m || !ch || ch.scores[m.id]) return ok({ error: 'not_found' });
       ch.scores[m.id] = score; persist(); return ok({ ok: true });
     },
-    teacherSession: () => ok(db.teacher ? { email: db.teacher.email, teacher: db.teacher.name ? { name: db.teacher.name, role: 'admin', school: db.school } : null } : null),
+    teacherSession: () => ok(db.teacher ? { email: db.teacher.email, teacher: db.teacher.name ? { id: 'me', name: db.teacher.name, role: 'admin', school: { id: 'demo-school', ...db.school } } : null } : null),
     teacherSignIn(email) { db.teacher = { email, name: (db.teacher && db.teacher.name) || 'Demo teacher' }; persist(); return ok({ ok: true }); },
     teacherSignUp(email) { db.teacher = { email, name: null }; persist(); return ok({ ok: true, needsConfirm: false }); },
     teacherSignInWith() { db.teacher = { email: 'demo@school.ca', name: 'Demo teacher' }; persist(); return ok({ ok: true }); },
     teacherSignOut() { db.teacher = null; persist(); return ok(null); },
     createSchool(schoolName, teacherName) { db.school.name = schoolName; db.teacher.name = teacherName; persist(); return ok('demo-school'); },
     joinSchool(code, teacherName) { db.teacher.name = teacherName; persist(); return ok('demo-school'); },
-    listClasses: () => ok(db.classes.filter(c => !c.archived_at)),
-    createClass(name) {
+    listClasses: () => ok(db.classes.filter(c => !c.archived_at).map(c => ({ teacher_id: 'me', ...c }))),
+    createClass(name, teacherId) {
       const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
       let code; do { code = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join(''); } while (db.classes.some(c => c.code === code));
-      const c = { id: id(), name, code, settings: { maxTable: 10, division: false, sound: true, battles: true }, archived_at: null };
+      const c = { id: id(), name, code, teacher_id: teacherId || 'me', settings: { maxTable: 10, division: false, sound: true, battles: false }, archived_at: null };
       db.classes.push(c); persist(); return ok(c);
     },
     updateClass(cid, patch) { Object.assign(db.classes.find(c => c.id === cid), patch); persist(); return ok(null); },
@@ -148,6 +156,26 @@ function demoApi() {
       let pin; do { pin = randomPin(); } while (db.students.some(s => s.class_id === cid && s.pin === pin));
       const s = { id: id(), class_id: cid, name, pin, data: {} }; db.students.push(s); persist(); return ok(s);
     },
+    addStudents(cid, names) { return Promise.all(names.map(n => methods.addStudent(cid, n))); },
+    countStudents() { const n = {}; db.students.forEach(s => { n[s.class_id] = (n[s.class_id] || 0) + 1; }); return ok(n); },
+    listTeachers() {
+      const others = db.otherTeachers || (db.otherTeachers = [{ id: 'demo-lee', name: 'Mr Lee', email: 'lee@demo.school', role: 'teacher' }]);
+      persist();
+      return ok([{ id: 'me', name: (db.teacher && db.teacher.name) || 'Demo teacher', email: (db.teacher && db.teacher.email) || '', role: 'admin' }, ...others]);
+    },
+    setTeacherRole(tid, role) {
+      const t = (db.otherTeachers || []).find(x => x.id === tid);
+      if (tid === 'me' && role === 'teacher' && !(db.otherTeachers || []).some(x => x.role === 'admin')) return ok({ error: 'last_admin' });
+      if (t) { t.role = role; persist(); }
+      return ok({ ok: true });
+    },
+    removeTeacher(tid) {
+      if (tid === 'me') return ok({ error: 'not_self' });
+      db.otherTeachers = (db.otherTeachers || []).filter(x => x.id !== tid);
+      db.classes.forEach(c => { if (c.teacher_id === tid) c.teacher_id = null; }); persist(); return ok({ ok: true });
+    },
+    newJoinCode() { db.school.join_code = Math.random().toString(16).slice(2, 10).toUpperCase(); persist(); return ok({ join_code: db.school.join_code }); },
+    renameSchool(_sid, name) { db.school.name = name; persist(); return ok(null); },
     newPin(sid) {
       const s = db.students.find(x => x.id === sid);
       let pin; do { pin = randomPin(); } while (db.students.some(x => x.class_id === s.class_id && x.pin === pin));
