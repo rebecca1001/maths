@@ -1,6 +1,6 @@
 # Mission Multiply
 
-Times tables practice for BC classrooms (grades 4 to 6). Kids log in with a **class code** and their own **4-digit code**, play 1-minute rounds that adapt to what they know, earn stars, unlock characters and rockets, climb from Ground to Galaxy, and battle classmates. Teachers sign in with email (or Google / Microsoft), set up classes, print code cards and see each student's progress.
+Times tables practice for BC classrooms (grades 4 to 6). Kids log in with a **class code** and their own **4-digit code**, play 1-minute rounds that adapt to what they know, earn stars, unlock characters and rockets, climb from Ground to Galaxy, and race the ghost of their own best round. Teachers sign in with email (or Google / Microsoft), set up classes, print code cards and see each student's progress.
 
 No real student names are stored. Every student gets a made-up space name (for example "Comet Fox").
 
@@ -88,7 +88,6 @@ The anon key is meant to be public. All data is protected by the database rules 
 - **Tables up to**: 10 × 10 (BC curriculum, the default for new classes) or 12 × 12
 - **Division**: mixes division into rounds
 - **Sound**: game sounds on or off
-- **Battles**: turns battles on or off
 
 ## Run the database tests
 

@@ -55,7 +55,7 @@ const P=()=>S.players[S.current];
 function applySettings(st){
   st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
   ALL=Array.from({length:mx-1},(_,i)=>i+2);
-  S.muted=st.sound===false;S.division=!!st.division;S.battles=st.battles!==false;
+  S.muted=st.sound===false;S.division=!!st.division;S.battles=false; // battles removed from the game
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
@@ -380,8 +380,7 @@ function renderHome(){
     const all=weekBoard(),rows=all.slice(0,10);
     const mins=q=>Math.round(q.rounds.filter(r=>r.d>=wk).reduce((t,r)=>t+(r.len||60),0)/60);
     const fmtT=m=>m>=60?`${Math.floor(m/60)} h ${m%60} min`:`${m} min`;
-    const wins=q=>Object.values(S.challenges||{}).filter(ch=>ch.d>=wk&&duelResult(ch)===q.id).length;
-    $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Time played</span><span>Battles won</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.p.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.p.skin,40)}<span class="lnm">${esc(x.p.name)}${x.p.id===p.id?' <small>(you)</small>':''}</span><span class="lstat num" data-l="Time">${fmtT(mins(x.p))}</span><span class="lstat num" data-l="Won">${wins(x.p)}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet.</p>';
+    $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Time played</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.p.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.p.skin,40)}<span class="lnm">${esc(x.p.name)}${x.p.id===p.id?' <small>(you)</small>':''}</span><span class="lstat num" data-l="Time">${fmtT(mins(x.p))}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet.</p>';
     const pos=all.findIndex(x=>x.p.id===p.id),mine=ptsSince(p,wk);
     $('boardMe').textContent=pos>=0&&pos<10?'':mine>0?`You have ${fmtN(mine)} stars this week (#${pos+1}). Play more games to climb into the top 10!`:'Play a round to get on the board.';
   }else{
@@ -803,7 +802,6 @@ const BADGES=[
   {id:'moonland',name:'Moon landing',desc:'Reach the Moon rank',           mark:'☾',  test:p=>tierIndex(statusSecs(p))>=5},
   {id:'boss',   name:'Boss beater',  desc:'Defeat an alien boss',          mark:'!',  test:p=>p.rounds.some(r=>r.boss)},
   {id:'streak5',name:'Streak star',   desc:'Play 5 days in a row',          mark:'5',  test:p=>((p.daily&&p.daily.best)||0)>=5},
-  {id:'duelwin',name:'Battle winner',desc:'Win a battle',                  mark:'VS',test:p=>Object.values(S.challenges||{}).some(ch=>duelResult(ch)===p.id)},
   {id:'master', name:'Times tables master',desc:'Know every times table quickly',mark:'12×',test:p=>ALL.every(t=>knowsTable(p,t))}
 ];
 function checkBadges(p){
@@ -934,7 +932,7 @@ function renderTeacherBar(){
   $('gClass').innerHTML=TEACH.classes.map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}</option>`).join('');
   $('gCode').textContent=c.code;$('gTitle').textContent=c.name;
   $('gWho').textContent=t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
-  const st=c.settings||{};$('setMax').value=String(st.maxTable||12);$('setDiv').checked=!!st.division;$('setSound').checked=st.sound!==false;$('setBattles').checked=st.battles!==false;
+  const st=c.settings||{};$('setMax').value=String(st.maxTable||12);$('setDiv').checked=!!st.division;$('setSound').checked=st.sound!==false;
   $('gSchool').textContent=t&&t.school&&t.role==='admin'?`Other teachers can join your school with the school code ${t.school.join_code}.`:'';
   $('addMsg').textContent='';
 }
@@ -944,10 +942,10 @@ $('gNewClass').onclick=async()=>{
   const c=await api.createClass(name.trim().slice(0,80));TEACH.classes.push(c);TEACH.classId=c.id;await loadClassStudents();
 };
 async function saveSettings(){
-  const c=curClass();c.settings={maxTable:+$('setMax').value,division:$('setDiv').checked,sound:$('setSound').checked,battles:$('setBattles').checked};
+  const c=curClass();c.settings={maxTable:+$('setMax').value,division:$('setDiv').checked,sound:$('setSound').checked,battles:false};
   await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);
 }
-['setMax','setDiv','setSound','setBattles'].forEach(id=>$(id).onchange=saveSettings);
+['setMax','setDiv','setSound'].forEach(id=>$(id).onchange=saveSettings);
 $('gArchive').onclick=async()=>{
   const c=curClass();if(!confirm(`Archive ${c.name}? Students in it can no longer log in. Archived classes are deleted after 12 months.`))return;
   await api.updateClass(c.id,{archived_at:new Date().toISOString()});TEACH.classId=null;await loadClasses();
@@ -1084,7 +1082,7 @@ function battleNews(){
   }
   if(changed){const keep=new Set(Object.keys(S.challenges).flatMap(c=>['r:'+c,'i:'+c]));p.seenBattles=[...seen].filter(k=>keep.has(k));save()}
 }
-setInterval(()=>{if(SESSION&&!TEACH&&!G&&screen==='home'&&!document.hidden)cloudPullChallenges()},15000);
+setInterval(()=>{if(S.battles&&SESSION&&!TEACH&&!G&&screen==='home'&&!document.hidden)cloudPullChallenges()},15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESSION&&!TEACH&&!G&&screen==='home')cloudPullChallenges()});
 async function cloudPullChallenges(){
   if(!SESSION||TEACH)return;
@@ -1153,7 +1151,7 @@ function renderRace(){
 // Class channel: instant battle invites and results
 let classLive=null,classLiveId=null;
 function openClassLive(){
-  if(!CLASS||TEACH||classLiveId===CLASS.id)return;closeClassLive();
+  if(!CLASS||TEACH||!S.battles||classLiveId===CLASS.id)return;closeClassLive();
   classLiveId=CLASS.id;
   classLive=api.live('mm-class-'+CLASS.id,m=>{
     const p=P();if(!p||!m)return;
@@ -1214,7 +1212,7 @@ function journeyHTML(p){
   else msg=`You're at <b>${TIERS[ti].name}</b>. Answer faster to fly to <b>${TIERS[ti+1].name}</b>!`;
   return {track:`<div class="vjtrack" aria-hidden="true"><span class="vjline"></span><span class="vjfill" style="height:${fill.toFixed(1)}%"></span></div>${stops}`,msg};
 }
-function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'classic';p.owned=p.owned||['blob'];p.facts=p.facts||{};p.rounds=p.rounds||[];p.badges=p.badges||[];migrateStars(p);return p}
+function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'classic';p.owned=p.owned||['blob'];p.facts=p.facts||{};p.rounds=p.rounds||[];p.badges=(p.badges||[]).filter(b=>b!=='duelwin');migrateStars(p);return p}
 
 // ---------- boot ----------
 export async function boot(){
