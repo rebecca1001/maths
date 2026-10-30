@@ -64,6 +64,12 @@ function supabaseApi() {
       throw new Error('Could not make a new code');
     },
     removeStudent: (id) => q(sb.from('students').delete().eq('id', id)),
+    // Live messages between players (battle invites, live race progress). Only ids and scores are sent.
+    live(name, onMsg) {
+      const ch = sb.channel(name, { config: { broadcast: { self: false } } });
+      ch.on('broadcast', { event: 'm' }, ({ payload }) => onMsg(payload)).subscribe();
+      return { send: (m) => { ch.send({ type: 'broadcast', event: 'm', payload: m }).catch(() => {}); }, close: () => { sb.removeChannel(ch); } };
+    },
   };
 }
 
@@ -87,10 +93,11 @@ function demoApi() {
   }
   const persist = () => { try { localStorage.setItem(DEMO_KEY, JSON.stringify(db)); } catch (e) { /* storage full or blocked */ } };
   persist();
+  // Re-read before every call so several tabs share one demo database
+  const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) db = x; } catch (e) { /* keep in-memory copy */ } };
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
   const ok = (v) => Promise.resolve(JSON.parse(JSON.stringify(v)));
-  return {
-    mode: 'demo',
+  const methods = {
     studentLogin(classCode, pin) {
       const c = db.classes.find(x => x.code === String(classCode || '').trim().toUpperCase() && !x.archived_at);
       if (!c) return ok({ error: 'no_class' });
@@ -148,7 +155,15 @@ function demoApi() {
     },
     removeStudent(sid) { db.students = db.students.filter(s => s.id !== sid); persist(); return ok(null); },
     resetDemo() { localStorage.removeItem(DEMO_KEY); },
+    live(name, onMsg) { // demo: other tabs in this browser
+      let bc; try { bc = new BroadcastChannel('mm.' + name); } catch (e) { return { send() {}, close() {} }; }
+      bc.onmessage = (e) => onMsg(e.data);
+      return { send: (m) => bc.postMessage(m), close: () => bc.close() };
+    },
   };
+  const wrapped = { mode: 'demo' };
+  for (const [k, f] of Object.entries(methods)) wrapped[k] = (...args) => { reload(); return f(...args); };
+  return wrapped;
 }
 
 export function randomPin() {

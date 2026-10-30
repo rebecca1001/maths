@@ -50,7 +50,7 @@ function applySettings(st){
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
-  CLASS=st.class;applySettings(CLASS.settings);
+  CLASS=st.class;applySettings(CLASS.settings);openClassLive();
   const me=keepMe&&P()&&P().id===st.me.id?P():fixPlayer({...newPlayerData(),...st.me.data,id:st.me.id,name:st.me.name});
   const players={[me.id]:me},order=[me.id];
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
@@ -235,7 +235,7 @@ Object.assign(LOOK,{
 // ---------- navigation ----------
 const SCREENS=['login','teach','intro','home','play','results','checkres','grown'];
 let screen='login';
-function show(id){screen=id;document.documentElement.dataset.screen=id;SCREENS.forEach(s=>$(s).hidden=s!==id);renderTop();window.scrollTo(0,0)}
+function show(id){screen=id;document.documentElement.dataset.screen=id;SCREENS.forEach(s=>$(s).hidden=s!==id);renderTop();window.scrollTo(0,0);if(id==='home')setTimeout(()=>{if(typeof battleNews==='function')battleNews()},500)}
 function applyWorld(){document.documentElement.dataset.world='winter'} // Moon Base is the only background
 function renderTop(){
   const p=P(),inGame=screen==='play';$('top').hidden=inGame;
@@ -252,7 +252,7 @@ function spaceName(){const used=new Set(Object.values(S.players).map(p=>p.name))
 let L=null;
 function toLogin(expired){
   if(SESSION){flushSave();if(!expired)api.studentLogout(SESSION.token);}
-  SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:false};
+  closeClassLive();SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:false};
   setLocal({token:null});applyWorld();openLogin();
   if(expired)$('loginFb').textContent='Please log in again.';
 }
@@ -483,7 +483,7 @@ $('loginPad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key'
 
 function beginPlay(){
   recent=[];locked=false;$('pcoins').textContent='0';
-  $('combo').hidden=true;$('ghost').hidden=true;$('boss').hidden=true;$('boss').classList.remove('won');
+  $('combo').hidden=true;$('ghost').hidden=true;$('race').hidden=true;$('boss').hidden=true;$('boss').classList.remove('won');
   $('mark').style.top='50%';$('mark').innerHTML=rocketSVG(P().rocket);$('gl').textContent='Go!';$('score').textContent='0';
   buildTrack();setRing(1,G.mode==='round'?String(G.len/1000):'1/'+G.queue.length);G.nextQ=null;
   const round=G.mode==='round';
@@ -544,12 +544,12 @@ function press(d){
 function check(){
   const ms=performance.now()-qStart,ok=Number(input)===q.ans;
   record(ok,ms);G.n++;if(G.mode==='round')afterAnswer(ok);G.speeds.push(ok?ms:Math.max(6000,Math.min(ms*1.5,10000)));updateGauge();
-  if(ok&&G.trace)G.trace.push(performance.now()-G.start);
+  if(ok&&G.trace){G.trace.push(performance.now()-G.start);if(G.live)G.live.send({t:'c',id:P().id,c:G.c+1})}
   if(ok){G.c++;G.ms+=ms;G.streak=(G.streak||0)+1;G.best=Math.max(G.best||0,G.streak);
     G.coins++;flyStars(1);if(G.boss)bossHit();
     SFX.right(G.streak);if(G.mode==='round'&&(G.streak===5||G.streak===10))SFX.combo();
     const cb=$('combo');cb.hidden=!(G.mode==='round'&&G.streak>=3);cb.textContent=`${G.streak} in a row`;cb.classList.toggle('hot',G.streak>=10);
-    $('pcoins').textContent=liveStars();$('score').textContent=G.c;$('ans').className='ans ok';$('fb').className='fb goal';
+    $('pcoins').textContent=liveStars();$('score').textContent=G.c;if(G.duel)renderRace();$('ans').className='ans ok';$('fb').className='fb goal';
     $('fb').textContent=G.mode==='round'&&G.streak>=3?`${G.streak} in a row!`:'Correct!';locked=true;setTimeout(()=>{locked=false;next()},140)}
   else{G.streak=0;$('combo').hidden=true;SFX.wrong();$('ans').className='ans no';$('fb').className='fb no';$('fb').textContent=(G.mode==='check'?'Good try! ':'')+`${q.text} = ${q.ans}`;locked=true;setTimeout(()=>{locked=false;next()},1300)}
 }
@@ -558,6 +558,7 @@ function liveStars(){return G.mode==='round'?gameStars(G.c,G.n,G.c?G.ms/G.c:0)+(
 function finishRound(keep){
   clearInterval(tick);const g=G;G=null;if(!g)return;
   const p=P();
+  if(g.live){const lv=g.live;lv.send({t:keep&&g.n?'done':'left',id:p.id,c:g.c});setTimeout(()=>lv.close(),2000)}
   if(!keep||g.n===0){save();renderHome();show('home');return}
   const before=tierIndex(statusSecs(p)),prevBest=pb(p);
   const r={d:Date.now(),c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):0,len:60,best:g.best||0,boss:!!(g.boss&&g.boss.state==='won'),pts:0};
@@ -745,14 +746,16 @@ $('grownBack').onclick=async()=>{await api.teacherSignOut();TEACH=null;toLogin()
 
 // ---------- celebration pop-ups (rank ups, new badges, shop unboxing) ----------
 const ovQueue=[];
-function celebrate(html,btn){ovQueue.push({html,btn});if(ovQueue.length===1)showOv()}
+function celebrate(html,btn,onOk,later){ovQueue.push({html,btn,onOk,later});if(ovQueue.length===1)showOv()}
 function showOv(){
   const it=ovQueue[0];if(!it){$('overlay').hidden=true;return}
-  const card=$('ovcard');card.innerHTML=it.html+`<button class="go ovbtn" id="ovOk">${it.btn||'Awesome!'}</button>`;
+  const card=$('ovcard');card.innerHTML=it.html+`<button class="go ovbtn" id="ovOk">${it.btn||'Awesome!'}</button>`+(it.later?`<button class="btn ovlater" id="ovLater" style="width:100%">${it.later}</button>`:'');
   $('overlay').hidden=false;card.classList.remove('flip');void card.offsetWidth;card.classList.add('flip');
   confettiBurst();SFX.combo();
   const b=$('ovOk');try{b.focus()}catch(e){}
-  b.onclick=()=>{ovQueue.shift();$('overlay').hidden=true;setTimeout(showOv,180)};
+  const close=()=>{ovQueue.shift();$('overlay').hidden=true;setTimeout(showOv,180)};
+  b.onclick=()=>{close();if(it.onOk)setTimeout(it.onOk,200)};
+  const l=$('ovLater');if(l)l.onclick=close;
 }
 const TIER_ART=['#6DB57A','#DCE8F7','#2A2F6B','#5EC2FF','#C3CBDA','#E6EBF3','#D9784E','#E8B98F','#E8C27A','#C79BFF'];
 function tierArt(i){
@@ -1028,7 +1031,7 @@ $('duelAlert').addEventListener('click',e=>{
 function openDuelPicker(){
   const p=P(),others=S.order.filter(id=>id!==p.id);
   if(!others.length){celebrate(`<span class="label">Battle</span><h1>No classmates yet</h1><p class="muted">Battles are against other students in your class. Once your teacher adds more students, you can battle them here.</p>`,'OK');return}
-  $('ovcard').innerHTML=`<span class="label">Battle</span><h1>Who do you want to battle?</h1><p class="muted">You play first. They race your ghost later, with the same questions.</p>
+  $('ovcard').innerHTML=`<span class="label">Battle</span><h1>Who do you want to battle?</h1><p class="muted">Same questions for both of you. If they join while you play, you race live. If not, they race your ghost later.</p>
     <div class="duelgrid pickgrid">${others.map(id=>{const o=S.players[id];return `<button class="duelmate" data-mate="${id}">${avatar(o.skin,30)}<span>${esc(o.name)}</span></button>`}).join('')}</div>
     <button class="btn" data-pickcancel style="width:100%">Cancel</button>`;
   $('overlay').hidden=false;
@@ -1041,18 +1044,38 @@ $('ovcard').addEventListener('click',e=>{
   api.challengeCreate(SESSION.token,to,seed).then(r=>{
     if(!r||!r.id){const e=(r&&r.error)||'no reply';if(e!=='battles_off')console.error('Battle failed:',e);
       celebrate(e==='battles_off'?`<span class="label">Battle</span><h1>Battles are switched off</h1><p class="muted">Your teacher has turned battles off for now.</p>`:`<span class="label">Battle</span><h1>Could not start the battle</h1><p class="muted">Try again in a moment.</p><p class="note" style="font-size:.8rem">Details: ${esc(e)}</p>`,'OK');return}
-    S.challenges[r.id]={from:p.id,to,seed,d:Date.now(),scores:{}};startDuel(r.id);
+    S.challenges[r.id]={from:p.id,to,seed,d:Date.now(),scores:{}};if(classLive)classLive.send({t:'invite',to,cid:r.id});startDuel(r.id);
   }).catch(()=>{});
 });
 function duelNextQ(){const f=G.queue[G.qi++%G.queue.length];return {a:f[0],b:f[1],text:`${f[0]} × ${f[1]}`,ans:f[0]*f[1]}}
 // Refresh classmates and battles from the server every so often (my own data stays as it is on this device)
+// Battle news: a pop-up for each new challenge and each finished battle, shown once per player
+function battleNews(){
+  const p=P();if(!p||TEACH||G||screen!=='home'||!S.battles)return;
+  const seen=new Set(p.seenBattles||[]);let changed=false;
+  const nm=id=>S.players[id]?esc(S.players[id].name):'A classmate';
+  for(const [cid,ch] of Object.entries(S.challenges).sort((a,b)=>a[1].d-b[1].d)){
+    const w=duelResult(ch);
+    if(w&&!seen.has('r:'+cid)){
+      seen.add('r:'+cid);seen.add('i:'+cid);changed=true;
+      const opp=ch.from===p.id?ch.to:ch.from,me=ch.scores[p.id].c,th=ch.scores[opp].c,o=S.players[opp];
+      celebrate(`<span class="label">Battle result</span><div class="duelscore">${avatar(p.skin,54)}<b class="num">${me}</b><span>–</span><b class="num">${th}</b>${o?avatar(o.skin,54):''}</div><h1>${w==='draw'?`It's a draw with ${nm(opp)}!`:w===p.id?`You beat ${nm(opp)}!`:`${nm(opp)} won this time`}</h1><p class="muted">${w===p.id?'Great job!':w==='draw'?'So close!':'Battle them again to get your revenge!'}</p>`,w===p.id?'Awesome!':'OK');
+    }else if(!w&&ch.to===p.id&&!ch.scores[p.id]&&!seen.has('i:'+cid)){
+      seen.add('i:'+cid);changed=true;const fromP=S.players[ch.from];
+      celebrate(`<span class="label">Battle!</span><div class="ovart">${fromP?avatar(fromP.skin,90):''}</div><h1>${nm(ch.from)} wants to battle you!</h1><p class="muted">Same questions, 1 minute. Try to beat their score!</p>`,'Play now',()=>startDuel(cid),'Later');
+    }
+  }
+  if(changed){const keep=new Set(Object.keys(S.challenges).flatMap(c=>['r:'+c,'i:'+c]));p.seenBattles=[...seen].filter(k=>keep.has(k));save()}
+}
+setInterval(()=>{if(SESSION&&!TEACH&&!G&&screen==='home'&&!document.hidden)cloudPullChallenges()},15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESSION&&!TEACH&&!G&&screen==='home')cloudPullChallenges()});
 async function cloudPullChallenges(){
   if(!SESSION||TEACH)return;
   let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
   if(!st||st.error){if(st&&st.error==='signed_out')toLogin(true);return}
   if(!SESSION||!P()||P().id!==st.me.id)return;
   applyState(st,true);
-  if(screen==='home')renderHome();
+  if(screen==='home'){renderHome();battleNews()}
 }
 
 // ---------- ghost races: the second player races a replay of the first player's answers ----------
@@ -1060,22 +1083,76 @@ function startDuel(cid){
   const ch=S.challenges[cid];if(!ch)return;
   const me=P(),oppId=ch.from===me.id?ch.to:ch.from,opp=S.players[oppId],os=ch.scores[oppId];
   G={mode:'round',duel:cid,queue:duelQueue(ch.seed),qi:0,start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[]};
-  if(os&&os.trace)G.ghost={trace:os.trace,name:opp?opp.name:'Classmate'};
+  G.opp={id:oppId,name:opp?opp.name:'Classmate',skin:opp?opp.skin:'blob',c:0,state:'waiting'};
+  if(os&&os.trace)setGhost(os);
   beginPlay();
-  $('fb').className='fb goal';$('fb').textContent=G.ghost?`Race ${opp?opp.name:'their'}'s ghost!`:`Battle vs ${opp?opp.name:'classmate'}. Go!`;
-  $('ghost').hidden=!G.ghost;
-  if(G.ghost){$('ghostTag').textContent='Ghost';$('ghostName').textContent=G.ghost.name;$('ghostScore').textContent='0'}
+  $('fb').className='fb goal';$('fb').textContent=G.ghost?`Race ${G.opp.name}'s ghost!`:`Battle vs ${G.opp.name}. Go!`;
+  buildRace();
+  // Live: tell the other player we're here, and listen for their answers
+  const g=G;
+  g.live=api.live('mm-battle-'+cid,m=>onBattleMsg(g,m));
+  g.live.send({t:'join',id:me.id,c:0});
+  [1500,4000,9000].forEach(ms=>setTimeout(()=>{if(G===g&&g.opp.state==='waiting')g.live.send({t:'join',id:me.id,c:g.c})},ms));
+  // The opponent may have finished since we last checked: fetch fresh so we can race their ghost
+  if(!G.ghost&&SESSION)api.studentState(SESSION.token).then(st=>{
+    if(G!==g||!st||st.error||g.ghost)return;
+    const c=st.challenges.find(x=>x.id===cid),sc=c&&c.scores&&c.scores[oppId];
+    if(sc&&sc.trace&&g.opp.state!=='live'){setGhost(sc);renderRace()}
+  }).catch(()=>{});
+}
+function setGhost(sc){G.ghost={trace:sc.trace,final:sc.c};G.opp.state='ghost';G.opp.c=0}
+function onBattleMsg(g,m){
+  if(G!==g||!m||m.id!==g.opp.id||g.ghost)return;
+  if(m.t==='join'){g.live.send({t:'c',id:P().id,c:g.c});g.opp.state='live';g.opp.c=m.c||0;
+    $('fb').className='fb goal';$('fb').textContent=`${g.opp.name} joined. Live race!`}
+  else if(m.t==='c'){g.opp.state='live';g.opp.c=Math.max(g.opp.c,m.c||0)}
+  else if(m.t==='done'){g.opp.state='done';g.opp.c=m.c||g.opp.c}
+  else if(m.t==='left'){g.opp.state='left'}
+  renderRace();
+}
+// Race track: two lanes, each player's character moves right with every correct answer
+function buildRace(){
+  const me=P(),o=G.opp;
+  $('race').innerHTML=[['me',me.skin,'You'],['opp',o.skin,esc(o.name)]].map(([k,sk,label])=>
+    `<div class="lane ${k}"><span class="lname">${label}<em id="race_${k}_tag"></em></span><div class="lrun"><i class="lfill" id="race_${k}_fill"></i><span class="lav" id="race_${k}_av">${avatar(sk,30)}</span><span class="lfin"></span></div><b class="num" id="race_${k}_c">0</b></div>`).join('');
+  $('race').hidden=false;$('ghost').hidden=true;renderRace();
 }
 function renderGhost(){
-  if(!G||!G.ghost)return;
-  const v=G.ghost.trace.filter(t=>t<=performance.now()-G.start).length;
-  const el=$('ghostScore');if(el.textContent!==String(v)){el.textContent=v;const b=$('ghost');b.classList.remove('bump');void b.offsetWidth;b.classList.add('bump')}
-  $('ghost').classList.toggle('ahead',v>G.c);
+  if(!G||!G.duel)return;
+  if(G.ghost){const v=G.ghost.trace.filter(t=>t<=performance.now()-G.start).length;
+    if(v!==G.opp.c){G.opp.c=v;renderRace();const a=$('race_opp_av');if(a){a.classList.remove('bump');void a.offsetWidth;a.classList.add('bump')}}}
 }
+function renderRace(){
+  if(!G||!G.opp||$('race').hidden)return;
+  const o=G.opp,top=Math.max(G.c,o.c,G.ghost?G.ghost.final:0);
+  const goal=Math.max(30,Math.ceil((top+3)/10)*10);
+  const put=(k,c)=>{const f=Math.min(1,c/goal);$('race_'+k+'_av').style.left=`calc((100% - 34px) * ${f.toFixed(3)})`;$('race_'+k+'_fill').style.width=`calc((100% - 34px) * ${f.toFixed(3)} + 17px)`;$('race_'+k+'_c').textContent=c};
+  put('me',G.c);put('opp',o.c);
+  const tag={ghost:'Ghost',live:'Live',done:'Finished',left:'Left',waiting:'Not playing yet'}[o.state];
+  const t=$('race_opp_tag');t.textContent=tag;t.className='rtag '+o.state;
+  $('race').querySelector('.lane.me').classList.toggle('lead',G.c>o.c);
+  $('race').querySelector('.lane.opp').classList.toggle('lead',o.c>G.c);
+}
+// Class channel: instant battle invites and results
+let classLive=null,classLiveId=null;
+function openClassLive(){
+  if(!CLASS||TEACH||classLiveId===CLASS.id)return;closeClassLive();
+  classLiveId=CLASS.id;
+  classLive=api.live('mm-class-'+CLASS.id,m=>{
+    const p=P();if(!p||!m)return;
+    const forMe=(m.t==='invite'&&m.to===p.id)||(m.t==='scored'&&S.challenges[m.cid]&&(S.challenges[m.cid].from===p.id||S.challenges[m.cid].to===p.id));
+    if(!forMe)return;
+    renderHome.pulled=0;
+    if(screen==='home'&&!G)cloudPullChallenges();
+  });
+}
+function closeClassLive(){if(classLive)classLive.close();classLive=null;classLiveId=null}
 function finishDuel(g,p){
   const ch=S.challenges[g.duel];const box=$('resDuel');if(!ch){box.hidden=true;return}
   ch.scores[p.id]={c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):99999,d:Date.now(),trace:(g.trace||[]).slice(0,150).map(Math.round)};
-  if(SESSION)api.challengeScore(SESSION.token,g.duel,ch.scores[p.id]).catch(()=>{});
+  if(SESSION)api.challengeScore(SESSION.token,g.duel,ch.scores[p.id]).then(()=>{if(classLive)classLive.send({t:'scored',cid:g.duel})}).catch(()=>{});
+  if(duelResult(ch)){p.seenBattles=[...new Set([...(p.seenBattles||[]),'r:'+g.duel,'i:'+g.duel])]}
+  else p.seenBattles=[...new Set([...(p.seenBattles||[]),'i:'+g.duel])];
   save();renderDuelCard(g.duel);
 }
 function renderDuelCard(cid){
