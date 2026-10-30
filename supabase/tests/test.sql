@@ -78,12 +78,20 @@ select 'pin not stored in data: ' || ((public.student_state((select v from t whe
 select 'classmates count 2: ' || (json_array_length(public.student_state((select v from t where k='tok_nova')) -> 'classmates') = 2);
 select 'classmate facts hidden: ' || not exists (
   select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e where (e -> 'data')::jsonb ? 'facts');
-select 'classmate coins visible: ' || exists (
-  select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e where (e -> 'data' ->> 'coins') = '42');
+select 'classmates get only skin + week totals: ' || not exists (
+  select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e
+  where exists (select 1 from jsonb_object_keys((e -> 'data')::jsonb) k where k not in ('skin','wkStars','wkMins')));
+select 'my own data still complete: ' || ((public.student_state((select v from t where k='tok_fox')) -> 'me' -> 'data') ->> 'coins' = '42');
 select 'bad token: ' || public.student_state('nope')::text;
 
--- Battles are off for new classes
-select 'battles off: ' || public.challenge_create((select v from t where k='tok_fox'), (select v::uuid from t where k='id_nova'), 12345)::text;
+-- Week totals for the Top 10
+select public.student_save((select v from t where k='tok_fox'), json_build_object('coins', 42, 'skin', 'ninja', 'rounds', json_build_array(
+  json_build_object('d', (extract(epoch from now()) * 1000)::bigint, 'c', 20, 'stars', 75, 'len', 60),
+  json_build_object('d', (extract(epoch from now()) * 1000)::bigint - 3600000, 'c', 18, 'pts', 700, 'len', 60),
+  json_build_object('d', (extract(epoch from now() - interval '10 days') * 1000)::bigint, 'c', 30, 'stars', 999, 'len', 60)))::jsonb);
+select 'fox week stars/mins as nova sees them: ' || (select (e -> 'data')::text from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e
+  where e ->> 'id' = (select v from t where k='id_fox'));
+select 'battle table gone: ' || (to_regclass('public.challenges') is null);
 
 -- Logout ends the session
 select public.student_logout((select v from t where k='tok_fox'));

@@ -25,8 +25,6 @@ function supabaseApi() {
     studentState: (token) => rpc('student_state', { p_token: token }),
     studentSave: (token, data) => rpc('student_save', { p_token: token, p_data: data }),
     studentLogout: (token) => rpc('student_logout', { p_token: token }),
-    challengeCreate: (token, to, seed) => rpc('challenge_create', { p_token: token, p_to: to, p_seed: seed }),
-    challengeScore: (token, id, score) => rpc('challenge_score', { p_token: token, p_challenge: id, p_score: score }),
     // teachers
     async teacherSession() {
       const { data: { session } } = await sb.auth.getSession();
@@ -72,12 +70,6 @@ function supabaseApi() {
       throw new Error('Could not make a new code');
     },
     removeStudent: (id) => q(sb.from('students').delete().eq('id', id)),
-    // Live messages between players (battle invites, live race progress). Only ids and scores are sent.
-    live(name, onMsg) {
-      const ch = sb.channel(name, { config: { broadcast: { self: false } } });
-      ch.on('broadcast', { event: 'm' }, ({ payload }) => onMsg(payload)).subscribe();
-      return { send: (m) => { ch.send({ type: 'broadcast', event: 'm', payload: m }).catch(() => {}); }, close: () => { sb.removeChannel(ch); } };
-    },
   };
 }
 
@@ -96,7 +88,7 @@ function demoApi() {
       teacher: null,
       classes: [{ id: classId, name: 'Demo class', code: 'DEMO', teacher_id: 'me', settings: { maxTable: 12, division: false, sound: true, battles: false }, archived_at: null }],
       students: seedDemoStudents().map(s => ({ ...s, class_id: classId })),
-      challenges: [], sessions: {},
+      sessions: {},
     };
   }
   const persist = () => { try { localStorage.setItem(DEMO_KEY, JSON.stringify(db)); } catch (e) { /* storage full or blocked */ } };
@@ -117,25 +109,18 @@ function demoApi() {
     studentState(token) {
       const m = me(token); if (!m) return ok({ error: 'signed_out' });
       const c = db.classes.find(x => x.id === m.class_id);
-      const cut = Date.now() - 21 * 864e5;
+      const cut = Date.now() - 7 * 864e5;
       return ok({
         me: { id: m.id, name: m.name, data: m.data },
         class: { id: c.id, name: c.name, settings: c.settings },
-        classmates: db.students.filter(s => s.class_id === m.class_id && s.id !== m.id).map(s => { const { facts, ...rest } = s.data; return { id: s.id, name: s.name, data: rest }; }),
-        challenges: db.challenges.filter(ch => (ch.from === m.id || ch.to === m.id) && ch.d > cut),
+        classmates: db.students.filter(s => s.class_id === m.class_id && s.id !== m.id).map(s => {
+          const rs = (s.data.rounds || []).filter(r => r.d >= cut);
+          return { id: s.id, name: s.name, data: { skin: s.data.skin || 'blob', wkStars: rs.reduce((t, r) => t + (r.stars ?? Math.round((r.pts ?? r.c * 30) / 10)), 0), wkMins: Math.round(rs.reduce((t, r) => t + (r.len || 60), 0) / 60) } };
+        }),
       });
     },
     studentSave(token, data) { const m = me(token); if (!m) return ok({ error: 'signed_out' }); m.data = data; persist(); return ok({ ok: true }); },
     studentLogout(token) { delete db.sessions[token]; persist(); return ok(null); },
-    challengeCreate(token, to, seed) {
-      const m = me(token); if (!m) return ok({ error: 'signed_out' });
-      const ch = { id: id(), from: m.id, to, seed, scores: {}, d: Date.now() }; db.challenges.push(ch); persist(); return ok({ id: ch.id });
-    },
-    challengeScore(token, cid, score) {
-      const m = me(token); const ch = db.challenges.find(x => x.id === cid);
-      if (!m || !ch || ch.scores[m.id]) return ok({ error: 'not_found' });
-      ch.scores[m.id] = score; persist(); return ok({ ok: true });
-    },
     teacherSession: () => ok(db.teacher ? { email: db.teacher.email, teacher: db.teacher.name ? { id: 'me', name: db.teacher.name, role: 'admin', school: { id: 'demo-school', ...db.school } } : null } : null),
     teacherSignIn(email) { db.teacher = { email, name: (db.teacher && db.teacher.name) || 'Demo teacher' }; persist(); return ok({ ok: true }); },
     teacherSignUp(email) { db.teacher = { email, name: null }; persist(); return ok({ ok: true, needsConfirm: false }); },
@@ -183,11 +168,6 @@ function demoApi() {
     },
     removeStudent(sid) { db.students = db.students.filter(s => s.id !== sid); persist(); return ok(null); },
     resetDemo() { localStorage.removeItem(DEMO_KEY); },
-    live(name, onMsg) { // demo: other tabs in this browser
-      let bc; try { bc = new BroadcastChannel('mm.' + name); } catch (e) { return { send() {}, close() {} }; }
-      bc.onmessage = (e) => onMsg(e.data);
-      return { send: (m) => bc.postMessage(m), close: () => bc.close() };
-    },
   };
   const wrapped = { mode: 'demo' };
   for (const [k, f] of Object.entries(methods)) wrapped[k] = (...args) => { reload(); return f(...args); };

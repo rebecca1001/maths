@@ -26,7 +26,7 @@ let ALL=[2,3,4,5,6,7,8,9,10,11,12];   // the times tables in play; set from the 
 // ---------- state ----------
 // S holds the logged-in student and their classmates (or, for a teacher, the selected class's students).
 function newPlayerData(){return {badges:[],rockets:['classic'],rocket:'classic',skin:'blob',owned:['blob'],coins:0,facts:{},rounds:[],placed:false}}
-let S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:false};
+let S={players:{},order:[],current:null,showBoard:true,muted:false};
 let SESSION=null;   // {token} for a logged-in student
 let TEACH_TAB='students';
 let CLASS=null;     // {id,name,settings} for the student's class
@@ -40,7 +40,7 @@ setInterval(async()=>{
   const ae=document.activeElement;if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName))return;
   try{const h=await (await fetch('/?v='+Date.now(),{cache:'no-store'})).text();const m=h.match(/\/assets\/index-[\w-]+\.js/);
     if(m&&!myBuild.endsWith(m[0])&&!G&&screen!=='play')location.reload()}catch(e){}
-},60000);
+},300000); // every 5 minutes
 function local(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return{}}}
 function setLocal(o){try{localStorage.setItem(LS,JSON.stringify({...local(),...o}))}catch(e){}}
 let saveTimer=null,saving=Promise.resolve();
@@ -56,17 +56,16 @@ const P=()=>S.players[S.current];
 function applySettings(st){
   st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
   ALL=Array.from({length:mx-1},(_,i)=>i+2);
-  S.muted=st.sound===false;S.division=!!st.division;S.battles=false; // battles removed from the game
+  S.muted=st.sound===false;S.division=!!st.division;
   const g=st.goal;S.goal=g&&Array.isArray(g.tables)&&(g.tables.length||g.rounds)?{tables:g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds:Math.max(0,Math.min(50,+g.rounds||0))}:null;
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
-  CLASS=st.class;applySettings(CLASS.settings);openClassLive();
+  CLASS=st.class;applySettings(CLASS.settings);
   const me=keepMe&&P()&&P().id===st.me.id?P():fixPlayer({...newPlayerData(),...st.me.data,id:st.me.id,name:st.me.name});
   const players={[me.id]:me},order=[me.id];
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
-  const ch={};st.challenges.forEach(c=>{const old=S.challenges[c.id];ch[c.id]={from:c.from,to:c.to,seed:+c.seed,d:+c.d,scores:{...(old?old.scores:{}),...c.scores}}});
-  S.players=players;S.order=order;S.current=me.id;S.challenges=ch;
+  S.players=players;S.order=order;S.current=me.id;
 }
 
 // ---------- fluency maths ----------
@@ -248,7 +247,7 @@ Object.assign(LOOK,{
 // ---------- navigation ----------
 const SCREENS=['login','teach','intro','home','play','results','checkres','grown','school'];
 let screen='login';
-function show(id){screen=id;document.documentElement.dataset.screen=id;SCREENS.forEach(s=>$(s).hidden=s!==id);renderTop();window.scrollTo(0,0);if(id==='home')setTimeout(()=>{if(typeof battleNews==='function')battleNews()},500)}
+function show(id){screen=id;document.documentElement.dataset.screen=id;SCREENS.forEach(s=>$(s).hidden=s!==id);renderTop();window.scrollTo(0,0)}
 function applyWorld(){document.documentElement.dataset.world='winter'} // Moon Base is the only background
 function renderTop(){
   const p=P(),inGame=screen==='play';$('top').hidden=inGame;
@@ -265,7 +264,7 @@ function spaceName(){const used=new Set(Object.values(S.players).map(p=>p.name))
 let L=null;
 function toLogin(expired){
   if(SESSION){flushSave();if(!expired)api.studentLogout(SESSION.token);}
-  closeClassLive();SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:false};
+  SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,showBoard:true,muted:false};
   try{const mine=sessionStorage.getItem(TAB);sessionStorage.removeItem(TAB);if(!mine||local().token===mine)setLocal({token:null})}catch(e){setLocal({token:null})}
   applyWorld();openLogin();
   if(expired)$('loginFb').textContent='Please log in again.';
@@ -363,7 +362,7 @@ function scoreRound(c,n,msPer){
 }
 const gameStars=(c,n,ms)=>Math.round(scoreRound(c,n,ms).total/10);       // up to 100 per game
 const roundStars=r=>r.stars!=null?r.stars:gameStars(r.c,r.n,r.ms);
-const ptsSince=(p,t)=>p.rounds.filter(r=>r.d>=t).reduce((s,r)=>s+roundStars(r),0);
+const ptsSince=(p,t)=>p.wkStars!=null?p.wkStars:p.rounds.filter(r=>r.d>=t).reduce((s,r)=>s+roundStars(r),0);
 function migrateStars(p){if(p.starsV2)return;p.maxCoins=Math.max(p.maxCoins||0,p.coins||0);p.coins=Math.max(p.coins||0,p.rounds.reduce((s,r)=>s+roundStars(r),0));p.starsV2=true}
 const fmtN=n=>n.toLocaleString();
 function weekBoard(){const wk=Date.now()-7*864e5;return S.order.map(id=>S.players[id]).map(q=>({p:q,s:ptsSince(q,wk)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
@@ -380,13 +379,12 @@ function renderHome(){
    if(g){const n=goalRounds(p),N=g.rounds,done=N&&n>=N;
      box.innerHTML=`<span class="label">This week's goal</span><div class="gline">${N?`<b class="num">${Math.min(n,N)} of ${N}</b> rounds`:''}${g.tables.length?`<span class="gt">${N?' · ':''}Practise ${g.tables.map(t=>`<span class="fchip">${t}×</span>`).join(' ')}</span>`:''}</div>${N?`<div class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></div>`:''}${done?'<span class="gdone">Goal done! ✓</span>':''}`;
      box.classList.toggle('done',!!done)}}
-  renderDuels();if(!renderHome.pulled||Date.now()-renderHome.pulled>20000){renderHome.pulled=Date.now();cloudPullChallenges()}
 
   $('boardTitle').textContent=S.showBoard?'Top players this week':'My stars';
   const wk=Date.now()-7*864e5;
   if(S.showBoard){
     const all=weekBoard(),rows=all.slice(0,10);
-    const mins=q=>Math.round(q.rounds.filter(r=>r.d>=wk).reduce((t,r)=>t+(r.len||60),0)/60);
+    const mins=q=>q.wkMins!=null?q.wkMins:Math.round(q.rounds.filter(r=>r.d>=wk).reduce((t,r)=>t+(r.len||60),0)/60);
     const fmtT=m=>m>=60?`${Math.floor(m/60)} h ${m%60} min`:`${m} min`;
     $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Time played</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.p.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.p.skin,40)}<span class="lnm">${esc(x.p.name)}${x.p.id===p.id?' <small>(you)</small>':''}</span><span class="lstat num" data-l="Time">${fmtT(mins(x.p))}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet.</p>';
     const pos=all.findIndex(x=>x.p.id===p.id),mine=ptsSince(p,wk);
@@ -402,6 +400,7 @@ function logout(){toLogin()}
 function setTab(t){
   if(t==='logout'){logout();return}
   tab=t;renderHome();window.scrollTo(0,0);
+  if(t==='board')refreshClass(); // fresh Top 10, at most every 2 minutes
 }
 function syncTab(){
   document.querySelectorAll('.rail [role=tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
@@ -484,7 +483,7 @@ function pick(p){
 }
 function afterAnswer(ok){
   G.res=G.res||[];G.res.push(ok?1:0);
-  if(!ok&&!G.duel)G.nextQ=null; // re-plan the next question now we know they struggled
+  if(!ok)G.nextQ=null; // re-plan the next question now we know they struggled
   if(!ok){
     G.retry=G.retry||[];const k=q.a+','+q.b,tries=(G.tries=G.tries||{})[k]=(G.tries[k]||0)+1;
     if(tries<=2)G.retry.push({f:[q.a,q.b],due:G.qn+3});
@@ -501,7 +500,7 @@ $('loginPad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key'
 
 function beginPlay(){
   recent=[];locked=false;$('pcoins').textContent='0';
-  $('combo').hidden=true;$('ghost').hidden=true;$('race').hidden=true;$('boss').hidden=true;$('boss').classList.remove('won');
+  $('combo').hidden=true;$('race').hidden=true;$('boss').hidden=true;$('boss').classList.remove('won');
   $('mark').style.top='50%';$('mark').innerHTML=rocketSVG(P().rocket);$('gl').textContent='Go!';$('score').textContent='0';
   buildTrack();setRing(1,G.mode==='round'?String(G.len/1000):'1/'+G.queue.length);G.nextQ=null;
   const round=G.mode==='round';
@@ -530,7 +529,7 @@ function next(){
   if(!G)return;
   maybeStartBoss();
   const p=P();
-  if(G.mode==='round'){if(performance.now()-G.start>=G.len){finishRound(true);return}q=G.nextQ||(G.duel?duelNextQ():pick(p));G.nextQ=G.duel?duelNextQ():pick(p);$('nextq').textContent='Next: '+G.nextQ.text}
+  if(G.mode==='round'){if(performance.now()-G.start>=G.len){finishRound(true);return}q=G.nextQ||pick(p);G.nextQ=pick(p);$('nextq').textContent='Next: '+G.nextQ.text}
   else{if(G.idx>=G.queue.length){finishCheck();return}const [a,b]=G.queue[G.idx++];q={a,b,text:`${a} × ${b}`,ans:a*b};
     const nx=G.queue[G.idx];$('nextq').textContent=nx?`Next: ${nx[0]} × ${nx[1]}`:'Last one!';setRing(1-(G.idx-1)/G.queue.length,`${G.idx}/${G.queue.length}`)}
   input='';$('q').textContent=q.text;$('ans').textContent='';$('ans').className='ans';$('fb').textContent='';$('fb').className='fb';
@@ -568,7 +567,7 @@ function press(d){
 function check(){
   const ms=performance.now()-qStart,ok=Number(input)===q.ans;
   record(ok,ms);G.n++;if(G.mode==='round')afterAnswer(ok);G.speeds.push(ok?ms:Math.max(6000,Math.min(ms*1.5,10000)));updateGauge();
-  if(ok&&G.trace){G.trace.push(performance.now()-G.start);if(G.live)G.live.send({t:'c',id:P().id,c:G.c+1})}
+  if(ok&&G.trace)G.trace.push(performance.now()-G.start);
   if(ok){G.c++;G.ms+=ms;G.streak=(G.streak||0)+1;G.best=Math.max(G.best||0,G.streak);
     G.coins++;flyStars(1);if(G.boss)bossHit();
     SFX.right(G.streak);if(G.mode==='round'&&(G.streak===5||G.streak===10))SFX.combo();
@@ -582,7 +581,6 @@ function liveStars(){return G.mode==='round'?gameStars(G.c,G.n,G.c?G.ms/G.c:0)+(
 function finishRound(keep){
   clearInterval(tick);const g=G;G=null;if(!g)return;
   const p=P();
-  if(g.live){const lv=g.live;lv.send({t:keep&&g.n?'done':'left',id:p.id,c:g.c});setTimeout(()=>lv.close(),2000)}
   if(!keep||g.n===0){save();renderHome();show('home');return}
   const before=tierIndex(statusSecs(p)),prevBest=pb(p);
   const r={d:Date.now(),c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):0,len:60,best:g.best||0,boss:!!(g.boss&&g.boss.state==='won'),pts:0};
@@ -602,7 +600,6 @@ function finishRound(keep){
   $('resStars').textContent=total;
   $('resTier').textContent=after<0?'No rank yet':TIERS[after].name;$('resTierBox').classList.toggle('up',up);
   $('resTierNote').textContent=up?' ▲':'';
-  if(g.duel)finishDuel(g,p);else $('resDuel').hidden=true;
   show('results');confettiBurst();SFX.end();
   if(after>=0&&after>before)setTimeout(()=>celebrate(`<div class="ovart">${tierArt(after)}</div><span class="label">${before<0?'Your first rank':'Rank up!'}</span><h1>You reached ${TIERS[after].name}!</h1><p class="rankprize"><span class="coin"></span>+${rankReward(after)} stars</p><p class="muted">${after<TIERS.length-1?'Next stop: '+TIERS[after+1].name:'You made it to the very top!'}</p>`),900);
   if(stk.grew&&[3,5,10,15,20,30,50,100].includes(stk.count))setTimeout(()=>celebrate(`<div class="ovart bigflame">${FLAME}</div><span class="label">Streak!</span><h1>${stk.count} days in a row!</h1><p class="muted">${stk.usedFreeze?'Your streak freeze saved your streak this week. ':''}Keep coming back to grow your streak.</p>`),850);
@@ -832,7 +829,6 @@ const BSTYLE={
   shop1:   {c:['#7CE38B','#22A04A'],shape:'circle',icon:'bag'},
   shop10:  {c:['#6FE3FF','#2563EB'],shape:'hex',   icon:'gem'},
   boss:    {c:['#9BF26B','#3E9E1E'],shape:'shield',icon:'alien'},
-  duelwin: {c:['#FF5A5F','#B3123A'],shape:'shield',icon:'text'},
   century: {c:['#FFD15C','#C27A00'],shape:'burst', icon:'text'},
   moonland:{c:['#C9D6FF','#5B6BC9'],shape:'circle',icon:'moon'},
   master:  {c:['#FFE45C','#C27A00'],shape:'star',  icon:'text'},
@@ -946,7 +942,7 @@ const teacherName=id=>{const t=(TEACH.teachers||[]).find(x=>x.id===id);return t?
 async function loadClassStudents(){
   const c=curClass();setLocal({teacherClass:c.id});applySettings(c.settings);
   const list=await api.listStudents(c.id);
-  S={players:{},order:[],current:null,challenges:{},showBoard:true,muted:true,goal:S.goal};
+  S={players:{},order:[],current:null,showBoard:true,muted:true,goal:S.goal};
   list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin});S.order.push(st.id)});
   GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
@@ -1158,128 +1154,18 @@ function bossTick(){
   if(performance.now()>B.until){B.state='lost';renderBoss();setTimeout(()=>{if(G&&G.boss===B)$('boss').hidden=true},2000)}else renderBoss();
 }
 
-// ---------- 1v1 challenges ----------
-// A challenge stores a seed, so both players get exactly the same questions in the same order.
-// Each plays a 1-minute round whenever they like; the most correct answers wins (tie: faster average).
-S.challenges=S.challenges||{};
-function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-function duelQueue(seed){const r=rng(seed),out=[],k=ALL.length;for(let i=0;i<90;i++){const a=2+Math.floor(r()*k),b=2+Math.floor(r()*k);out.push([a,b])}return out}
-function duelResult(ch){
-  const A=ch.scores[ch.from],B=ch.scores[ch.to];if(!A||!B)return null;
-  if(A.c!==B.c)return A.c>B.c?ch.from:ch.to;
-  if(A.ms!==B.ms)return A.ms<B.ms?ch.from:ch.to;
-  return 'draw';
-}
-function pruneChallenges(){const cut=Date.now()-21*864e5;for(const [id,ch] of Object.entries(S.challenges))if(ch.d<cut||!S.players[ch.from]||!S.players[ch.to])delete S.challenges[id]}
-function myChallenges(p){return Object.entries(S.challenges).filter(([,ch])=>ch.from===p.id||ch.to===p.id).sort((a,b)=>b[1].d-a[1].d)}
-function renderDuels(){
-  const p=P();if(!p)return;pruneChallenges();
-  $('duelAlert').hidden=!S.battles;
-  const mine=myChallenges(p),nm=id=>S.players[id]?esc(S.players[id].name):'Someone',av=id=>S.players[id]?avatar(S.players[id].skin,30):'';
-  const incoming=mine.filter(([,ch])=>ch.to===p.id&&!ch.scores[p.id]);
-  const waiting=mine.filter(([,ch])=>ch.from===p.id&&!ch.scores[ch.to]&&ch.scores[p.id]);
-  const done=mine.filter(([,ch])=>duelResult(ch));
-  const others=S.order.filter(id=>id!==p.id);
-  $('duelAlert').innerHTML=incoming.length
-    ?incoming.slice(0,2).map(([cid,ch])=>`<div class="duelalert" role="status">${av(ch.from)}<span><b>${nm(ch.from)}</b> wants to battle you!</span><button class="btn" data-play="${cid}">Play</button></div>`).join('')
-    :`<div class="duelalert quiet"><span><b>Battle a classmate</b>${(()=>{const d=done[0],wt=waiting[0];if(wt&&(!d||wt[1].d>d[1].d))return `<small>Waiting for ${nm(wt[1].to)}…</small>`;if(d){const w=duelResult(d[1]),opp=d[1].from===p.id?d[1].to:d[1].from,me=d[1].scores[p.id].c,th=d[1].scores[opp].c;return `<small>${w==='draw'?'Drew with':w===p.id?'Beat':'Lost to'} ${nm(opp)} ${me}–${th}</small>`}return ''})()}</span><button class="btn" id="duelQuick">Battle</button></div>`;
-}
-$('duelAlert').addEventListener('click',e=>{
-  const pl=e.target.closest('[data-play]');if(pl){startDuel(pl.dataset.play);return}
-  if(e.target.closest('#duelQuick'))openDuelPicker()});
-function openDuelPicker(){
-  const p=P(),others=S.order.filter(id=>id!==p.id);
-  if(!others.length){celebrate(`<span class="label">Battle</span><h1>No classmates yet</h1><p class="muted">Battles are against other students in your class. Once your teacher adds more students, you can battle them here.</p>`,'OK');return}
-  $('ovcard').innerHTML=`<span class="label">Battle</span><h1>Who do you want to battle?</h1><p class="muted">Same questions for both of you. If they join while you play, you race live. If not, they race your ghost later.</p>
-    <div class="duelgrid pickgrid">${others.map(id=>{const o=S.players[id];return `<button class="duelmate" data-mate="${id}">${avatar(o.skin,30)}<span>${esc(o.name)}</span></button>`}).join('')}</div>
-    <button class="btn" data-pickcancel style="width:100%">Cancel</button>`;
-  $('overlay').hidden=false;
-}
-$('ovcard').addEventListener('click',e=>{
-  if(e.target.closest('[data-pickcancel]')){$('overlay').hidden=true;return}
-  const mate=e.target.closest('.pickgrid [data-mate]');if(!mate)return;
-  const p=P(),to=mate.dataset.mate;$('overlay').hidden=true;
-  const seed=Math.floor(Math.random()*1e9);
-  api.challengeCreate(SESSION.token,to,seed).then(r=>{
-    if(!r||!r.id){const e=(r&&r.error)||'no reply';if(e!=='battles_off')console.error('Battle failed:',e);
-      celebrate(e==='battles_off'?`<span class="label">Battle</span><h1>Battles are switched off</h1><p class="muted">Your teacher has turned battles off for now.</p>`:`<span class="label">Battle</span><h1>Could not start the battle</h1><p class="muted">Try again in a moment.</p><p class="note" style="font-size:.8rem">Details: ${esc(e)}</p>`,'OK');return}
-    S.challenges[r.id]={from:p.id,to,seed,d:Date.now(),scores:{}};if(classLive)classLive.send({t:'invite',to,cid:r.id});startDuel(r.id);
-  }).catch(()=>{});
-});
-function duelNextQ(){const f=G.queue[G.qi++%G.queue.length];return {a:f[0],b:f[1],text:`${f[0]} × ${f[1]}`,ans:f[0]*f[1]}}
-// Refresh classmates and battles from the server every so often (my own data stays as it is on this device)
-// Battle news: a pop-up for each new challenge and each finished battle, shown once per player
-function battleNews(){
-  const p=P();if(!p||TEACH||G||screen!=='home'||!S.battles)return;
-  const seen=new Set(p.seenBattles||[]);let changed=false;
-  const nm=id=>S.players[id]?esc(S.players[id].name):'A classmate';
-  for(const [cid,ch] of Object.entries(S.challenges).sort((a,b)=>a[1].d-b[1].d)){
-    const w=duelResult(ch);
-    if(w&&!seen.has('r:'+cid)){
-      seen.add('r:'+cid);seen.add('i:'+cid);changed=true;
-      const opp=ch.from===p.id?ch.to:ch.from,me=ch.scores[p.id].c,th=ch.scores[opp].c,o=S.players[opp];
-      celebrate(`<span class="label">Battle result</span><div class="duelscore">${avatar(p.skin,54)}<b class="num">${me}</b><span>–</span><b class="num">${th}</b>${o?avatar(o.skin,54):''}</div><h1>${w==='draw'?`It's a draw with ${nm(opp)}!`:w===p.id?`You beat ${nm(opp)}!`:`${nm(opp)} won this time`}</h1><p class="muted">${w===p.id?'Great job!':w==='draw'?'So close!':'Battle them again to get your revenge!'}</p>`,w===p.id?'Awesome!':'OK');
-    }else if(!w&&ch.to===p.id&&!ch.scores[p.id]&&!seen.has('i:'+cid)){
-      seen.add('i:'+cid);changed=true;const fromP=S.players[ch.from];
-      celebrate(`<span class="label">Battle!</span><div class="ovart">${fromP?avatar(fromP.skin,90):''}</div><h1>${nm(ch.from)} wants to battle you!</h1><p class="muted">Same questions, 1 minute. Try to beat their score!</p>`,'Play now',()=>startDuel(cid),'Later');
-    }
-  }
-  if(changed){const keep=new Set(Object.keys(S.challenges).flatMap(c=>['r:'+c,'i:'+c]));p.seenBattles=[...seen].filter(k=>keep.has(k));save()}
-}
-setInterval(()=>{if(S.battles&&SESSION&&!TEACH&&!G&&screen==='home'&&!document.hidden)cloudPullChallenges()},15000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESSION&&!TEACH&&!G&&screen==='home')cloudPullChallenges()});
-async function cloudPullChallenges(){
-  if(!SESSION||TEACH)return;
-  let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
-  if(!st||st.error){if(st&&st.error==='signed_out')toLogin(true);return}
-  if(!SESSION||!P()||P().id!==st.me.id)return;
-  applyState(st,true);
-  if(screen==='home'){renderHome();battleNews()}
-}
-
-// ---------- ghost races: the second player races a replay of the first player's answers ----------
-function startDuel(cid){
-  const ch=S.challenges[cid];if(!ch)return;
-  const me=P(),oppId=ch.from===me.id?ch.to:ch.from,opp=S.players[oppId],os=ch.scores[oppId];
-  G={mode:'round',duel:cid,queue:duelQueue(ch.seed),qi:0,start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[]};
-  G.opp={id:oppId,name:opp?opp.name:'Classmate',skin:opp?opp.skin:'blob',c:0,state:'waiting'};
-  if(os&&os.trace)setGhost(os);
-  beginPlay();
-  $('fb').className='fb goal';$('fb').textContent=G.ghost?`Race ${G.opp.name}'s ghost!`:`Battle vs ${G.opp.name}. Go!`;
-  buildRace();
-  // Live: tell the other player we're here, and listen for their answers
-  const g=G;
-  g.live=api.live('mm-battle-'+cid,m=>onBattleMsg(g,m));
-  g.live.send({t:'join',id:me.id,c:0});
-  [1500,4000,9000].forEach(ms=>setTimeout(()=>{if(G===g&&g.opp.state==='waiting')g.live.send({t:'join',id:me.id,c:g.c})},ms));
-  // The opponent may have finished since we last checked: fetch fresh so we can race their ghost
-  if(!G.ghost&&SESSION)api.studentState(SESSION.token).then(st=>{
-    if(G!==g||!st||st.error||g.ghost)return;
-    const c=st.challenges.find(x=>x.id===cid),sc=c&&c.scores&&c.scores[oppId];
-    if(sc&&sc.trace&&g.opp.state!=='live'){setGhost(sc);renderRace()}
-  }).catch(()=>{});
-}
+// ---------- race track: in every round you race the ghost of your own best round ----------
 function setGhost(sc){G.ghost={trace:sc.trace,final:sc.c};G.opp.state='ghost';G.opp.c=0}
-function onBattleMsg(g,m){
-  if(G!==g||!m||m.id!==g.opp.id||g.ghost)return;
-  if(m.t==='join'){g.live.send({t:'c',id:P().id,c:g.c});g.opp.state='live';g.opp.c=m.c||0;
-    $('fb').className='fb goal';$('fb').textContent=`${g.opp.name} joined. Live race!`}
-  else if(m.t==='c'){g.opp.state='live';g.opp.c=Math.max(g.opp.c,m.c||0)}
-  else if(m.t==='done'){g.opp.state='done';g.opp.c=m.c||g.opp.c}
-  else if(m.t==='left'){g.opp.state='left'}
-  renderRace();
-}
-// Race track: two lanes, each player's character moves right with every correct answer
 function buildRace(){
   const me=P(),o=G.opp;
   $('race').innerHTML=[['me',me.skin,'You'],['opp',o.skin,esc(o.name)]].map(([k,sk,label])=>
     `<div class="lane ${k}"><span class="lname">${label}<em id="race_${k}_tag"></em></span><div class="lrun"><i class="lfill" id="race_${k}_fill"></i><span class="lav" id="race_${k}_av">${avatar(sk,30)}</span><span class="lfin"></span></div><b class="num" id="race_${k}_c">0</b></div>`).join('');
-  $('race').hidden=false;$('ghost').hidden=true;renderRace();
+  $('race').hidden=false;renderRace();
 }
 function renderGhost(){
-  if(!G||!G.opp)return;
-  if(G.ghost){const v=G.ghost.trace.filter(t=>t<=performance.now()-G.start).length;
-    if(v!==G.opp.c){G.opp.c=v;renderRace();const a=$('race_opp_av');if(a){a.classList.remove('bump');void a.offsetWidth;a.classList.add('bump')}}}
+  if(!G||!G.opp||!G.ghost)return;
+  const v=G.ghost.trace.filter(t=>t<=performance.now()-G.start).length;
+  if(v!==G.opp.c){G.opp.c=v;renderRace();const a=$('race_opp_av');if(a){a.classList.remove('bump');void a.offsetWidth;a.classList.add('bump')}}
 }
 function renderRace(){
   if(!G||!G.opp||$('race').hidden)return;
@@ -1287,57 +1173,18 @@ function renderRace(){
   const goal=Math.max(30,Math.ceil((top+3)/10)*10);
   const put=(k,c)=>{const f=Math.min(1,c/goal);$('race_'+k+'_av').style.left=`calc((100% - 34px) * ${f.toFixed(3)})`;$('race_'+k+'_fill').style.width=`calc((100% - 34px) * ${f.toFixed(3)} + 17px)`;$('race_'+k+'_c').textContent=c};
   put('me',G.c);put('opp',o.c);
-  const tag={ghost:'Ghost',live:'Live',done:'Finished',left:'Left',waiting:'Not playing yet'}[o.state];
-  const t=$('race_opp_tag');t.textContent=tag;t.className='rtag '+o.state;
+  const t=$('race_opp_tag');t.textContent='Ghost';t.className='rtag ghost';
   $('race').querySelector('.lane.me').classList.toggle('lead',G.c>o.c);
   $('race').querySelector('.lane.opp').classList.toggle('lead',o.c>G.c);
 }
-// Class channel: instant battle invites and results
-let classLive=null,classLiveId=null;
-function openClassLive(){
-  if(!CLASS||TEACH||!S.battles||classLiveId===CLASS.id)return;closeClassLive();
-  classLiveId=CLASS.id;
-  classLive=api.live('mm-class-'+CLASS.id,m=>{
-    const p=P();if(!p||!m)return;
-    const forMe=(m.t==='invite'&&m.to===p.id)||(m.t==='scored'&&S.challenges[m.cid]&&(S.challenges[m.cid].from===p.id||S.challenges[m.cid].to===p.id));
-    if(!forMe)return;
-    renderHome.pulled=0;
-    if(m.t==='scored'&&screen==='results'&&lastDuel===m.cid){refreshDuel(m.cid);return}
-    if(screen==='home'&&!G)cloudPullChallenges();
-  });
-}
-function closeClassLive(){if(classLive)classLive.close();classLive=null;classLiveId=null}
-function finishDuel(g,p){
-  const ch=S.challenges[g.duel];const box=$('resDuel');if(!ch){box.hidden=true;return}
-  ch.scores[p.id]={c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):99999,d:Date.now(),trace:(g.trace||[]).slice(0,150).map(Math.round)};
-  lastDuel=g.duel;lastDuelOpp=g.opp;renderHome.pulled=0;
-  if(SESSION)api.challengeScore(SESSION.token,g.duel,ch.scores[p.id]).then(()=>{if(classLive)classLive.send({t:'scored',cid:g.duel});refreshDuel(g.duel)}).catch(()=>{});
-  // Wait on the results screen for the other player's score
-  clearInterval(duelWait);const cid=g.duel,t0=Date.now();
-  duelWait=setInterval(()=>{if(screen!=='results'||lastDuel!==cid||duelResult(S.challenges[cid]||{scores:{}})||Date.now()-t0>180000){clearInterval(duelWait);return}refreshDuel(cid)},4000);
-  if(duelResult(ch)){p.seenBattles=[...new Set([...(p.seenBattles||[]),'r:'+g.duel,'i:'+g.duel])]}
-  else p.seenBattles=[...new Set([...(p.seenBattles||[]),'i:'+g.duel])];
-  save();renderDuelCard(g.duel);
-}
-let lastDuel=null,lastDuelOpp=null,duelWait=null;
-// Fetch the latest scores for one battle; if it now has a winner, show it
-async function refreshDuel(cid){
-  if(!SESSION)return;let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
-  if(!st||st.error)return;
-  const c=st.challenges.find(x=>x.id===cid),ch=S.challenges[cid],p=P();if(!c||!ch||!p)return;
-  const had=!!duelResult(ch);Object.assign(ch.scores,c.scores||{});
-  if(!had&&duelResult(ch)){
-    p.seenBattles=[...new Set([...(p.seenBattles||[]),'r:'+cid,'i:'+cid])];save();
-    if(screen==='results'&&lastDuel===cid){renderDuelCard(cid);if(duelResult(ch)===p.id){confettiBurst();SFX.end()}}
-  }
-}
-function renderDuelCard(cid){
-  const p=P(),ch=S.challenges[cid],box=$('resDuel');if(!ch||!p)return;
-  const opp=ch.from===p.id?ch.to:ch.from,o=S.players[opp],w=duelResult(ch),mine=ch.scores[p.id];
-  box.hidden=false;
-  const playing=lastDuel===cid&&lastDuelOpp&&lastDuelOpp.state==='live';
-  if(!w)box.innerHTML=`<h2>Battle vs ${o?esc(o.name):'classmate'}</h2><p>You got <b>${mine.c}</b> right. ${playing?`Waiting for ${o?esc(o.name):'them'} to finish…`:`Now it's ${o?esc(o.name)+"'s":'their'} turn. They'll race your ghost! You'll see who won when they finish.`}</p>`;
-  else{const them=ch.scores[opp];box.innerHTML=`<h2>${w==='draw'?"It's a draw!":w===p.id?'You won the battle!':`${o?esc(o.name):'They'} won this time`}</h2><div class="duelscore">${avatar(p.skin,54)}<b class="num">${mine.c}</b><span>–</span><b class="num">${them.c}</b>${o?avatar(o.skin,54):''}</div><p class="muted">${w===p.id?'Great job!':w==='draw'?'So close!':'Battle them again to get your revenge!'}</p>`}
+// Refresh classmates' week totals for the Top 10 (only when the Top 10 is opened, at most every 2 minutes)
+let classPulled=0;
+async function refreshClass(force){
+  if(!SESSION||TEACH||(!force&&Date.now()-classPulled<120000))return;classPulled=Date.now();
+  let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
+  if(!st||st.error){if(st&&st.error==='signed_out')toLogin(true);return}
+  if(!SESSION||!P()||P().id!==st.me.id)return;
+  applyState(st,true);if(screen==='home')renderHome();
 }
 
 // ---------- Play page: rocket journey strip ----------
@@ -1356,7 +1203,7 @@ function journeyHTML(p){
   else msg=`You're at <b>${TIERS[ti].name}</b>. Answer faster to fly to <b>${TIERS[ti+1].name}</b>!`;
   return {track:`<div class="vjtrack" aria-hidden="true"><span class="vjline"></span><span class="vjfill" style="height:${fill.toFixed(1)}%"></span></div>${stops}`,msg};
 }
-function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'classic';p.owned=p.owned||['blob'];p.facts=p.facts||{};p.rounds=p.rounds||[];p.badges=(p.badges||[]).filter(b=>b!=='duelwin');migrateStars(p);return p}
+function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'classic';p.owned=p.owned||['blob'];p.facts=p.facts||{};p.rounds=p.rounds||[];p.badges=(p.badges||[]).filter(b=>b!=='duelwin');delete p.seenBattles;migrateStars(p);return p}
 
 // ---------- boot ----------
 export async function boot(){

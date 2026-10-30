@@ -43,7 +43,7 @@ In Supabase open **Database → Extensions**, enable **pg_cron**, then run this 
 select cron.schedule('purge-old-data', '0 3 * * *', $$select public.purge_old_data()$$);
 ```
 
-Every night this deletes classes archived more than 12 months ago (with their students and battles), expired logins, and battles older than 60 days.
+Every night this deletes classes archived more than 12 months ago (with their students), expired logins and old failed-login records.
 
 ### 4. Put the website online
 
@@ -77,9 +77,9 @@ The anon key is meant to be public. All data is protected by the database rules 
 ### Security model
 
 - **Teachers** use Supabase Auth. Row level security means a teacher can only see and change classes and students in **their own school**.
-- **Students** have no Auth account. They log in through the `student_login` database function with a class code and 4-digit code, and get a random session token. Every other student action (`student_state`, `student_save`, `challenge_create`, `challenge_score`) checks that token.
+- **Students** have no Auth account. They log in through the `student_login` database function with a class code and 4-digit code, and get a random session token. Every other student action (`student_state`, `student_save`) checks that token.
 - The public (anon) role has **no direct access to any table**.
-- Students see their own full progress. For classmates they only see names, characters, stars and rounds, not which facts they find hard.
+- Students see their own full progress. For classmates they only get a name, character, and stars and minutes played this week (for the Top 10). Nothing else about classmates reaches their device.
 - After 30 wrong codes for a class in 10 minutes, logins for that class pause.
 - **Archiving** a class stops its students logging in. Archived classes are deleted after 12 months (see step 3).
 
