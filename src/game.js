@@ -496,7 +496,13 @@ function beginPlay(){
     if(left<=0&&!locked)finishRound(true);
   },100);
 }
-function startRound(){G={mode:'round',start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],bossAt:Math.random()<.6?5+Math.floor(Math.random()*5):null,boss:null,bossPrize:0};beginPlay()}
+function startRound(){G={mode:'round',start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[],bossAt:Math.random()<.6?5+Math.floor(Math.random()*5):null,boss:null,bossPrize:0};beginPlay();raceMyBest()}
+// Normal rounds: race the ghost of your own best round
+function raceMyBest(){
+  const p=P();let tr=p.bestTrace;
+  if(!tr||!tr.length){const best=Math.max(0,...(p.rounds||[]).map(r=>r.c||0));if(!best)return;tr=Array.from({length:best},(_,i)=>Math.round((i+1)*59000/best))}
+  G.opp={id:null,name:'Your best',skin:p.skin,c:0,state:'ghost'};G.ghost={trace:tr,final:tr.length};buildRace();
+}
 function startCheck(){
   const queue=[];for(const a of ALL){const bs=[...ALL].sort(()=>Math.random()-.5).slice(0,2);bs.forEach(b=>queue.push([a,b]))}
   queue.sort(()=>Math.random()-.5);
@@ -549,7 +555,7 @@ function check(){
     G.coins++;flyStars(1);if(G.boss)bossHit();
     SFX.right(G.streak);if(G.mode==='round'&&(G.streak===5||G.streak===10))SFX.combo();
     const cb=$('combo');cb.hidden=!(G.mode==='round'&&G.streak>=3);cb.textContent=`${G.streak} in a row`;cb.classList.toggle('hot',G.streak>=10);
-    $('pcoins').textContent=liveStars();$('score').textContent=G.c;if(G.duel)renderRace();$('ans').className='ans ok';$('fb').className='fb goal';
+    $('pcoins').textContent=liveStars();$('score').textContent=G.c;if(G.opp)renderRace();$('ans').className='ans ok';$('fb').className='fb goal';
     $('fb').textContent=G.mode==='round'&&G.streak>=3?`${G.streak} in a row!`:'Correct!';locked=true;setTimeout(()=>{locked=false;next()},140)}
   else{G.streak=0;$('combo').hidden=true;SFX.wrong();$('ans').className='ans no';$('fb').className='fb no';$('fb').textContent=(G.mode==='check'?'Good try! ':'')+`${q.text} = ${q.ans}`;locked=true;setTimeout(()=>{locked=false;next()},1300)}
 }
@@ -568,6 +574,7 @@ function finishRound(keep){
    for(let t=p.rankPaid+1;t<=now;t++){if(t>=0)rankStars+=rankReward(t)}
    if(now>p.rankPaid)p.rankPaid=now}
   r.stars=base+bp+rankStars;
+  if(g.trace&&g.c>((p.bestTrace||[]).length)&&g.c>=Math.max(0,...p.rounds.map(x=>x.c||0)))p.bestTrace=g.trace.slice(0,150).map(Math.round);
   p.rounds.push(r);if(p.rounds.length>60)p.rounds.shift();
   const stk=bumpStreak(p);
   const total=r.stars;p.coins+=total;p.maxCoins=Math.max(p.maxCoins||0,p.coins);save();
@@ -1118,7 +1125,7 @@ function buildRace(){
   $('race').hidden=false;$('ghost').hidden=true;renderRace();
 }
 function renderGhost(){
-  if(!G||!G.duel)return;
+  if(!G||!G.opp)return;
   if(G.ghost){const v=G.ghost.trace.filter(t=>t<=performance.now()-G.start).length;
     if(v!==G.opp.c){G.opp.c=v;renderRace();const a=$('race_opp_av');if(a){a.classList.remove('bump');void a.offsetWidth;a.classList.add('bump')}}}
 }
