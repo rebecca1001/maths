@@ -1281,8 +1281,7 @@ export async function boot(){
   let t=null;try{t=sessionStorage.getItem(TAB)}catch(e){}
   t=t||local().token; // this tab's student first, so several tabs can stay logged in as different students
   if(t){SESSION={token:t};const ok=await loadStudent();if(ok){enterPlayer();return}}
-  if(local().teacher){ // a teacher still signed in on this device goes straight back to their class
-    let info=null;try{info=await api.teacherSession()}catch(e){}
-    if(info){openTeacher();return}setLocal({teacher:false})}
+  // The plain address is always the student side (teachers use /?teacher=1, which a refresh keeps),
+  // so a shared classroom computer never opens a teacher's dashboard for a student.
   openLogin();
 }
