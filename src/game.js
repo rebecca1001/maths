@@ -907,12 +907,8 @@ function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b
   $('tForgot').hidden=m==='create';
   $('tSubmit').textContent=m==='create'?'Create account':'Sign in';$('tPass').autocomplete=m==='create'?'new-password':'current-password';$('tPassHint').hidden=m!=='create';$('tFb').textContent=''}
 document.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>setTMode(b.dataset.tmode));
-$('tForgot').onclick=async()=>{
-  const email=$('tEmail').value.trim();
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){say('tFb','Type your email above first, then tap Forgot password.');$('tEmail').focus();return}
-  say('tFb','Sending…',true);const r=await api.teacherResetPassword(email);
-  if(r.error){say('tFb',/rate|seconds/i.test(r.error)?'Please wait a minute before asking for another email.':r.error);return}
-  say('tFb',`If ${email} has an account, we've emailed it a link to choose a new password. Check your junk folder too.`,true);
+$('tForgot').onclick=()=>{
+  say('tFb',"Ask your school's Mission Multiply admin to set a new password for you (School page). If you are the admin, email footiejack2021@gmail.com.",true);
 };
 $('tReset').addEventListener('submit',async e=>{
   e.preventDefault();const pw=$('tNewPass').value;
@@ -1087,6 +1083,13 @@ $('gdetail').addEventListener('click',async e=>{
   if(e.target.closest('#gdYes')){await api.removeStudent(p.id);delete S.players[p.id];S.order=S.order.filter(x=>x!==p.id);GSel=null;renderGrown();if(!$('codecards').hidden)renderCodeCards();return}
 });
 
+// ----- your account: change password -----
+$('acctPassForm').addEventListener('submit',async e=>{
+  e.preventDefault();const pw=$('acctPass').value;
+  if(pw.length<8){$('acctMsg').textContent='Use at least 8 characters.';return}
+  $('acctMsg').textContent='Saving…';const r=await api.teacherSetPassword(pw);
+  $('acctMsg').textContent=r&&r.error?'Could not change it: '+r.error:'Password changed. Use it next time you sign in.';if(!(r&&r.error))$('acctPass').value='';
+});
 // ----- your account: delete -----
 $('acctDelete').onclick=async()=>{
   const ans=prompt('This cannot be undone. Type DELETE to delete your account.');
@@ -1132,7 +1135,7 @@ function renderSchool(){
   $('sTeachers').innerHTML=`<thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="r">Classes</th><th></th></tr></thead><tbody>`+
     ts.map(x=>`<tr><td><b>${esc(x.name)}</b>${x.id===me?' <small class="muted">(you)</small>':''}</td><td>${esc(x.email||'')}</td>
       <td><select data-role="${x.id}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
-      <td class="r">${nClasses(x.id)}</td><td>${x.id===me?'':`<button class="linkbtn danger" data-rm="${x.id}">Remove</button>`}</td></tr>`).join('')+'</tbody>';
+      <td class="r">${nClasses(x.id)}</td><td class="nowrap">${x.id===me?'':`<button class="linkbtn" data-pw="${x.id}">Set password</button> <button class="linkbtn danger" data-rm="${x.id}">Remove</button>`}</td></tr>`).join('')+'</tbody>';
   $('sInvite').value=`Hi! Our class uses Mission Multiply for times tables.\n1. Go to ${location.origin}/?teacher=1\n2. Create an account with your school email\n3. Choose "Join my school" and enter the school code: ${sc.join_code||''}`;
 }
 $('sClasses').addEventListener('change',async e=>{
@@ -1157,6 +1160,12 @@ $('sTeachers').addEventListener('change',async e=>{
   renderSchool();
 });
 $('sTeachers').addEventListener('click',async e=>{
+  const pb=e.target.closest('[data-pw]');
+  if(pb){const t=TEACH.teachers.find(x=>x.id===pb.dataset.pw);
+    const pw=prompt(`New password for ${t.name} (at least 8 characters). Tell them it, and they can change it in Settings.`);if(pw==null)return;
+    if(pw.length<8){$('sTeachMsg').textContent='Passwords need at least 8 characters.';return}
+    const r=await api.adminSetPassword(t.id,pw);
+    $('sTeachMsg').textContent=r&&r.error?'Could not set it: '+r.error:`Done. ${t.name} can now sign in with the new password and change it in Settings.`;return}
   const b=e.target.closest('[data-rm]');if(!b)return;const t=TEACH.teachers.find(x=>x.id===b.dataset.rm);
   if(!confirm(`Remove ${t.name} from the school? Their classes and students stay, and you can give the classes to another teacher.`))return;
   const r=await api.removeTeacher(t.id);if(r&&r.error){$('sTeachMsg').textContent='Could not remove: '+r.error;return}

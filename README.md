@@ -32,7 +32,7 @@ You need two free accounts: **Supabase** (database and teacher logins) and a sta
 In Supabase, open **Authentication**:
 
 - **URL Configuration**: set **Site URL** to your website address (from step 4), and add it under **Redirect URLs**.
-- **Providers → Email**: leave **Confirm email** on, so teachers confirm their address.
+- **Providers → Email**: turn **Confirm email** OFF unless you have set up an email sender (for example Resend). Supabase's built-in email only reaches members of your Supabase team. Without email, a school admin resets teachers' passwords from the School page, and teachers change their own in Settings.
 - Optional: **Providers → Google** and **Providers → Azure** (Microsoft) let teachers use their school accounts. Each needs a client ID and secret from Google Cloud or Microsoft Entra; Supabase's page for each provider links to the steps.
 
 ### 3. Delete old data automatically

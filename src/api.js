@@ -71,6 +71,7 @@ function supabaseApi() {
     setTeacherRole: (id, role) => rpc('admin_set_role', { p_teacher: id, p_role: role }),
     removeTeacher: (id) => rpc('admin_remove_teacher', { p_teacher: id }),
     newJoinCode: () => rpc('admin_new_join_code', {}),
+    adminSetPassword: (id, password) => rpc('admin_set_password', { p_teacher: id, p_password: password }),
     deleteMyAccount: async () => { const r = await rpc('delete_my_account', {}); if (r && r.ok) await sb.auth.signOut(); return r; },
     renameSchool: (schoolId, name) => q(sb.from('schools').update({ name }).eq('id', schoolId)),
     async newPin(studentId) {
@@ -179,6 +180,7 @@ function demoApi() {
       db.classes.forEach(c => { if (c.teacher_id === tid) c.teacher_id = null; }); persist(); return ok({ ok: true });
     },
     deleteMyAccount() { const solo = !(db.otherTeachers || []).length; db.teacher = null; persist(); return ok({ ok: true, school_deleted: solo }); },
+    adminSetPassword(_id, pw) { return ok(pw && pw.length >= 8 ? { ok: true } : { error: 'too_short' }); },
     newJoinCode() { db.school.join_code = Math.random().toString(16).slice(2, 10).toUpperCase(); persist(); return ok({ join_code: db.school.join_code }); },
     renameSchool(_sid, name) { db.school.name = name; persist(); return ok(null); },
     newPin(sid) {
