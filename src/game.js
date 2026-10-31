@@ -271,7 +271,9 @@ function toLogin(expired){
   applyWorld();openLogin();
   if(expired)$('loginFb').textContent='Please log in again.';
 }
-function openLogin(){
+// The address shows which side you're on, so a refresh comes back to the same place
+function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(location.pathname+location.search!==want||location.hash)history.replaceState(null,'',want)}catch(e){}}
+function openLogin(){setAddress(false);
   const cc=local().classCode||'';L={classCode:cc,entry:'',fails:0,busy:false};
   $('classFb').textContent='';$('loginFb').textContent='';$('classCode').value=cc;
   $('demoHint').hidden=api.mode!=='demo';
@@ -892,7 +894,7 @@ function celebrateBadges(list){
 // ---------- teachers: sign in, school setup, classes and students ----------
 $('toTeacher').onclick=()=>openTeacher();
 $('tBack').onclick=()=>openLogin();
-async function openTeacher(){
+async function openTeacher(){setAddress(true);
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
@@ -1274,7 +1276,7 @@ export async function boot(){
   if(RECOVERY){setTimeout(()=>{try{history.replaceState(null,'',location.pathname)}catch(e){}},1500);
     ['tSignIn','tSetup'].forEach(id=>$(id).hidden=true);$('tReset').hidden=false;show('teach');return}
   if(q.get('teacher')||location.hash.includes('access_token')){
-    setTimeout(()=>{try{history.replaceState(null,'',location.pathname)}catch(e){}},1500); // tidy the address bar after the email link
+    setTimeout(()=>{if(TEACH||screen==='teach')setAddress(true)},1500); // tidy the address bar after the email link
     openTeacher();return}
   let t=null;try{t=sessionStorage.getItem(TAB)}catch(e){}
   t=t||local().token; // this tab's student first, so several tabs can stay logged in as different students
