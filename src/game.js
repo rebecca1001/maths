@@ -325,6 +325,7 @@ function enterPlayer(){
   else{tab='play';renderHome();show('home')}
 }
 $('introGo').onclick=()=>startCheck();
+$('notMe').onclick=()=>logout(); // shared iPads: the next child switches to their own login
 $('introSkip').onclick=()=>{P().placed=true;save();renderHome();show('home')};
 
 // ---------- home ----------
@@ -904,6 +905,17 @@ async function openTeacher(){setAddress(true);
 }
 // Sign-in messages: green for progress and info, red for problems
 function say(id,text,good){const el=$(id);el.textContent=text;el.className='fb '+(good?'ok':'no')}
+// Supabase's sign-in errors, in plain words for teachers
+function authMsg(e){
+  if(/already registered|already been registered|already exists/i.test(e))return 'That email already has an account. Tap Sign in at the top instead.';
+  if(/invalid login|invalid credentials/i.test(e))return 'Wrong email or password. New here? Tap Create account at the top.';
+  if(/not confirmed/i.test(e))return 'This account has not been confirmed yet. Email footiejack2021@gmail.com and we will sort it out.';
+  if(/invalid.*email|email.*invalid|valid email/i.test(e))return 'That email address does not look right. Check it and try again.';
+  if(/password.*(short|least|weak)|weak password/i.test(e))return 'Choose a password with at least 8 characters.';
+  if(/rate limit|too many|seconds/i.test(e))return 'Too many tries. Wait a minute, then try again.';
+  if(/fetch|network/i.test(e))return 'Could not connect. Check the internet and try again.';
+  return e;
+}
 let tMode='signin';
 function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b=>{b.classList.toggle('on',b.dataset.tmode===m);b.setAttribute('aria-selected',b.dataset.tmode===m)});
   $('tForgot').hidden=m==='create';
@@ -925,13 +937,13 @@ $('tSignIn').addEventListener('submit',async e=>{
     if(!email||pw.length<8){say('tFb','Enter your school email and a password of at least 8 characters.');return}
     say('tFb','Creating your account…',true);
     const r=await api.teacherSignUp(email,pw);
-    if(r.error){say('tFb',r.error);return}
+    if(r.error){say('tFb',authMsg(r.error));return}
     if(r.needsConfirm){setTMode('signin');say('tFb','Check your email and tap the link to confirm your account, then sign in here.',true);return}
     openTeacher();return;
   }
   say('tFb','Signing in…',true);
   const r=await api.teacherSignIn(email,pw);
-  if(r.error){say('tFb',/invalid/i.test(r.error)?'Wrong email or password. New here? Tap Create account at the top.':r.error);return}
+  if(r.error){say('tFb',authMsg(r.error));return}
   openTeacher();
 });
 document.querySelectorAll('input[name="tMode"]').forEach(r=>r.onchange=()=>{const j=document.querySelector('input[name="tMode"]:checked').value==='join';$('tJoinRow').hidden=!j;$('tSchoolNameRow').hidden=j});

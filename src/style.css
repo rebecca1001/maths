@@ -615,3 +615,4 @@ body{margin:0}
   .console-head .ring{transform:scale(.85)}
 }
 .nowrap{white-space:nowrap}
+.notme{margin-top:-6px;opacity:.8}

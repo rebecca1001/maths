@@ -110,8 +110,8 @@ select 'after logout: ' || public.student_state((select v from t where k='tok_fo
 
 -- Brute force guard
 do $$ declare i int; r json; begin
-  for i in 1..35 loop r := public.student_login('ABCDEF', lpad(i::text,4,'0')); end loop;
-  raise notice 'after 35 bad tries: %', r;
+  for i in 1..105 loop r := public.student_login('ABCDEF', lpad(i::text,4,'0')); end loop;
+  raise notice 'after 105 bad tries: %', r;
 end $$;
 
 -- School admin
