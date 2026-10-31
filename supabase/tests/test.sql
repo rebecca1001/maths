@@ -142,6 +142,35 @@ do $$ begin
   exception when insufficient_privilege then raise notice 'anon blocked from admin functions: true'; end;
 end $$;
 
+-- Delete my account
+reset role;
+insert into auth.users values ('44444444-4444-4444-4444-444444444444','d@school.ca'),('55555555-5555-5555-5555-555555555555','e@solo.ca');
+insert into t select 'join2', s.join_code from public.schools s join public.teachers tt on tt.school_id = s.id where tt.id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+select set_config('request.jwt.claim.sub','44444444-4444-4444-4444-444444444444',false);
+select public.join_school((select v from t where k='join2'),'Mr D') is not null;
+insert into public.classes (name) values ('D class');
+select 'teacher D deletes account: ' || public.delete_my_account()::text;
+reset role;
+select 'D login gone: ' || not exists (select 1 from auth.users where id = '44444444-4444-4444-4444-444444444444');
+select 'D class kept, no teacher: ' || exists (select 1 from public.classes where name = 'D class' and teacher_id is null);
+select 'school A still there: ' || exists (select 1 from public.teachers where id = '11111111-1111-1111-1111-111111111111');
+-- solo teacher: school and students go with them
+set role authenticated;
+select set_config('request.jwt.claim.sub','55555555-5555-5555-5555-555555555555',false);
+select public.create_school('Solo School','Ms E') is not null;
+insert into public.classes (name) values ('E class');
+insert into public.students (class_id, name) select id, 'Solo Kid' from public.classes where name = 'E class';
+select 'solo teacher deletes account: ' || public.delete_my_account()::text;
+reset role;
+select 'solo school, class and student gone: ' || (not exists (select 1 from public.schools where name = 'Solo School') and not exists (select 1 from public.students where name = 'Solo Kid'));
+set role anon;
+do $$ begin
+  begin perform public.delete_my_account(); raise notice 'FAIL: anon delete_my_account';
+  exception when insufficient_privilege then raise notice 'anon blocked from delete_my_account: true'; end;
+end $$;
+reset role;
+
 -- Archived class: students can no longer log in or play
 reset role;
 set role authenticated;

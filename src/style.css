@@ -594,3 +594,23 @@ body{margin:0}
 .realrow input{font:inherit;padding:7px 10px;border-radius:10px;border:2px solid var(--line);background:var(--surface);color:var(--ink);flex:1 1 200px;max-width:320px}
 #addNames{font:inherit;padding:8px 10px;border-radius:10px;border:2px solid var(--line);background:var(--surface);color:var(--ink);width:100%;resize:vertical}
 .codecard .cfor{font-weight:800;color:var(--ink);font-size:.95rem}
+/* Short screens (Chromebooks ~650px tall once the browser bars are counted): keep the whole number pad on screen */
+@media (max-height:860px) and (min-width:561px){
+  #play .gametop{margin-bottom:-4px}
+  .console{padding:10px 12px;gap:7px}
+  .console-head .q{font-size:clamp(2.4rem,7vh,3.6rem)}
+  .qblock{padding:4px 10px 6px}
+  .console .ans{height:clamp(44px,7vh,60px);font-size:2.1rem}
+  .console .pad{gap:7px}
+  .console .key{padding:clamp(4px,1.2vh,10px) 0;font-size:1.55rem}
+  .race{padding:5px 10px;gap:4px}
+  .lrun{height:28px}
+  .lav{top:-1px;transform:scale(.85)}
+  .console .fb{min-height:1.2em;font-size:.95rem}
+}
+@media (max-height:700px) and (min-width:561px){
+  .console .key{padding:3px 0;font-size:1.4rem;border-bottom-width:4px}
+  .console .ans{height:42px;font-size:1.9rem}
+  .lrun{height:24px}
+  .console-head .ring{transform:scale(.85)}
+}

@@ -33,7 +33,7 @@
         <button class="linkbtn" id="changeClass">Not your class? Change class code</button>
       </div>
     </div>
-    <div class="loginlinks"><button class="linkbtn" id="toTeacher">Teachers</button></div>
+    <div class="loginlinks"><button class="linkbtn" id="toTeacher">Teachers</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
     <p class="note demo" id="demoHint" hidden>Demo mode: class code <b>DEMO</b>, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
@@ -52,7 +52,7 @@
         <button class="linkbtn small" type="button" id="tForgot">Forgot password?</button>
         <div class="fb no" id="tFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="tSubmit">Sign in</button>
-        <button class="linkbtn" type="button" id="tBack">Back to student login</button>
+        <div class="loginlinks"><button class="linkbtn" type="button" id="tBack">Back to student login</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
       </form>
       <form id="tReset" class="tform" hidden>
         <h1>Choose a new password</h1>
@@ -229,7 +229,7 @@
         <h2>Add students</h2>
         <label class="muted small" for="addNames">Type or paste your students' names, one per line. Each one gets a space name and a 4-digit login code.</label>
         <textarea id="addNames" rows="4" placeholder="Ava S&#10;Noah K&#10;Liam P"></textarea>
-        <div class="row"><button class="btn primary" id="addStudent">Add students</button><button class="btn" id="showCards">Print login cards</button></div>
+        <div class="row"><button class="btn primary" id="addStudent">Add students</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="exportCsv">Download class data</button></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
         <div class="codecards" id="codecards" hidden></div>
@@ -255,6 +255,13 @@
         <hr>
         <button class="btn danger" id="gArchive">Archive this class</button>
         <p class="muted small">Archived classes can't log in, and are deleted after 12 months.</p>
+      </div>
+      <div class="card setcard">
+        <h2>Your account</h2>
+        <p class="muted small">Signed in as <b id="acctEmail"></b></p>
+        <div class="row"><button class="btn" id="acctOut">Sign out</button><button class="btn danger" id="acctDelete">Delete my account</button></div>
+        <p class="muted small">Deleting your account removes your login straight away. If you are the only teacher at your school, it also deletes the school, its classes and all student data. Otherwise your classes stay with the school for another teacher.</p>
+        <p class="note" id="acctMsg" aria-live="polite"></p>
       </div>
     </div>
   </section>

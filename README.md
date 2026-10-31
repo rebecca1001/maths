@@ -63,6 +63,10 @@ The anon key is meant to be public. All data is protected by the database rules 
 3. Your first class is created. Rename it by adding a new class, then type your students' names (one per line) under **Add students** and tap **Print login cards**.
 4. Other teachers at your school create their own account and choose **Join my school** with the school code shown on your dashboard.
 
+## Privacy
+
+The privacy policy is at `/privacy` (file `public/privacy.html`), linked from both login screens. Fill in the [bracketed] details before schools use it. Teachers can download their class's data (Students tab) and delete their own account (Settings tab).
+
 ## How it works
 
 | Part | Where |

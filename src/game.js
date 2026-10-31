@@ -771,7 +771,7 @@ $('tbl').addEventListener('click',async e=>{
   if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
   const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
 $('tbl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-id]');if(tr){e.preventDefault();selectStudent(tr)}}});
-$('grownBack').onclick=$('sOut').onclick=async()=>{await api.teacherSignOut();setLocal({teacher:false});TEACH=null;toLogin()};
+$('grownBack').onclick=$('sOut').onclick=$('acctOut').onclick=async()=>{await api.teacherSignOut();setLocal({teacher:false});TEACH=null;toLogin()};
 
 // ---------- celebration pop-ups (rank ups, new badges, shop unboxing) ----------
 const ovQueue=[];
@@ -1040,7 +1040,7 @@ function renderSettings(){
   $('setName').value=c.name;$('setMax').value=String(st.maxTable||12);$('setDiv').checked=!!st.division;$('setSound').checked=st.sound!==false;
   $('setTeacherRow').hidden=!isAdmin();
   if(isAdmin())$('setTeacher').innerHTML=`<option value="">No teacher</option>`+(TEACH.teachers||[]).map(t=>`<option value="${t.id}" ${t.id===c.teacher_id?'selected':''}>${esc(t.name)}</option>`).join('');
-  $('setMsg').textContent='';
+  $('setMsg').textContent='';$('acctEmail').textContent=TEACH.info.email||'';$('acctMsg').textContent='';
 }
 async function saveSettings(){
   const c=curClass();c.settings={...c.settings,maxTable:+$('setMax').value,division:$('setDiv').checked,sound:$('setSound').checked,battles:false};
@@ -1086,6 +1086,32 @@ $('gdetail').addEventListener('click',async e=>{
   if(e.target.closest('#gdNo')){renderGrown();return}
   if(e.target.closest('#gdYes')){await api.removeStudent(p.id);delete S.players[p.id];S.order=S.order.filter(x=>x!==p.id);GSel=null;renderGrown();if(!$('codecards').hidden)renderCodeCards();return}
 });
+
+// ----- your account: delete -----
+$('acctDelete').onclick=async()=>{
+  const ans=prompt('This cannot be undone. Type DELETE to delete your account.');
+  if(ans==null)return;if(ans.trim().toUpperCase()!=='DELETE'){$('acctMsg').textContent='Not deleted. Type DELETE (in capitals) to confirm.';return}
+  $('acctMsg').textContent='Deleting…';
+  let r;try{r=await api.deleteMyAccount()}catch(e){r={error:e.message}}
+  if(!r||r.error){$('acctMsg').textContent=r&&r.error==='last_admin'?'You are the only admin. Make another teacher an admin on the School page first.':'Could not delete: '+((r&&r.error)||'no reply');return}
+  setLocal({teacher:false,teacherClass:null});TEACH=null;
+  toLogin();setTimeout(()=>{$('loginFb').textContent=r.school_deleted?'Your account, school and its data were deleted.':'Your account was deleted.'},50);
+};
+// ----- download class data (CSV) -----
+function csvCell(v){v=v==null?'':String(v);if(/^[=+\-@]/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v} // also stops spreadsheet formulas
+$('exportCsv').onclick=()=>{
+  const c=curClass(),ws=weekStart(),wk=Date.now()-7*864e5;
+  const head=['Real name','Space name','Login code','Rank','Seconds per answer','Rounds (all)','Rounds this week','Accuracy this week (%)','Last played','Needs practice','Stars (total)',...ALL.map(t=>t+'x table')];
+  const rows=S.order.map(id=>{const p=S.players[id],ti=tierIndex(statusSecs(p)),wa=weekAcc(p,wk);
+    return [p.realName||'',p.name,p.pin,ti<0?'New':TIERS[ti].name,ti<0?'':statusSecs(p).toFixed(1),p.rounds.length,p.rounds.filter(r=>r.d>=ws).length,wa==null?'':wa,
+      p.rounds.length?new Date(p.rounds[p.rounds.length-1].d).toLocaleDateString('en-CA'):'',focusOf(p).map(t=>t+'x').join(' '),p.coins||0,
+      ...ALL.map(t=>{const sc=tableScore(p,t);return LEVELS[sc==null?0:Math.min(4,Math.max(1,Math.round(sc)))]})]});
+  const csv='﻿'+[head,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`${c.name.replace(/[^\w\- ]+/g,'').trim()||'class'} - Mission Multiply - ${new Date().toLocaleDateString('en-CA')}.csv`;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+  $('addMsg').textContent=`Downloaded ${rows.length} students. The file opens in Excel, Numbers or Google Sheets.`;
+};
 
 // ---------- school page (admins) ----------
 $('gSchoolBtn').onclick=()=>openSchool();
