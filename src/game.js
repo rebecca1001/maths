@@ -626,7 +626,8 @@ $('quit').onclick=()=>{if(G&&G.mode==='check'){clearInterval(tick);G=null;save()
 $('again').onclick=()=>startRound();
 $('resHome').onclick=()=>{renderHome();show('home')};
 document.addEventListener('keydown',e=>{
-  if(screen==='login'&&L){if(/^[0-9]$/.test(e.key)){e.preventDefault();loginPress(e.key)}else if(e.key==='Backspace'){e.preventDefault();loginPress('del')}return}
+  if(screen==='login'&&L){if(!L.classCode||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the class code box works normally
+    if(/^[0-9]$/.test(e.key)){e.preventDefault();loginPress(e.key)}else if(e.key==='Backspace'){e.preventDefault();loginPress('del')}return}
   if(!G||screen!=='play')return;
   if(/^[0-9]$/.test(e.key)){e.preventDefault();press(e.key)}
   else if(e.key==='Backspace'){e.preventDefault();press('del')}
