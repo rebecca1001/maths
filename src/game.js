@@ -1,4 +1,4 @@
-// Mission Multiply game: screens, questions, scoring, shop, battles and the teacher dashboard.
+// MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
 const TIER_COLORS=['#FF6B6F','#FF8559','#FF9A4D','#FFB23C','#FFC93C','#E8DC4F','#C9E86A','#9BE38C','#6FE39A','#4FE3B5'];
@@ -255,7 +255,7 @@ function renderTop(){
   const p=P(),inGame=screen==='play';$('top').hidden=inGame;
   let right='';
   if(p&&!TEACH&&!['login','teach','grown'].includes(screen)&&!inGame) right=`<div class="top-actions"><span class="pillbtn whobtn">${avatar(p.skin,26)}<span class="whoname">${esc(p.name)}</span></span><button class="pillbtn" id="topShop" aria-label="${p.coins} stars. Open the shop"><span class="coin"></span><span class="num">${p.coins}</span></button></div>`;
-  $('top').innerHTML=`<div class="brandwrap"><div class="brand">Mission <span>Multiply</span></div></div>${right}`;
+  $('top').innerHTML=`<div class="brandwrap"><div class="brand">Math<span>Wizz</span></div></div>${right}`;
   const b=$('topShop');if(b)b.onclick=()=>{if(screen!=='home'){renderHome();show('home')}setTab('shop')};
 }
 
@@ -922,7 +922,7 @@ function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b
   $('tSubmit').textContent=m==='create'?'Create account':'Sign in';$('tPass').autocomplete=m==='create'?'new-password':'current-password';$('tPassHint').hidden=m!=='create';$('tFb').textContent=''}
 document.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>setTMode(b.dataset.tmode));
 $('tForgot').onclick=()=>{
-  say('tFb',"Ask your school's Mission Multiply admin to set a new password for you (School page). If you are the admin, email footiejack2021@gmail.com.",true);
+  say('tFb',"Ask your school's MathWizz admin to set a new password for you (School page). If you are the admin, email footiejack2021@gmail.com.",true);
 };
 $('tReset').addEventListener('submit',async e=>{
   e.preventDefault();const pw=$('tNewPass').value;
@@ -1125,7 +1125,7 @@ $('exportCsv').onclick=()=>{
       ...ALL.map(t=>{const sc=tableScore(p,t);return LEVELS[sc==null?0:Math.min(4,Math.max(1,Math.round(sc)))]})]});
   const csv='﻿'+[head,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`${c.name.replace(/[^\w\- ]+/g,'').trim()||'class'} - Mission Multiply - ${new Date().toLocaleDateString('en-CA')}.csv`;
+  a.download=`${c.name.replace(/[^\w\- ]+/g,'').trim()||'class'} - MathWizz - ${new Date().toLocaleDateString('en-CA')}.csv`;
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
   $('addMsg').textContent=`Downloaded ${rows.length} students. The file opens in Excel, Numbers or Google Sheets.`;
 };
@@ -1150,7 +1150,7 @@ function renderSchool(){
     ts.map(x=>`<tr><td><b>${esc(x.name)}</b>${x.id===me?' <small class="muted">(you)</small>':''}</td><td>${esc(x.email||'')}</td>
       <td><select data-role="${x.id}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
       <td class="r">${nClasses(x.id)}</td><td class="nowrap">${x.id===me?'':`<button class="linkbtn" data-pw="${x.id}">Set password</button> <button class="linkbtn danger" data-rm="${x.id}">Remove</button>`}</td></tr>`).join('')+'</tbody>';
-  $('sInvite').value=`Hi! Our class uses Mission Multiply for times tables.\n1. Go to ${location.origin}/?teacher=1\n2. Create an account with your school email\n3. Choose "Join my school" and enter the school code: ${sc.join_code||''}`;
+  $('sInvite').value=`Hi! Our class uses MathWizz for times tables.\n1. Go to ${location.origin}/?teacher=1\n2. Create an account with your school email\n3. Choose "Join my school" and enter the school code: ${sc.join_code||''}`;
 }
 $('sClasses').addEventListener('change',async e=>{
   const s=e.target.closest('[data-ct]');if(!s)return;const c=TEACH.all.find(x=>x.id===s.dataset.ct),tid=s.value||null;

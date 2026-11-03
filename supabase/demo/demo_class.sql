@@ -1,5 +1,5 @@
--- Mission Multiply: fill a demo class with 20 example students and 3 weeks of play, for presentations.
--- 1. Change the email below if you sign in to Mission Multiply with a different one.
+-- MathWizz: fill a demo class with 20 example students and 3 weeks of play, for presentations.
+-- 1. Change the email below if you sign in to MathWizz with a different one.
 -- 2. Paste this whole file into Supabase > SQL Editor and click Run.
 -- Run it again on the day you present: it deletes and rebuilds "Demo class (Grade 5)" so the dates are fresh.
 do $$
@@ -22,7 +22,7 @@ declare
   c int; tot int; msper int; acc numeric; pts int; sp int; ac int;
 begin
   select t.id, t.school_id into v_teacher, v_school from public.teachers t where lower(t.email) = lower(v_email);
-  if v_teacher is null then raise exception 'No Mission Multiply teacher with the email %. Change it at the top and run again.', v_email; end if;
+  if v_teacher is null then raise exception 'No MathWizz teacher with the email %. Change it at the top and run again.', v_email; end if;
   delete from public.classes where school_id = v_school and name = 'Demo class (Grade 5)';
   insert into public.classes (school_id, teacher_id, name, settings)
   values (v_school, v_teacher, 'Demo class (Grade 5)',
