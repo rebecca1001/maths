@@ -22,6 +22,8 @@ function supabaseApi() {
     mode: 'supabase',
     // students
     studentLogin: (classCode, pin) => rpc('student_login', { p_class_code: classCode, p_pin: pin }),
+    findSchools: (q) => rpc('find_schools', { p_query: q }),
+    schoolClasses: (schoolId) => rpc('school_classes', { p_school: schoolId }),
     studentState: (token) => rpc('student_state', { p_token: token }),
     studentSave: (token, data) => rpc('student_save', { p_token: token, p_data: data }),
     studentLogout: (token) => rpc('student_logout', { p_token: token }),
@@ -111,6 +113,11 @@ function demoApi() {
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
   const ok = (v) => Promise.resolve(JSON.parse(JSON.stringify(v)));
   const methods = {
+    findSchools(q) {
+      q = String(q || '').trim().toLowerCase();
+      return ok(q.length >= 2 && db.school.name.toLowerCase().includes(q) ? [{ id: 'demo-school', name: db.school.name }] : []);
+    },
+    schoolClasses: () => ok(db.classes.filter(c => !c.archived_at).map(c => ({ name: c.name, code: c.code })).sort((a, b) => a.name.localeCompare(b.name))),
     studentLogin(classCode, pin) {
       const c = db.classes.find(x => x.code === String(classCode || '').trim().toUpperCase() && !x.archived_at);
       if (!c) return ok({ error: 'no_class' });

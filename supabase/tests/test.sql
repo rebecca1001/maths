@@ -73,6 +73,11 @@ do $$ begin
   exception when insufficient_privilege then raise notice 'anon blocked from sessions table: true'; end;
 end $$;
 
+-- Pick your school and class (anon)
+select 'find school (2+ letters): ' || public.find_schools('smith')::text;
+select 'too short returns nothing: ' || public.find_schools('s')::text;
+select 'wildcards ignored: ' || public.find_schools('%%')::text;
+select 'classes at school: ' || (json_array_length(public.school_classes((select (public.find_schools('smith') -> 0 ->> 'id')::uuid))) = 1);
 -- Student login
 select 'wrong code: ' || public.student_login((select v from t where k='code'), '0000')::text;
 select 'no class: ' || public.student_login('ZZZZZZ', '1234')::text;

@@ -264,37 +264,70 @@ const NAME_A=['Cosmic','Lunar','Solar','Stellar','Rocket','Nova','Astro','Galact
 const NAME_B=['Fox','Falcon','Otter','Panda','Tiger','Owl','Rider','Pilot','Ranger','Explorer','Dragon','Wolf','Koala','Shark','Racer','Voyager','Penguin','Lynx','Hawk','Dolphin'];
 function spaceName(){const used=new Set(Object.values(S.players).map(p=>p.name));let n,i=0;do{n=NAME_A[Math.floor(Math.random()*NAME_A.length)]+' '+NAME_B[Math.floor(Math.random()*NAME_B.length)];if(++i>60)n+=' '+(2+Math.floor(Math.random()*98))}while(used.has(n));return n}
 let L=null;
-function toLogin(expired){
+function toLogin(expired,keepClass){
   if(SESSION){flushSave();if(!expired)api.studentLogout(SESSION.token);}
   SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,showBoard:true,muted:false};
   try{const mine=sessionStorage.getItem(TAB);sessionStorage.removeItem(TAB);if(!mine||local().token===mine)setLocal({token:null})}catch(e){setLocal({token:null})}
-  applyWorld();openLogin();
+  applyWorld();openLogin(keepClass);
   if(expired)$('loginFb').textContent='Please log in again.';
 }
 // The address shows which side you're on, so a refresh comes back to the same place
 function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(location.pathname+location.search!==want||location.hash)history.replaceState(null,'',want)}catch(e){}}
-function openLogin(){setAddress(false);
-  const cc=local().classCode||'';L={classCode:cc,entry:'',fails:0,busy:false};
-  $('classFb').textContent='';$('loginFb').textContent='';$('classCode').value=cc;
+// Student login: find your school (remembered on this device), pick your class, type your 4-digit code.
+// A class code can still be typed instead (e.g. at home from the login card).
+let lastClass=null; // the class just used, so "Not you? Switch player" goes straight to the keypad
+function openLogin(keepClass){setAddress(false);
+  const sc=local().school||null,kc=keepClass&&lastClass;
+  L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,step:kc?'pin':sc?'class':'school'};
+  $('classFb').textContent='';$('loginFb').textContent='';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
-  if(!cc)setTimeout(()=>{try{$('classCode').focus()}catch(e){}},50);
+  if(L.step==='class')loadClasses4Login();
+  if(L.step==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},50);
 }
 function renderLogin(){
-  const step=L.classCode?'pin':'class';
-  $('classForm').hidden=step!=='class';$('pinStep').hidden=step!=='pin';
+  const st=L.step;
+  $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
+  if(L.school)$('pickedSchool').textContent=L.school.name;
   $('loginTitle').textContent='Log in';
-  $('loginSub').textContent=`Class ${L.classCode} · enter your 4-digit code`;
+  $('loginSub').textContent=`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
   $('dots').querySelectorAll('i').forEach((d,i)=>d.classList.toggle('on',i<L.entry.length));
 }
+function goStep(st){L.step=st;L.entry='';renderLogin();
+  if(st==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},30);
+  if(st==='code')setTimeout(()=>{try{$('classCode').focus()}catch(e){}},30);
+  if(st==='class')loadClasses4Login();}
+let schoolTimer=null;
+$('schoolSearch').addEventListener('input',()=>{clearTimeout(schoolTimer);schoolTimer=setTimeout(searchSchools,250)});
+async function searchSchools(){
+  const q=$('schoolSearch').value.trim(),box=$('schoolList');
+  if(q.length<2){box.innerHTML='';return}
+  let r;try{r=await api.findSchools(q)}catch(e){r={error:'network'}}
+  if($('schoolSearch').value.trim()!==q)return;
+  if(!Array.isArray(r)){box.innerHTML='<p class="muted small">Could not connect. Check the internet and try again.</p>';return}
+  box.innerHTML=r.length?r.map(s=>`<button class="pickbtn" data-school="${esc(s.id)}" data-name="${esc(s.name)}">${esc(s.name)}</button>`).join(''):'<p class="muted small">No school found. Check the spelling, or ask your teacher.</p>';
+}
+$('schoolList').addEventListener('click',e=>{const b=e.target.closest('[data-school]');if(!b)return;
+  L.school={id:b.dataset.school,name:b.dataset.name};setLocal({school:L.school});goStep('class')});
+async function loadClasses4Login(){
+  const box=$('classList');box.innerHTML='<p class="muted small">Loading classes…</p>';
+  let r;try{r=await api.schoolClasses(L.school.id)}catch(e){r={error:'network'}}
+  if(!Array.isArray(r)){box.innerHTML='<p class="muted small">Could not connect. Check the internet and try again.</p>';return}
+  box.innerHTML=r.length?r.map(c=>`<button class="pickbtn" data-code="${esc(c.code)}" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join(''):'<p class="muted small">This school has no classes yet. Ask your teacher.</p>';
+}
+$('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
+  L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
+$('changeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
+$('useCode').onclick=()=>goStep('code');
+$('backToSchool').onclick=()=>goStep(L.school?'class':'school');
 $('classForm').addEventListener('submit',e=>{
   e.preventDefault();const v=$('classCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
   if(v.length<4){$('classFb').textContent='Class codes are 6 letters and numbers. Ask your teacher.';return}
-  L.classCode=v;L.entry='';setLocal({classCode:v});renderLogin();
+  L.classCode=v;L.className='';goStep('pin');
 });
-$('changeClass').onclick=()=>{L.classCode='';L.entry='';setLocal({classCode:''});$('classCode').value='';renderLogin();setTimeout(()=>$('classCode').focus(),30)};
+$('changeClass').onclick=()=>{L.classCode='';L.className='';goStep(L.school?'class':'school')};
 function loginPress(d){
-  if(!L||L.busy||!L.classCode||d==='enter')return;
+  if(!L||L.busy||L.step!=='pin'||!L.classCode||d==='enter')return;
   if(d==='del')L.entry=L.entry.slice(0,-1);else if(L.entry.length<4)L.entry+=d;
   renderLogin();
   if(L.entry.length===4){L.busy=true;setTimeout(loginSubmit,150)}
@@ -305,10 +338,10 @@ function loginFail(msg){
 }
 async function loginSubmit(){
   let r;try{r=await api.studentLogin(L.classCode,L.entry)}catch(e){r={error:'network'}}
-  if(r&&r.token){SESSION={token:r.token};setLocal({token:r.token,classCode:L.classCode});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  if(r&&r.token){SESSION={token:r.token};lastClass={code:L.classCode,name:L.className};setLocal({token:r.token});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
   if(e&&!['wrong_code','no_class','too_many_tries'].includes(e))console.error('Student login failed:',e);
-  if(e==='no_class'){L.classCode='';setLocal({classCode:''});L.busy=false;L.entry='';renderLogin();$('classFb').textContent="We couldn't find that class code. Check it with your teacher.";return}
+  if(e==='no_class'){L.classCode='';L.busy=false;goStep(L.school?'class':'code');$('classFb').textContent="We couldn't find that class. Check it with your teacher.";return}
   if(e==='too_many_tries')return loginFail('Too many tries. Wait a few minutes, then try again.');
   if(e==='network'||(e&&e!=='wrong_code'))return loginFail('Could not connect. Check the internet and try again.');
   loginFail(L.fails>=3?'Not quite. Ask your teacher to check your code.':'Not quite. Try again!');
@@ -325,7 +358,7 @@ function enterPlayer(){
   else{tab='play';renderHome();show('home')}
 }
 $('introGo').onclick=()=>startCheck();
-$('notMe').onclick=()=>logout(); // shared iPads: the next child switches to their own login
+$('notMe').onclick=()=>toLogin(false,true); // shared iPads: the next child switches to their own login
 $('introSkip').onclick=()=>{P().placed=true;save();renderHome();show('home')};
 
 // ---------- home ----------
@@ -626,7 +659,7 @@ $('quit').onclick=()=>{if(G&&G.mode==='check'){clearInterval(tick);G=null;save()
 $('again').onclick=()=>startRound();
 $('resHome').onclick=()=>{renderHome();show('home')};
 document.addEventListener('keydown',e=>{
-  if(screen==='login'&&L){if(!L.classCode||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the class code box works normally
+  if(screen==='login'&&L){if(L.step!=='pin'||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the class code box works normally
     if(/^[0-9]$/.test(e.key)){e.preventDefault();loginPress(e.key)}else if(e.key==='Backspace'){e.preventDefault();loginPress('del')}return}
   if(!G||screen!=='play')return;
   if(/^[0-9]$/.test(e.key)){e.preventDefault();press(e.key)}
@@ -1071,7 +1104,7 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>Class code <b class="num">${esc(code)}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span></div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span></div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 $('addStudent').onclick=async()=>{
   const real=[...new Set($('addNames').value.split(/\r?\n/).map(x=>x.trim().slice(0,80)).filter(Boolean))].slice(0,60);

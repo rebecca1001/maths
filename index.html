@@ -17,12 +17,24 @@
   <!-- STUDENT LOGIN: class code, then 4-digit code -->
   <section class="screen" id="login" hidden>
     <div class="card" style="align-items:center;text-align:center">
+      <div class="pickstep" id="schoolStep" hidden>
+        <h1>Find your school</h1>
+        <input id="schoolSearch" class="searchinput" autocomplete="off" spellcheck="false" placeholder="Type your school's name" aria-label="School name">
+        <div class="picklist" id="schoolList" aria-live="polite"></div>
+        <button class="linkbtn small" id="useCode" type="button">Have a class code? Type it instead</button>
+      </div>
+      <div class="pickstep" id="classStep" hidden>
+        <h1>Pick your class</h1>
+        <p class="muted"><b id="pickedSchool"></b> · <button class="linkbtn" id="changeSchool" type="button">Change school</button></p>
+        <div class="picklist" id="classList" aria-live="polite"></div>
+      </div>
       <form class="classform" id="classForm" hidden>
         <h1>Log in</h1>
         <p class="muted">Type your class code</p>
         <input id="classCode" class="codeinput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" aria-label="Class code" placeholder="ABC123">
         <div class="fb no" id="classFb" aria-live="assertive"></div>
         <button class="go" type="submit">Next</button>
+        <button class="linkbtn small" id="backToSchool" type="button">Find your school instead</button>
       </form>
       <div id="pinStep" hidden style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%">
         <h1 id="loginTitle">Log in</h1>
@@ -30,11 +42,11 @@
         <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
         <div class="fb no" id="loginFb" aria-live="assertive"></div>
         <div class="pad" id="loginPad"></div>
-        <button class="linkbtn" id="changeClass">Not your class? Change class code</button>
+        <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
       </div>
     </div>
     <div class="loginlinks"><button class="linkbtn" id="toTeacher">Teachers</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
-    <p class="note demo" id="demoHint" hidden>Demo mode: class code <b>DEMO</b>, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
+    <p class="note demo" id="demoHint" hidden>Demo mode: search <b>Demo</b>, pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
   <!-- TEACHER SIGN IN / SIGN UP / SCHOOL SETUP -->
