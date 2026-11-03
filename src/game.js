@@ -922,8 +922,12 @@ function setTMode(m){tMode=m;document.querySelectorAll('[data-tmode]').forEach(b
   $('tForgot').hidden=m==='create';
   $('tSubmit').textContent=m==='create'?'Create account':'Sign in';$('tPass').autocomplete=m==='create'?'new-password':'current-password';$('tPassHint').hidden=m!=='create';$('tFb').textContent=''}
 document.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>setTMode(b.dataset.tmode));
-$('tForgot').onclick=()=>{
-  say('tFb',"Ask your school's MathWizz admin to set a new password for you (School page). If you are the admin, email footiejack2021@gmail.com.",true);
+$('tForgot').onclick=async()=>{
+  const email=$('tEmail').value.trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){say('tFb','Type your email above first, then tap Forgot password.');$('tEmail').focus();return}
+  say('tFb','Sending…',true);const r=await api.teacherResetPassword(email);
+  if(r.error){say('tFb',/rate|seconds|too many/i.test(r.error)?'Please wait a minute before asking for another email.':"We couldn't send the email. Ask your school's MathWizz admin to set a new password for you (School page).");return}
+  say('tFb',`If ${email} has an account, we've emailed it a link to choose a new password. Check your junk folder too. No email? Your school's MathWizz admin can set a new password for you.`,true);
 };
 $('tReset').addEventListener('submit',async e=>{
   e.preventDefault();const pw=$('tNewPass').value;
