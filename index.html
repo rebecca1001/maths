@@ -45,7 +45,7 @@
         <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
       </div>
     </div>
-    <div class="loginlinks"><button class="linkbtn" id="toTeacher">Teachers</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">How do I log in?</button><button class="linkbtn" id="toTeacher">Teachers</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
     <p class="note demo" id="demoHint" hidden>Demo mode: search <b>Demo</b>, pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
@@ -315,6 +315,23 @@
   </section>
 </div>
 
+<div class="overlay" id="helpOv" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="ovcard helpcard">
+    <h1 id="helpTitle">How to log in</h1>
+    <p class="muted">You need your login card from your teacher.</p>
+    <ol class="helpsteps">
+      <li><span class="hnum">1</span><div><b>Find your school</b><small>Type the first few letters of its name, then tap it. This device remembers it next time.</small></div></li>
+      <li><span class="hnum">2</span><div><b>Pick your class</b><small>Tap your class name. It's on your login card.</small></div></li>
+      <li><span class="hnum">3</span><div><b>Type your 4-digit code</b><small>Use the number pad. Keep your code secret!</small></div></li>
+    </ol>
+    <div class="helptips">
+      <p><b>Wrong player?</b> Tap “Not you? Switch player”.</p>
+      <p><b>At home?</b> Tap “Have a class code? Type it instead” and type the class code from your card.</p>
+      <p><b>Forgot your code?</b> Ask your teacher. They can show it or give you a new one.</p>
+    </div>
+    <button class="go ovbtn" id="helpClose" type="button">Got it</button>
+  </div>
+</div>
 <div class="overlay" id="overlay" hidden role="dialog" aria-modal="true" aria-label="Celebration"><div class="ovcard" id="ovcard"></div></div>
 <script type="module" src="/src/main.js"></script>
 </body>

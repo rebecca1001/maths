@@ -624,3 +624,15 @@ body{margin:0}
 .pickbtn{font-family:var(--display);font-weight:700;font-size:1.25rem;padding:14px 18px;border-radius:14px;border:2px solid var(--line);border-bottom-width:5px;background:var(--surface);color:var(--ink);text-align:left;touch-action:manipulation}
 .pickbtn:hover{border-color:var(--accent)}
 .pickbtn:active{transform:translateY(2px);border-bottom-width:3px}
+
+/* login help pop-up */
+.helpcard{max-width:420px;max-height:100%;overflow:auto;align-items:stretch;text-align:left}
+.helpcard h1,.helpcard>p{text-align:center;margin:0}
+.helpsteps{list-style:none;margin:8px 0 4px;padding:0;display:flex;flex-direction:column;gap:10px}
+.helpsteps li{display:flex;gap:12px;align-items:flex-start;background:var(--accent-soft);border-radius:16px;padding:12px 14px}
+.helpsteps b{display:block;font-family:var(--display);font-size:1.1rem}
+.helpsteps small{display:block;color:var(--muted);font-size:.92rem;line-height:1.35;margin-top:2px}
+.hnum{flex:none;width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1.1rem}
+.helptips{display:flex;flex-direction:column;gap:6px;font-size:.92rem;line-height:1.35;color:var(--muted);padding:4px 2px}
+.helptips p{margin:0}.helptips b{color:var(--ink)}
+.loginlinks{flex-wrap:wrap}
