@@ -636,3 +636,30 @@ body{margin:0}
 .helptips{display:flex;flex-direction:column;gap:6px;font-size:.92rem;line-height:1.35;color:var(--muted);padding:4px 2px}
 .helptips p{margin:0}.helptips b{color:var(--ink)}
 .loginlinks{flex-wrap:wrap}
+
+/* owner view */
+.xfilters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.xfilters select,.xfilters input[type=search]{min-width:0;max-width:100%}
+.xchk{display:flex;gap:6px;align-items:center;font-weight:700}
+.xtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.xtile{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.xtile b{font-family:var(--display);font-size:1.7rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.xtile span{color:var(--muted);font-size:.85rem;font-weight:700}
+.xtile small{color:var(--muted);font-size:.78rem}
+.xgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px}
+.xbars{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;align-items:end;height:170px;padding-top:6px}
+.xbar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;min-width:0}
+.xbar i{display:block;width:100%;max-width:42px;background:var(--accent);border-radius:6px 6px 2px 2px;min-height:2px}
+.xbar b{font-size:.8rem;font-variant-numeric:tabular-nums}
+.xbar span{font-size:.7rem;color:var(--muted);white-space:nowrap}
+.xcohort td.c{text-align:center;font-weight:700;border-radius:6px}
+.xcohort{min-width:420px}
+.xpill{display:inline-block;font-size:.72rem;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.xpill.active{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.xpill.slipping{background:color-mix(in srgb,var(--h2) 22%,transparent);color:color-mix(in srgb,var(--h2) 70%,var(--ink))}
+.xpill.inactive{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.xpill.never{background:var(--h0);color:var(--muted)}
+.xdemo{font-size:.68rem;font-weight:800;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:6px}
+#xStudents tbody tr,#xSchools tbody tr,#xClasses tbody tr{cursor:default}
+#xSchools tbody tr[data-xs],#xClasses tbody tr[data-xc]{cursor:pointer}
+.xtop{flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding-block:12px;margin-bottom:12px}

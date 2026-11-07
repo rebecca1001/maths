@@ -247,7 +247,7 @@ Object.assign(LOOK,{
 {const RO={common:0,rare:1,epic:2,legendary:3};[SKINS,ROCKETS].forEach(a=>a.sort((x,y)=>RO[x.rarity]-RO[y.rarity]||x.cost-y.cost))}
 
 // ---------- navigation ----------
-const SCREENS=['login','teach','intro','home','play','results','checkres','grown','school'];
+const SCREENS=['login','teach','intro','home','play','results','checkres','grown','school','super'];
 let screen='login';
 function show(id){screen=id;document.documentElement.dataset.screen=id;SCREENS.forEach(s=>$(s).hidden=s!==id);renderTop();window.scrollTo(0,0)}
 function applyWorld(){document.documentElement.dataset.world='winter'} // Moon Base is the only background
@@ -939,7 +939,8 @@ async function openTeacher(){setAddress(true);
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
-  TEACH={info,classes:[],classId:local().teacherClass||null};setLocal({teacher:true});
+  TEACH={info,classes:[],classId:local().teacherClass||null,super:false};setLocal({teacher:true});
+  api.isSuperAdmin().then(v=>{if(TEACH){TEACH.super=!!v;$('gSuperBtn').hidden=!TEACH.super}}).catch(()=>{});
   await loadClasses();show('grown');
 }
 // Sign-in messages: green for progress and info, red for problems
@@ -1027,7 +1028,7 @@ function renderTeacherBar(){
   $('gClass').innerHTML=isAdmin()&&others.length?`<optgroup label="My classes">${mine.map(opt).join('')}</optgroup><optgroup label="Other classes">${others.map(opt).join('')}</optgroup>`:TEACH.classes.map(opt).join('');
   $('gCode').textContent=c.code;$('gTitle').textContent=c.name;
   $('gWho').textContent=t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
-  $('gSchoolBtn').hidden=!isAdmin();
+  $('gSchoolBtn').hidden=!isAdmin();$('gSuperBtn').hidden=!TEACH.super;
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
@@ -1232,6 +1233,94 @@ $('sTeachers').addEventListener('click',async e=>{
 $('sCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('sInvite').value);$('sCopy').textContent='Copied!'}catch(e){$('sInvite').select()}setTimeout(()=>$('sCopy').textContent='Copy message',1500)};
 $('sNewCode').onclick=async()=>{if(!confirm('Make a new school code? The old one will stop working.'))return;const r=await api.newJoinCode();if(r&&r.join_code){TEACH.info.teacher.school.join_code=r.join_code;renderSchool();$('sTeachMsg').textContent='New school code made.'}};
 $('sRename').addEventListener('submit',async e=>{e.preventDefault();const n=$('sNameInput').value.trim().slice(0,120);if(n.length<2)return;const sc=TEACH.info.teacher.school;await api.renameSchool(sc.id,n);sc.name=n;renderSchool();renderTeacherBar()});
+
+// ---------- owner view: every school, class and student (the database only answers the owner) ----------
+let X=null;
+$('gSuperBtn').onclick=()=>openSuper();
+$('xBack').onclick=()=>show('grown');
+$('xRefresh').onclick=()=>openSuper();
+async function openSuper(){
+  show('super');$('xMsg').textContent='Loading…';
+  let r;try{r=await api.superOverview()}catch(e){$('xMsg').textContent='Could not load: '+e.message;return}
+  if(!r||r.error){$('xMsg').textContent=r&&r.error==='not_allowed'?'This page is only for the MathWizz owner.':'Could not load: '+(r&&r.error);$('gSuperBtn').hidden=true;return}
+  X=r;$('xMsg').textContent='';$('xUpdated').textContent='Updated '+new Date(r.now).toLocaleString('en-CA',{dateStyle:'medium',timeStyle:'short'});
+  try{$('xHideDemo').checked=!!local().xHideDemo}catch(e){}
+  fillSuperFilters();renderSuper();
+}
+const XDAY=864e5;
+const xTime=v=>v==null?null:typeof v==='number'?v:Date.parse(v);
+function xAgo(t){if(!t)return'Never';const d=Math.floor((X.now-t)/XDAY);if(d<=0)return'Today';if(d===1)return'Yesterday';if(d<31)return d+' days ago';return new Date(t).toLocaleDateString('en-CA',{month:'short',day:'numeric',year:'numeric'})}
+function xLastActive(s){return Math.max(xTime(s.last_round)||0,xTime(s.last_seen_at)||0,xTime(s.last_login_at)||0)||null}
+function xStatus(s){if(!s.rounds)return'never';const d=(X.now-xTime(s.last_round))/XDAY;return d<=7?'active':d<=30?'slipping':'inactive'}
+const XLABEL={active:'Active',slipping:'Slipping',inactive:'Inactive',never:'Never played'};
+// Monday-start week number relative to this week (0 = this week, -1 = last week …)
+function xMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
+function xWeek(dayStr){const [y,m,d]=dayStr.split('-').map(Number);return Math.round((xMonday(new Date(y,m-1,d))-xMonday(new Date(X.now)))/(7*XDAY))}
+function xStudents(){const hide=$('xHideDemo').checked;return X.students.filter(s=>!(hide&&s.demo))}
+function fillSuperFilters(){
+  const sc=$('xSchool').value;
+  $('xSchool').innerHTML='<option value="">All schools</option>'+X.schools.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  $('xSchool').value=X.schools.some(s=>s.id===sc)?sc:'';fillSuperClasses();
+}
+function fillSuperClasses(){
+  const sc=$('xSchool').value,cl=$('xClass').value,cs=X.classes.filter(c=>!sc||c.school_id===sc);
+  $('xClass').innerHTML='<option value="">All classes</option>'+cs.map(c=>`<option value="${c.id}">${esc(c.name)}${sc?'':' · '+esc((X.schools.find(s=>s.id===c.school_id)||{}).name||'')}</option>`).join('');
+  $('xClass').value=cs.some(c=>c.id===cl)?cl:'';
+}
+function renderSuper(){
+  const st=xStudents(),played=st.filter(s=>s.rounds>0),pct=(a,b)=>b?Math.round(a/b*100)+'%':'–';
+  const act7=played.filter(s=>xStatus(s)==='active').length,act30=played.filter(s=>xStatus(s)!=='inactive').length;
+  const back=played.filter(s=>(s.days||[]).length>=2).length;
+  const liveClasses=X.classes.filter(c=>!c.archived_at);
+  const tile=(n,l,sub)=>`<div class="xtile"><b>${n}</b><span>${l}</span>${sub?`<small>${sub}</small>`:''}</div>`;
+  $('xTiles').innerHTML=tile(X.schools.length,'Schools',X.teachers.length+' teachers')+tile(liveClasses.length,'Classes',X.classes.length-liveClasses.length?(X.classes.length-liveClasses.length)+' archived':'')
+    +tile(st.length,'Students',pct(played.length,st.length)+' have played')+tile(act7,'Active this week',pct(act7,played.length)+' of players')
+    +tile(act30,'Active last 30 days',pct(act30,played.length)+' of players')+tile(pct(back,played.length),'Came back',back+' played on 2+ days');
+  // weekly active, last 8 weeks
+  const weeks=[...Array(8)].map((_,i)=>i-7),wk={};weeks.forEach(w=>wk[w]=0);
+  st.forEach(s=>{const seen=new Set((s.days||[]).map(xWeek));seen.forEach(w=>{if(w in wk)wk[w]++})});
+  const top=Math.max(1,...weeks.map(w=>wk[w])),mon=xMonday(new Date(X.now));
+  $('xWeekly').innerHTML=weeks.map(w=>{const d=new Date(mon);d.setDate(d.getDate()+w*7);
+    return `<div class="xbar" title="Week of ${d.toLocaleDateString('en-CA',{month:'short',day:'numeric'})}: ${wk[w]} students"><b>${wk[w]}</b><i style="height:${Math.round(wk[w]/top*120)}px"></i><span>${w===0?'This wk':d.toLocaleDateString('en-CA',{month:'short',day:'numeric'})}</span></div>`}).join('');
+  // cohorts by first week played
+  const coh={};played.forEach(s=>{const ws=[...new Set((s.days||[]).map(xWeek))];if(!ws.length)return;const f=Math.min(...ws);if(f<-7)return;(coh[f]=coh[f]||[]).push(new Set(ws))});
+  const ks=Object.keys(coh).map(Number).sort((a,b)=>a-b);
+  $('xCohort').innerHTML=ks.length?`<thead><tr><th>First played</th><th class="r">Students</th>${[1,2,3,4].map(n=>`<th class="r">+${n} wk</th>`).join('')}</tr></thead><tbody>`+ks.map(f=>{
+      const g=coh[f],d=new Date(mon);d.setDate(d.getDate()+f*7);
+      return `<tr><td>Week of ${d.toLocaleDateString('en-CA',{month:'short',day:'numeric'})}</td><td class="r">${g.length}</td>${[1,2,3,4].map(n=>{if(f+n>0)return'<td></td>';const p=Math.round(g.filter(x=>x.has(f+n)).length/g.length*100);
+        return `<td class="c" style="background:color-mix(in srgb,var(--accent) ${Math.round(p*.55)}%,transparent)">${p}%</td>`}).join('')}</tr>`}).join('')+'</tbody>'
+    :'<tbody><tr><td class="muted">No rounds played in the last 8 weeks yet.</td></tr></tbody>';
+  // schools
+  const inSchool=id=>st.filter(s=>{const c=X.classes.find(x=>x.id===s.class_id);return c&&c.school_id===id});
+  const lastOf=list=>Math.max(0,...list.map(xLastActive).filter(Boolean))||null;
+  $('xSchools').innerHTML=`<thead><tr><th>School</th><th class="r">Teachers</th><th class="r">Classes</th><th class="r">Students</th><th class="r">Active 7 days</th><th>Last activity</th><th>Admins</th></tr></thead><tbody>`+
+    X.schools.map(sc=>{const ss=inSchool(sc.id),ts=X.teachers.filter(t=>t.school_id===sc.id);
+      return `<tr data-xs="${sc.id}" title="Show this school's students"><td><b>${esc(sc.name)}</b></td><td class="r">${ts.length}</td><td class="r">${X.classes.filter(c=>c.school_id===sc.id&&!c.archived_at).length}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td><td>${ts.filter(t=>t.role==='admin').map(t=>esc(t.name)+(t.email?` <small class="muted">${esc(t.email)}</small>`:'')).join('<br>')}</td></tr>`}).join('')+'</tbody>';
+  // classes
+  const sc=$('xSchool').value;
+  $('xClasses').innerHTML=`<thead><tr><th>Class</th><th>School</th><th>Teacher</th><th>Code</th><th class="r">Students</th><th class="r">Played</th><th class="r">Active 7 days</th><th>Last activity</th></tr></thead><tbody>`+
+    X.classes.filter(c=>!sc||c.school_id===sc).map(c=>{const ss=st.filter(s=>s.class_id===c.id),t=X.teachers.find(x=>x.id===c.teacher_id);
+      return `<tr data-xc="${c.id}" title="Show this class's students"><td><b>${esc(c.name)}</b>${c.archived_at?' <small class="muted">archived</small>':''}</td><td>${esc((X.schools.find(s=>s.id===c.school_id)||{}).name||'')}</td><td>${t?esc(t.name):'<span class="muted">None</span>'}</td><td class="num">${esc(c.code)}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>s.rounds>0).length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td></tr>`}).join('')+'</tbody>';
+  renderSuperStudents();
+}
+function renderSuperStudents(){
+  const sc=$('xSchool').value,cl=$('xClass').value,stf=$('xStatus').value,q=$('xSearch').value.trim().toLowerCase();
+  const cls=id=>X.classes.find(c=>c.id===id)||{},sch=id=>X.schools.find(s=>s.id===id)||{};
+  const list=xStudents().filter(s=>{const c=cls(s.class_id);return(!sc||c.school_id===sc)&&(!cl||s.class_id===cl)&&(!stf||xStatus(s)===stf)&&(!q||(s.name+' '+(s.real_name||'')).toLowerCase().includes(q))})
+    .sort((a,b)=>(xLastActive(b)||0)-(xLastActive(a)||0));
+  $('xCount').textContent=`${list.length} student${list.length===1?'':'s'}`;
+  const shown=list.slice(0,500);
+  $('xStudents').innerHTML=`<thead><tr><th>Student</th><th>Real name</th><th>School · class</th><th>Last login</th><th>Last played</th><th class="r">Rounds</th><th class="r">Days played</th><th class="r">Minutes</th><th class="r">Stars</th><th>Status</th></tr></thead><tbody>`+
+    (shown.length?shown.map(s=>{const c=cls(s.class_id),k=xStatus(s);
+      return `<tr><td><b>${esc(s.name)}</b>${s.demo?'<span class="xdemo">demo</span>':''}</td><td>${esc(s.real_name||'')}</td><td>${esc(sch(c.school_id).name||'')} · ${esc(c.name||'')}</td><td>${xAgo(xTime(s.last_login_at))}</td><td>${xAgo(xTime(s.last_round))}</td><td class="r">${s.rounds||0}</td><td class="r">${(s.days||[]).length}</td><td class="r">${s.mins||0}</td><td class="r">${s.stars||0}</td><td><span class="xpill ${k}">${XLABEL[k]}</span></td></tr>`}).join('')
+      :'<tr><td colspan="10" class="muted">No students match.</td></tr>')+'</tbody>'+(list.length>500?`<caption class="muted small">Showing the 500 most recently active.</caption>`:'');
+}
+$('xHideDemo').onchange=()=>{setLocal({xHideDemo:$('xHideDemo').checked});renderSuper()};
+$('xSchool').onchange=()=>{fillSuperClasses();renderSuper()};
+['xClass','xStatus'].forEach(id=>$(id).onchange=renderSuperStudents);
+$('xSearch').oninput=renderSuperStudents;
+$('xSchools').addEventListener('click',e=>{const r=e.target.closest('[data-xs]');if(!r)return;$('xSchool').value=r.dataset.xs;fillSuperClasses();renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
+$('xClasses').addEventListener('click',e=>{const r=e.target.closest('[data-xc]');if(!r)return;const c=X.classes.find(x=>x.id===r.dataset.xc);$('xSchool').value=c.school_id;fillSuperClasses();$('xClass').value=c.id;renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
 
 // ---------- stars fly into the counter ----------
 function flyStars(n){

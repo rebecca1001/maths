@@ -76,6 +76,9 @@ function supabaseApi() {
     adminSetPassword: (id, password) => rpc('admin_set_password', { p_teacher: id, p_password: password }),
     deleteMyAccount: async () => { const r = await rpc('delete_my_account', {}); if (r && r.ok) await sb.auth.signOut(); return r; },
     renameSchool: (schoolId, name) => q(sb.from('schools').update({ name }).eq('id', schoolId)),
+    // owner only (checked by the database)
+    isSuperAdmin: async () => { try { return (await rpc('is_super_admin', {})) === true; } catch (e) { return false; } },
+    superOverview: () => rpc('super_overview', {}),
     async newPin(studentId) {
       for (let i = 0; i < 20; i++) {
         const pin = randomPin();
@@ -123,7 +126,7 @@ function demoApi() {
       if (!c) return ok({ error: 'no_class' });
       const s = db.students.find(x => x.class_id === c.id && x.pin === pin);
       if (!s) return ok({ error: 'wrong_code' });
-      const t = id() + id(); db.sessions[t] = s.id; persist();
+      const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
     },
     studentState(token) {
@@ -139,7 +142,7 @@ function demoApi() {
         }),
       });
     },
-    studentSave(token, data) { const m = me(token); if (!m) return ok({ error: 'signed_out' }); m.data = data; persist(); return ok({ ok: true }); },
+    studentSave(token, data) { const m = me(token); if (!m) return ok({ error: 'signed_out' }); m.data = data; m.last_seen_at = new Date().toISOString(); persist(); return ok({ ok: true }); },
     studentLogout(token) { delete db.sessions[token]; persist(); return ok(null); },
     teacherSession: () => ok(db.teacher ? { email: db.teacher.email, teacher: db.teacher.name ? { id: 'me', name: db.teacher.name, role: 'admin', school: { id: 'demo-school', ...db.school } } : null } : null),
     teacherSignIn(email) { db.teacher = { email, name: (db.teacher && db.teacher.name) || 'Demo teacher' }; persist(); return ok({ ok: true }); },
@@ -196,6 +199,23 @@ function demoApi() {
       s.pin = pin; persist(); return ok(pin);
     },
     removeStudent(sid) { db.students = db.students.filter(s => s.id !== sid); persist(); return ok(null); },
+    isSuperAdmin: () => ok(true),
+    superOverview() {
+      const day = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+      const t = db.teacher || {};
+      return ok({
+        now: Date.now(),
+        schools: [{ id: 'demo-school', name: db.school.name, created_at: null }],
+        teachers: [{ id: 'me', school_id: 'demo-school', name: t.name || 'Demo teacher', email: t.email || '', role: 'admin' }, ...(db.otherTeachers || []).map(x => ({ ...x, school_id: 'demo-school' }))],
+        classes: db.classes.map(c => ({ id: c.id, school_id: 'demo-school', teacher_id: c.teacher_id === 'me' ? 'me' : c.teacher_id, name: c.name, code: c.code, archived_at: c.archived_at, created_at: null })),
+        students: db.students.map(s => {
+          const rs = ((s.data && s.data.rounds) || []).filter(r => typeof r.d === 'number');
+          return { id: s.id, class_id: s.class_id, name: s.name, real_name: s.real_name || null, created_at: null, last_login_at: s.last_login_at || null, last_seen_at: s.last_seen_at || null,
+            demo: true, stars: Math.round((s.data && s.data.coins) || 0), rounds: rs.length, mins: Math.round(rs.reduce((a, r) => a + (r.len || 60), 0) / 60),
+            first_round: rs.length ? Math.min(...rs.map(r => r.d)) : null, last_round: rs.length ? Math.max(...rs.map(r => r.d)) : null, days: [...new Set(rs.map(r => day(r.d)))] };
+        }),
+      });
+    },
     resetDemo() { localStorage.removeItem(DEMO_KEY); },
   };
   const wrapped = { mode: 'demo' };

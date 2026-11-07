@@ -219,7 +219,7 @@
   <section class="screen" id="grown" hidden>
     <div class="ttop">
       <div class="ttitle"><span id="gWho"></span><h1 id="gTitle">Class</h1></div>
-      <div class="row"><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="grownBack">Sign out</button></div>
+      <div class="row"><button class="btn" id="gSuperBtn" hidden>All schools</button><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="grownBack">Sign out</button></div>
     </div>
     <div class="card classbar">
       <div class="row" style="align-items:center">
@@ -311,6 +311,44 @@
     <div class="card">
       <h2>School name</h2>
       <form class="row" id="sRename" style="align-items:center"><input id="sNameInput" maxlength="120" required><button class="btn" type="submit">Save</button></form>
+    </div>
+  </section>
+
+  <!-- OWNER ONLY: every school, class and student (the database refuses everyone else) -->
+  <section class="screen" id="super" hidden>
+    <div class="ttop">
+      <div class="ttitle"><span>Owner view</span><h1>All schools</h1></div>
+      <div class="row"><button class="btn" id="xRefresh">Refresh</button><button class="btn" id="xBack">← Classes</button></div>
+    </div>
+    <p class="note" id="xMsg" aria-live="polite"></p>
+    <div class="card xtop">
+      <label class="xchk"><input type="checkbox" id="xHideDemo"> Hide demo students</label>
+      <span class="muted small" id="xUpdated"></span>
+    </div>
+    <div class="xtiles" id="xTiles"></div>
+    <div class="xgrid">
+      <div class="card"><h2>Weekly active students</h2><p class="muted small">Students who played at least one round each week (Monday to Sunday).</p><div class="xbars" id="xWeekly"></div></div>
+      <div class="card"><h2>Do they come back?</h2><p class="muted small">Students grouped by the week they first played. Each cell is the share who played again that many weeks later.</p><div class="tbl-wrap"><table class="tbl plain xcohort" id="xCohort"></table></div></div>
+    </div>
+    <div class="card">
+      <h2>Schools</h2>
+      <div class="tbl-wrap"><table class="tbl plain" id="xSchools"></table></div>
+    </div>
+    <div class="card">
+      <h2>Classes</h2>
+      <div class="tbl-wrap"><table class="tbl plain" id="xClasses"></table></div>
+    </div>
+    <div class="card">
+      <div class="spread"><h2>Students</h2><span class="muted small" id="xCount"></span></div>
+      <div class="xfilters">
+        <select id="xSchool" aria-label="School"></select>
+        <select id="xClass" aria-label="Class"></select>
+        <select id="xStatus" aria-label="Activity">
+          <option value="">Any activity</option><option value="active">Active (last 7 days)</option><option value="slipping">Slipping (8 to 30 days)</option><option value="inactive">Inactive (30+ days)</option><option value="never">Never played</option>
+        </select>
+        <input id="xSearch" type="search" placeholder="Search names" aria-label="Search names">
+      </div>
+      <div class="tbl-wrap"><table class="tbl plain" id="xStudents"></table></div>
     </div>
   </section>
 </div>

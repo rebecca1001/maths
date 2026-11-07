@@ -202,3 +202,33 @@ do $$ begin
   exception when insufficient_privilege then raise notice 'anon blocked from internal function: true'; end;
 end $$;
 reset role;
+
+-- Super admin: only accounts in super_admins can see everything
+reset role;
+insert into auth.users (id, email) values ('99999999-9999-9999-9999-999999999999', 'owner@example.com') on conflict do nothing;
+insert into public.super_admins (user_id) values ('99999999-9999-9999-9999-999999999999');
+insert into t values ('n_schools',(select count(*) from public.schools)::text),('n_students',(select count(*) from public.students)::text);
+grant select on t to authenticated;
+set role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+select 'school admin is not super admin: ' || (not public.is_super_admin());
+select 'school admin gets not_allowed: ' || (public.super_overview() ->> 'error' = 'not_allowed');
+do $$ begin
+  begin perform * from public.super_admins; raise notice 'FAIL: teacher read super_admins';
+  exception when insufficient_privilege then raise notice 'teacher blocked from super_admins table: true'; end;
+  begin insert into public.super_admins (user_id) values ('11111111-1111-1111-1111-111111111111'); raise notice 'FAIL: teacher made themselves super admin';
+  exception when insufficient_privilege then raise notice 'teacher cannot add super admins: true'; end;
+end $$;
+select set_config('request.jwt.claim.sub','99999999-9999-9999-9999-999999999999',false);
+select 'owner is super admin: ' || public.is_super_admin();
+select 'owner sees all schools: ' || (json_array_length(public.super_overview() -> 'schools') = (select v::int from t where k='n_schools'));
+select 'owner sees all students: ' || (json_array_length(public.super_overview() -> 'students') = (select v::int from t where k='n_students'));
+select 'student summary has last login and days: ' || ((public.super_overview() -> 'students' -> 0)::jsonb ?& array['last_login_at','last_seen_at','days','rounds']);
+reset role;
+select 'login recorded last_login_at: ' || exists (select 1 from public.students where last_login_at is not null);
+set role anon;
+do $$ begin
+  begin perform public.super_overview(); raise notice 'FAIL: anon super_overview';
+  exception when insufficient_privilege then raise notice 'anon blocked from super_overview: true'; end;
+end $$;
+reset role;
