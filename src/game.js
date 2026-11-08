@@ -59,7 +59,7 @@ function applySettings(st){
   st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
   ALL=Array.from({length:mx-1},(_,i)=>i+2);
   S.muted=st.sound===false;S.division=!!st.division;
-  const g=st.goal;S.goal=g&&Array.isArray(g.tables)&&(g.tables.length||g.rounds)?{tables:g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds:Math.max(0,Math.min(50,+g.rounds||0))}:null;
+  const g=st.goal;let goal=null;if(g&&Array.isArray(g.tables)){const tables=g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds=Math.max(0,Math.min(50,+g.rounds||0));if(tables.length||rounds)goal={tables,rounds}}S.goal=goal;
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
@@ -1159,7 +1159,7 @@ $('acctDelete').onclick=async()=>{
   toLogin();setTimeout(()=>{$('loginFb').textContent=r.school_deleted?'Your account, school and its data were deleted.':'Your account was deleted.'},50);
 };
 // ----- download class data (CSV) -----
-function csvCell(v){v=v==null?'':String(v);if(/^[=+\-@]/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v} // also stops spreadsheet formulas
+function csvCell(v){v=v==null?'':String(v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v} // also stops spreadsheet formulas
 $('exportCsv').onclick=()=>{
   const c=curClass(),ws=weekStart(),wk=Date.now()-7*864e5;
   const head=['Real name','Space name','Login code','Rank','Seconds per answer','Rounds (all)','Rounds this week','Accuracy this week (%)','Last played','Needs practice','Stars (total)',...ALL.map(t=>t+'x table')];
@@ -1412,7 +1412,13 @@ function journeyHTML(p){
   else msg=`You're at <b>${TIERS[ti].name}</b>. Answer faster to fly to <b>${TIERS[ti+1].name}</b>!`;
   return {track:`<div class="vjtrack" aria-hidden="true"><span class="vjline"></span><span class="vjfill" style="height:${fill.toFixed(1)}%"></span></div>${stops}`,msg};
 }
-function fixPlayer(p){p.rockets=p.rockets||['classic'];p.rocket=p.rocket||'classic';p.owned=p.owned||['blob'];p.facts=p.facts||{};p.rounds=p.rounds||[];p.badges=(p.badges||[]).filter(b=>b!=='duelwin');delete p.seenBattles;migrateStars(p);return p}
+// Saved data comes from the student's own device, so never trust its shape: wrong types become safe defaults instead of crashing the game.
+function fixPlayer(p){
+  const arr=(v,d)=>Array.isArray(v)?v:d;
+  p.rockets=arr(p.rockets,['classic']);p.rocket=p.rocket||'classic';p.owned=arr(p.owned,['blob']);
+  const facts={};if(p.facts&&typeof p.facts==='object'&&!Array.isArray(p.facts))for(const [k,f] of Object.entries(p.facts))if(f&&Array.isArray(f.r)&&Array.isArray(f.t))facts[k]=f;
+  p.facts=facts;p.rounds=arr(p.rounds,[]).filter(r=>r&&typeof r==='object');
+  p.badges=arr(p.badges,[]).filter(b=>b!=='duelwin');delete p.seenBattles;migrateStars(p);return p}
 
 // ---------- boot ----------
 export async function boot(){
@@ -1429,3 +1435,13 @@ export async function boot(){
   // so a shared classroom computer never opens a teacher's dashboard for a student.
   openLogin();
 }
+
+// Test-only access to the game's pure logic and state. Not used by the app itself.
+export const __test = {
+  level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
+  streakInfo, bumpStreak, scoreRound, gameStars, roundStars, ptsSince, migrateStars, fixPlayer, newPlayerData,
+  applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
+  checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
+  get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
+  setG(v) { G = v; }, setQ(v) { q = v; }, resetRecent() { recent = []; },
+};
