@@ -35,13 +35,14 @@ begin
   end loop;
   raise notice 'poisoned payloads cannot break classmates: true';
 
-  -- 2) weekly stars/minutes maths
+  -- 2) weekly stars/minutes maths (rounds are validated and rescored by the server: c/n/ms decide the stars)
+  --    A: 10/10 at 3.0 s = 864 pts = 86 stars; B: 4/4 at 2.0 s = 477 pts = 48 stars; C is 8 days old, so it is not in the week
   perform public.student_save(tb, jsonb_build_object('rounds', jsonb_build_array(
-    jsonb_build_object('d',ms,'stars',5,'len',120), jsonb_build_object('d',ms,'pts',50), jsonb_build_object('d',ms,'c',4),
-    jsonb_build_object('d',((extract(epoch from now())-8*86400)*1000)::bigint::text,'stars',100))));
+    jsonb_build_object('d',ms,'c',10,'n',10,'ms',3000,'len',60), jsonb_build_object('d',(ms::bigint-1)::text,'c',4,'n',4,'ms',2000,'len',60),
+    jsonb_build_object('d',((extract(epoch from now())-8*86400)*1000)::bigint::text,'c',10,'n',10,'ms',3000))));
   j := public.student_state(ta);
-  if (j->'classmates'->0->'data'->>'wkStars')::int <> 22 or (j->'classmates'->0->'data'->>'wkMins')::int <> 4 then raise exception 'FAIL weekly maths: %', j; end if;
-  raise notice 'weekly stars=22 mins=4: true';
+  if (j->'classmates'->0->'data'->>'wkStars')::int <> 134 or (j->'classmates'->0->'data'->>'wkMins')::int <> 2 then raise exception 'FAIL weekly maths: %', j; end if;
+  raise notice 'weekly stars=134 mins=2: true';
 
   -- 3) clean errors for bad saves
   if (public.student_save(ta, null)->>'error') <> 'bad_data' then raise exception 'FAIL null data'; end if;

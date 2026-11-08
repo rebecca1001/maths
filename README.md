@@ -88,7 +88,8 @@ The privacy policy is at `/privacy` (file `public/privacy.html`), linked from bo
 - **Students** have no Auth account. They log in through the `student_login` database function with a class code and 4-digit code, and get a random session token. Every other student action (`student_state`, `student_save`) checks that token.
 - The public (anon) role has **no direct access to any table**.
 - Students see their own full progress. For classmates they only get a name, character, and stars and minutes played this week (for the Top 10). Nothing else about classmates reaches their device.
-- After 100 wrong codes for a class in 10 minutes (300 per day), logins for that class pause.
+- Wrong codes are counted per device and per class: 100 per device per class in 10 minutes (300 per day), 300 per device across all classes in 10 minutes, and a class-wide ceiling of 400 in 10 minutes (1,200 per day). One noisy device cannot lock the rest of the class out. If the device address isn't available the old rule applies (100 per class in 10 minutes, 300 per day).
+- Saved rounds are checked on the server: scores are recomputed from correct/answered/speed, speed is capped at a human limit, new rounds are limited to about one per 45 seconds of real time, old rounds can't be edited, and rank bonus stars are bounded by rank progress (see `supabase/migrations/20261108000000_...`).
 - **Archiving** a class stops its students logging in. Archived classes are deleted after 12 months (see step 3).
 
 ### Class settings (teacher dashboard)
