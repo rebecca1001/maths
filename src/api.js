@@ -3,6 +3,7 @@
 //  - Demo (no setup): everything lives in this browser's localStorage, with an example class (code DEMO)
 import { createClient } from '@supabase/supabase-js';
 import { seedDemoStudents } from './demo-data.js';
+import { rowsFromPlayers } from './progress.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -79,6 +80,9 @@ function supabaseApi() {
     // owner only (checked by the database)
     isSuperAdmin: async () => { try { return (await rpc('is_super_admin', {})) === true; } catch (e) { return false; } },
     superOverview: () => rpc('super_overview', {}),
+    // weekly progress rows per class (school admins get their school, the owner gets everything)
+    schoolProgress: () => rpc('school_progress', {}),
+    superProgress: () => rpc('super_progress', {}),
     async newPin(studentId) {
       for (let i = 0; i < 20; i++) {
         const pin = randomPin();
@@ -98,6 +102,8 @@ const DEMO_KEY = 'mm.demo.db.v1';
 function demoApi() {
   const id = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
   let db = null;
+  // weekly progress rows for every class, worked out from the students' saved rounds (the real database does this in SQL)
+  const demoProgressRows = () => db.classes.flatMap((c) => rowsFromPlayers(db.students.filter((x) => x.class_id === c.id).map((x) => ({ rounds: (x.data && x.data.rounds) || [] }))).map((r) => ({ ...r, class_id: c.id })));
   try { db = JSON.parse(localStorage.getItem(DEMO_KEY)); } catch (e) { db = null; }
   if (!db || !db.classes) {
     const classId = id();
@@ -216,6 +222,8 @@ function demoApi() {
         }),
       });
     },
+    schoolProgress() { return ok({ rows: demoProgressRows() }); },
+    superProgress() { return ok({ rows: demoProgressRows() }); },
     resetDemo() { localStorage.removeItem(DEMO_KEY); },
   };
   const wrapped = { mode: 'demo' };

@@ -125,3 +125,7 @@ PGHOST=localhost PGPORT=5432 PGUSER=postgres npm run test:db
 ```bash
 npm run build   # outputs to dist/
 ```
+
+## Progress curves
+Teachers see a **Class progress** curve on the Students tab. School admins see a **School progress** curve and one line per class on the School page. The owner sees every school and class on **All schools**. They show whether students are getting faster and getting more answers right per round (minutes played are not counted): average correct answers per round and seconds per correct answer, by week, for the last 10 weeks. Each student counts equally, rounds under 8 answers are ignored, and demo students and archived classes are left out. School and owner curves come from `school_progress()` / `super_progress()` (migration `20261109000000_progress_curves.sql`); the class curve is worked out in the browser (`src/progress.js`).
+

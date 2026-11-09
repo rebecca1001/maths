@@ -663,3 +663,19 @@ body{margin:0}
 #xStudents tbody tr,#xSchools tbody tr,#xClasses tbody tr{cursor:default}
 #xSchools tbody tr[data-xs],#xClasses tbody tr[data-xc]{cursor:pointer}
 .xtop{flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding-block:12px;margin-bottom:12px}
+
+/* progress curves */
+.pc-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.pc-verdict{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:800;font-size:.82rem;background:var(--accent-soft);color:var(--ink)}
+.pc-verdict.better{background:color-mix(in srgb,#2fb36b 22%,transparent)}
+.pc-verdict.worse{background:color-mix(in srgb,#e5484d 22%,transparent)}
+.pc-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.pc-nums>div{display:flex;flex-direction:column;gap:2px}
+.pc-nums b{font-family:var(--display);font-size:1.5rem;font-variant-numeric:tabular-nums}
+.pc-nums small,.tbl small.up,.tbl small.down{font-weight:800}
+small.up{color:#1f8f55}small.down{color:#c23b40}
+.pc-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.pc-charts figure{margin:0;min-width:0}.pc-charts figcaption{font-weight:700;font-size:.9rem;margin-bottom:4px}
+.pc-svg{width:100%;height:auto;display:block}.pc-grid{stroke:var(--line);stroke-width:1}.pc-t{fill:var(--muted);font-size:9.5px;font-variant-numeric:tabular-nums}
+.pc-mini{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.pc-note{margin:0}
+.xschoolrow td{background:color-mix(in srgb,var(--accent) 6%,transparent)}.xclassrow{padding-left:22px!important}

@@ -238,6 +238,7 @@
 
     <div class="gpane" data-gpane="students">
       <div class="kpis" id="kpis"></div>
+      <div class="card pcard"><div class="spread"><h2>Class progress</h2><span class="note">Last 10 weeks</span></div><div id="gProgress"></div></div>
       <div class="card addcard">
         <h2>Add students</h2>
         <label class="muted small" for="addNames">Type or paste your students' names, one per line. Each one gets a space name and a 4-digit login code.</label>
@@ -286,6 +287,11 @@
       <div class="ttitle"><span>School</span><h1 id="sName"></h1></div>
       <div class="row"><button class="btn" id="sBack">← Classes</button><button class="btn" id="sOut">Sign out</button></div>
     </div>
+    <div class="card pcard">
+      <div class="spread"><h2>School progress</h2><span class="note">Last 10 weeks</span></div>
+      <div id="sProgress"></div>
+      <div class="tbl-wrap"><table class="tbl plain" id="sProgTbl"></table></div>
+    </div>
     <div class="card">
       <h2>Classes</h2>
       <div class="tbl-wrap"><table class="tbl plain" id="sClasses"></table></div>
@@ -329,6 +335,11 @@
     <div class="xgrid">
       <div class="card"><h2>Weekly active students</h2><p class="muted small">Students who played at least one round each week (Monday to Sunday).</p><div class="xbars" id="xWeekly"></div></div>
       <div class="card"><h2>Do they come back?</h2><p class="muted small">Students grouped by the week they first played. Each cell is the share who played again that many weeks later.</p><div class="tbl-wrap"><table class="tbl plain xcohort" id="xCohort"></table></div></div>
+    </div>
+    <div class="card pcard">
+      <div class="spread"><h2 id="xProgTitle">Progress</h2><span class="note">Last 10 weeks · use the filters in the Students box below to pick a school or class</span></div>
+      <div id="xProgress"></div>
+      <div class="tbl-wrap"><table class="tbl plain" id="xProgTbl"></table></div>
     </div>
     <div class="card">
       <h2>Schools</h2>
