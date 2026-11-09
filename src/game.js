@@ -1,5 +1,6 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
+import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
 const TIER_COLORS=['#FF6B6F','#FF8559','#FF9A4D','#FFB23C','#FFC93C','#E8DC4F','#C9E86A','#9BE38C','#6FE39A','#4FE3B5'];
 const SKINS=[
@@ -770,6 +771,7 @@ function renderGrown(){
     ['Accuracy this week',acc==null?'—':acc+'%']
   ].map(([l,v])=>`<div class="kpi"><span class="label">${l}</span><b>${v}</b></div>`).join('');
 
+  $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
   if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Tap + Add a student.</td></tr></tbody>';$('gdetail').hidden=true;return}
   if(!GSel||!S.players[GSel])GSel=players[0].id;
   $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds (7 days)</th><th class="r">Accuracy</th><th>Last played</th><th>Needs practice</th><th>Login code</th></tr></thead><tbody>`+
@@ -1180,7 +1182,19 @@ $('sBack').onclick=async()=>{TEACH.classes=visibleClasses();await loadClassStude
 async function openSchool(){
   show('school');$('sClassMsg').textContent='';$('sTeachMsg').textContent='';
   try{[TEACH.teachers,TEACH.all,TEACH.counts]=await Promise.all([api.listTeachers(),api.listClasses(),api.countStudents()])}catch(e){$('sClassMsg').textContent='Could not load the school: '+e.message}
-  renderSchool();
+  TEACH.progress=null;renderSchool();
+  try{const r=await api.schoolProgress();TEACH.progress=r&&r.rows?r.rows:(r&&r.error)||'none'}catch(e){TEACH.progress='none'}
+  renderSchoolProgress();
+}
+// School curve plus one line per class (every class in the school, for admins)
+function renderSchoolProgress(){
+  const rows=TEACH.progress;
+  if(rows==null){$('sProgress').innerHTML='<p class="muted">Loading…</p>';$('sProgTbl').innerHTML='';return}
+  if(!Array.isArray(rows)){$('sProgress').innerHTML='<p class="muted">Could not load progress just now. Try again in a minute.</p>';$('sProgTbl').innerHTML='';return}
+  $('sProgress').innerHTML=chartHTML(pSeries(rows));
+  $('sProgTbl').innerHTML=`<thead><tr><th>Class</th><th>Trend</th><th class="r">Correct per round</th><th class="r">Seconds per answer</th></tr></thead><tbody>`+
+    TEACH.all.map(c=>{const sr=pSeries(rows.filter(r=>r.class_id===c.id)),[a,b]=cellsHTML(sr);
+      return `<tr><td><b>${esc(c.name)}</b></td><td>${miniHTML(sr)}</td>${a}${b}</tr>`}).join('')+'</tbody>';
 }
 function renderSchool(){
   const t=TEACH.info.teacher,sc=t.school||{},ts=TEACH.teachers||[],me=myId();
@@ -1241,11 +1255,29 @@ $('xBack').onclick=()=>show('grown');
 $('xRefresh').onclick=()=>openSuper();
 async function openSuper(){
   show('super');$('xMsg').textContent='Loading…';
-  let r;try{r=await api.superOverview()}catch(e){$('xMsg').textContent='Could not load: '+e.message;return}
+  let r;const pg=api.superProgress().then(x=>x&&Array.isArray(x.rows)?x.rows:null).catch(()=>null);
+  try{r=await api.superOverview()}catch(e){$('xMsg').textContent='Could not load: '+e.message;return}
   if(!r||r.error){$('xMsg').textContent=r&&r.error==='not_allowed'?'This page is only for the MathWizz owner.':'Could not load: '+(r&&r.error);$('gSuperBtn').hidden=true;return}
   X=r;$('xMsg').textContent='';$('xUpdated').textContent='Updated '+new Date(r.now).toLocaleString('en-CA',{dateStyle:'medium',timeStyle:'short'});
   try{$('xHideDemo').checked=!!local().xHideDemo}catch(e){}
-  fillSuperFilters();renderSuper();
+  XP=await pg;fillSuperFilters();renderSuper();
+}
+let XP=null;
+// Progress curve for whatever the filters select (a class, a school, or every school), plus a line for each school and class
+function renderSuperProgress(){
+  if(!XP){$('xProgress').innerHTML='<p class="muted">Progress data is not available yet.</p>';$('xProgTbl').innerHTML='';return}
+  const sc=$('xSchool').value,cl=$('xClass').value,cls=id=>X.classes.find(c=>c.id===id)||{};
+  const inScope=r=>cl?r.class_id===cl:sc?cls(r.class_id).school_id===sc:true;
+  $('xProgTitle').textContent=cl?'Progress: '+(cls(cl).name||'class'):sc?'Progress: '+((X.schools.find(s=>s.id===sc)||{}).name||'school'):'Progress: all schools together';
+  $('xProgress').innerHTML=chartHTML(pSeries(XP.filter(inScope)));
+  const out=[];
+  X.schools.filter(s=>!sc||s.id===sc).forEach(s=>{
+    const ss=pSeries(XP.filter(r=>cls(r.class_id).school_id===s.id)),[a,b]=cellsHTML(ss);
+    out.push(`<tr class="xschoolrow"><td><b>${esc(s.name)}</b></td><td>${miniHTML(ss)}</td>${a}${b}</tr>`);
+    X.classes.filter(c=>c.school_id===s.id&&!c.archived_at).forEach(c=>{const cs=pSeries(XP.filter(r=>r.class_id===c.id)),[ca,cb]=cellsHTML(cs);
+      out.push(`<tr><td class="xclassrow">${esc(c.name)}</td><td>${miniHTML(cs)}</td>${ca}${cb}</tr>`)});
+  });
+  $('xProgTbl').innerHTML=`<thead><tr><th>School / class</th><th>Trend</th><th class="r">Correct per round</th><th class="r">Seconds per answer</th></tr></thead><tbody>`+out.join('')+'</tbody>';
 }
 const XDAY=864e5;
 const xTime=v=>v==null?null:typeof v==='number'?v:Date.parse(v);
@@ -1301,7 +1333,7 @@ function renderSuper(){
   $('xClasses').innerHTML=`<thead><tr><th>Class</th><th>School</th><th>Teacher</th><th>Code</th><th class="r">Students</th><th class="r">Played</th><th class="r">Active 7 days</th><th>Last activity</th></tr></thead><tbody>`+
     X.classes.filter(c=>!sc||c.school_id===sc).map(c=>{const ss=st.filter(s=>s.class_id===c.id),t=X.teachers.find(x=>x.id===c.teacher_id);
       return `<tr data-xc="${c.id}" title="Show this class's students"><td><b>${esc(c.name)}</b>${c.archived_at?' <small class="muted">archived</small>':''}</td><td>${esc((X.schools.find(s=>s.id===c.school_id)||{}).name||'')}</td><td>${t?esc(t.name):'<span class="muted">None</span>'}</td><td class="num">${esc(c.code)}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>s.rounds>0).length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td></tr>`}).join('')+'</tbody>';
-  renderSuperStudents();
+  renderSuperProgress();renderSuperStudents();
 }
 function renderSuperStudents(){
   const sc=$('xSchool').value,cl=$('xClass').value,stf=$('xStatus').value,q=$('xSearch').value.trim().toLowerCase();
@@ -1443,5 +1475,6 @@ export const __test = {
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
+  rowsFromPlayers, pSeries,
   setG(v) { G = v; }, setQ(v) { q = v; }, resetRecent() { recent = []; },
 };
