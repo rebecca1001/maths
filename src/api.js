@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { seedDemoStudents } from './demo-data.js';
 import { rowsFromPlayers } from './progress.js';
+import { compSummary, PAID_PLANS } from './competitions.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -32,7 +33,7 @@ function supabaseApi() {
     async teacherSession() {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return null;
-      const t = await q(sb.from('teachers').select('id,name,role,school_id,schools(id,name,join_code)').eq('id', session.user.id).maybeSingle());
+      const t = await q(sb.from('teachers').select('id,name,role,school_id,schools(id,name,join_code,plan)').eq('id', session.user.id).maybeSingle());
       return { email: session.user.email, teacher: t ? { id: t.id, name: t.name, role: t.role, school: t.schools } : null };
     },
     async teacherSignIn(email, password) {
@@ -83,6 +84,11 @@ function supabaseApi() {
     // weekly progress rows per class (school admins get their school, the owner gets everything)
     schoolProgress: () => rpc('school_progress', {}),
     superProgress: () => rpc('super_progress', {}),
+    superSetPlan: (schoolId, plan) => rpc('super_set_plan', { p_school: schoolId, p_plan: plan }),
+    // competitions (School and School Plus plans; the database checks the plan and who may do what)
+    competitionsList: () => rpc('competitions_list', {}),
+    competitionCreate: (c) => rpc('competition_create', { p: c }),
+    competitionEnd: (id, del) => rpc('competition_end', { p_id: id, p_delete: !!del }),
     async newPin(studentId) {
       for (let i = 0; i < 20; i++) {
         const pin = randomPin();
@@ -108,7 +114,8 @@ function demoApi() {
   if (!db || !db.classes) {
     const classId = id();
     db = {
-      school: { name: 'Demo School', join_code: 'DEMO0000' },
+      school: { name: 'Demo School', join_code: 'DEMO0000', plan: 'school_plus' },
+      competitions: [],
       teacher: null,
       classes: [{ id: classId, name: 'Demo class', code: 'DEMO', teacher_id: 'me', settings: { maxTable: 12, division: false, sound: true, battles: false }, archived_at: null }],
       students: seedDemoStudents().map(s => ({ ...s, class_id: classId })),
@@ -120,6 +127,11 @@ function demoApi() {
   // Re-read before every call so several tabs share one demo database
   const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) db = x; } catch (e) { /* keep in-memory copy */ } };
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
+  if (!db.school.plan) db.school.plan = 'school_plus';
+  if (!db.competitions) db.competitions = [];
+  const paid = () => PAID_PLANS.includes(db.school.plan);
+  const demoComps = (filter, meId, teacher) => db.competitions.filter(filter).map(c => compSummary(c, db.students, db.classes, meId, teacher, { includeDemo: true }));
+  const localDay = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : NaN; };
   const ok = (v) => Promise.resolve(JSON.parse(JSON.stringify(v)));
   const methods = {
     findSchools(q) {
@@ -142,6 +154,7 @@ function demoApi() {
       return ok({
         me: { id: m.id, name: m.name, data: m.data },
         class: { id: c.id, name: c.name, settings: c.settings },
+        competitions: paid() ? demoComps(x => (!x.class_id || x.class_id === m.class_id) && new Date(x.starts_at) - Date.now() < 7 * 864e5 && Date.now() - new Date(x.ended_at || x.ends_at) < 7 * 864e5, m.id, false) : [],
         classmates: db.students.filter(s => s.class_id === m.class_id && s.id !== m.id).map(s => {
           const rs = (s.data.rounds || []).filter(r => r.d >= cut);
           return { id: s.id, name: s.name, data: { skin: s.data.skin || 'blob', wkStars: rs.reduce((t, r) => t + (r.stars ?? Math.round((r.pts ?? r.c * 30) / 10)), 0), wkMins: Math.round(rs.reduce((t, r) => t + (r.len || 60), 0) / 60) } };
@@ -211,7 +224,7 @@ function demoApi() {
       const t = db.teacher || {};
       return ok({
         now: Date.now(),
-        schools: [{ id: 'demo-school', name: db.school.name, created_at: null }],
+        schools: [{ id: 'demo-school', name: db.school.name, plan: db.school.plan, created_at: null }],
         teachers: [{ id: 'me', school_id: 'demo-school', name: t.name || 'Demo teacher', email: t.email || '', role: 'admin' }, ...(db.otherTeachers || []).map(x => ({ ...x, school_id: 'demo-school' }))],
         classes: db.classes.map(c => ({ id: c.id, school_id: 'demo-school', teacher_id: c.teacher_id === 'me' ? 'me' : c.teacher_id, name: c.name, code: c.code, archived_at: c.archived_at, created_at: null })),
         students: db.students.map(s => {
@@ -223,6 +236,30 @@ function demoApi() {
       });
     },
     schoolProgress() { return ok({ rows: demoProgressRows() }); },
+    superSetPlan(_sid, plan) { if (!['free', 'school', 'school_plus'].includes(plan)) return ok({ error: 'bad_plan' }); db.school.plan = plan; persist(); return ok({ ok: true, plan }); },
+    competitionsList() { return ok({ plan: db.school.plan, competitions: demoComps(c => Date.now() - new Date(c.ended_at || c.ends_at) < 90 * 864e5, null, true).sort((a, b) => (a.status === 'ended') - (b.status === 'ended') || new Date(b.starts_at) - new Date(a.starts_at)) }); },
+    competitionCreate(p) {
+      // the demo teacher is a school admin, so every kind is allowed
+      if (!paid()) return ok({ error: 'needs_plan' });
+      const kinds = ['top_player', 'class_target', 'school_target', 'class_race'];
+      if (!kinds.includes(p.kind)) return ok({ error: 'bad_kind' });
+      const measure = p.measure || 'stars'; if (!['stars', 'correct'].includes(measure)) return ok({ error: 'bad_measure' });
+      const classKind = p.kind === 'top_player' || p.kind === 'class_target', targetKind = p.kind === 'class_target' || p.kind === 'school_target';
+      if (classKind && !db.classes.some(c => c.id === p.class_id && !c.archived_at)) return ok({ error: 'bad_class' });
+      const target = Math.round(+p.target); if (targetKind && !(target >= 1 && target <= 1e7)) return ok({ error: 'bad_target' });
+      const prize = String(p.prize || '').trim().slice(0, 200); if (!prize) return ok({ error: 'no_prize' });
+      const s = localDay(p.starts_on), e = localDay(p.ends_on);
+      if (!(s && e) || e < s || (e - s) / 864e5 > 120 || s < Date.now() - 8 * 864e5) return ok({ error: 'bad_dates' });
+      const title = String(p.title || '').trim().slice(0, 80) || { top_player: 'Top player', class_target: 'Class goal', school_target: 'School goal', class_race: 'Class race' }[p.kind];
+      const c = { id: id(), kind: p.kind, measure, class_id: classKind ? p.class_id : null, target: targetKind ? target : null, title, prize,
+        starts_at: new Date(s).toISOString(), ends_at: new Date(e + 864e5).toISOString(), ended_at: null, created_by: 'me' };
+      db.competitions.push(c); persist(); return ok(compSummary(c, db.students, db.classes, null, true, { includeDemo: true }));
+    },
+    competitionEnd(cid, del) {
+      const c = db.competitions.find(x => x.id === cid); if (!c) return ok({ error: 'not_found' });
+      if (del) db.competitions = db.competitions.filter(x => x.id !== cid); else if (!c.ended_at) c.ended_at = new Date().toISOString();
+      persist(); return ok({ ok: true });
+    },
     superProgress() { return ok({ rows: demoProgressRows() }); },
     resetDemo() { localStorage.removeItem(DEMO_KEY); },
   };

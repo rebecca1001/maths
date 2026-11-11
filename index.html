@@ -124,6 +124,7 @@
               <p class="jmsg" id="journeyMsg"></p>
               <div class="ptsline" id="playPts"></div>
               <div class="goalbox" id="goalBox" hidden></div>
+              <div class="compbox" id="compBox" hidden aria-live="polite"></div>
               <button class="go" id="start">▶ PLAY</button>
             </div>
             <div class="journeycard">
@@ -233,6 +234,7 @@
       <button role="tab" data-gtab="students" class="on">Students</button>
       <button role="tab" data-gtab="goal">Weekly goal</button>
       <button role="tab" data-gtab="help">Needs help</button>
+      <button role="tab" data-gtab="comp">Competitions</button>
       <button role="tab" data-gtab="settings">Settings</button>
     </div>
 
@@ -257,6 +259,7 @@
 
     <div class="gpane" data-gpane="goal" hidden><div class="card" id="goalCard"></div></div>
     <div class="gpane" data-gpane="help" hidden><div id="helpBox"></div></div>
+    <div class="gpane" data-gpane="comp" hidden><div id="compPane"></div></div>
     <div class="gpane" data-gpane="settings" hidden>
       <div class="card setcard">
         <h2>Class settings</h2>
