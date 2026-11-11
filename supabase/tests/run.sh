@@ -12,3 +12,4 @@ psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test.sql 2>&1
 psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_hardening.sql 2>&1
 psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_abuse.sql 2>&1
 psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_progress.sql 2>&1
+psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_competitions.sql 2>&1

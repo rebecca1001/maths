@@ -1,6 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
+import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr } from './competitions.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
 const TIER_COLORS=['#FF6B6F','#FF8559','#FF9A4D','#FFB23C','#FFC93C','#E8DC4F','#C9E86A','#9BE38C','#6FE39A','#4FE3B5'];
 const SKINS=[
@@ -28,6 +29,7 @@ let ALL=[2,3,4,5,6,7,8,9,10,11,12];   // the times tables in play; set from the 
 // S holds the logged-in student and their classmates (or, for a teacher, the selected class's students).
 function newPlayerData(){return {badges:[],rockets:['classic'],rocket:'classic',skin:'blob',owned:['blob'],coins:0,facts:{},rounds:[],placed:false}}
 let S={players:{},order:[],current:null,showBoard:true,muted:false};
+let COMPS=[];   // the logged-in student's competitions (from student_state)
 let SESSION=null;   // {token} for a logged-in student
 let TEACH_TAB='students';
 let CLASS=null;     // {id,name,settings} for the student's class
@@ -51,7 +53,7 @@ function save(){if(TEACH||!SESSION)return;clearTimeout(saveTimer);saveTimer=setT
 function flushSave(){
   clearTimeout(saveTimer);const p=P();if(!p||!SESSION)return saving;
   const {id,name,pin,...data}=p,token=SESSION.token;
-  saving=saving.then(()=>api.studentSave(token,data)).then(r=>{if(r&&r.error==='signed_out'&&SESSION&&SESSION.token===token)toLogin(true)}).catch(()=>setTimeout(save,4000));
+  saving=saving.then(()=>api.studentSave(token,data)).then(r=>{if(r&&r.error==='signed_out'&&SESSION&&SESSION.token===token)toLogin(true);else if(COMPS.some(c=>c.status!=='ended'))refreshComps()}).catch(()=>setTimeout(save,4000));
   return saving;
 }
 window.addEventListener('pagehide',()=>{if(saveTimer)flushSave()});
@@ -69,6 +71,7 @@ function applyState(st,keepMe){
   const players={[me.id]:me},order=[me.id];
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
   S.players=players;S.order=order;S.current=me.id;
+  COMPS=Array.isArray(st.competitions)?st.competitions:[];
 }
 
 // ---------- fluency maths ----------
@@ -418,6 +421,7 @@ function renderHome(){
    if(g){const n=goalRounds(p),N=g.rounds,done=N&&n>=N;
      box.innerHTML=`<span class="label">This week's goal</span><div class="gline">${N?`<b class="num">${Math.min(n,N)} of ${N}</b> rounds`:''}${g.tables.length?`<span class="gt">${N?' · ':''}Practise ${g.tables.map(t=>`<span class="fchip">${t}×</span>`).join(' ')}</span>`:''}</div>${N?`<div class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></div>`:''}${done?'<span class="gdone">Goal done! ✓</span>':''}`;
      box.classList.toggle('done',!!done)}}
+  renderCompBox();
 
   $('boardTitle').textContent=S.showBoard?'Top players this week':'My stars';
   const wk=Date.now()-7*864e5;
@@ -1043,7 +1047,7 @@ $('gTabs').addEventListener('click',e=>{const b=e.target.closest('[data-gtab]');
 function renderGTab(){
   document.querySelectorAll('#gTabs [data-gtab]').forEach(b=>{b.classList.toggle('on',b.dataset.gtab===TEACH_TAB);b.setAttribute('aria-selected',b.dataset.gtab===TEACH_TAB)});
   document.querySelectorAll('#grown [data-gpane]').forEach(p=>p.hidden=p.dataset.gpane!==TEACH_TAB);
-  if(TEACH_TAB==='goal')renderGoal();else if(TEACH_TAB==='help')renderHelp();else if(TEACH_TAB==='settings')renderSettings();
+  if(TEACH_TAB==='goal')renderGoal();else if(TEACH_TAB==='help')renderHelp();else if(TEACH_TAB==='comp')renderComp();else if(TEACH_TAB==='settings')renderSettings();
 }
 // ----- weekly goal -----
 let goalDraft=null;
@@ -1090,6 +1094,105 @@ function renderHelp(){
     <div class="card"><h2>Class's trickiest facts</h2><p class="muted small">The facts this class gets wrong most often. Good ones to teach together.</p>
       ${classTricky.length?`<div class="tchips">${classTricky.map(([k,t])=>`<span class="fchip big">${k.replace(',',' × ')} <small>${Math.round(t.miss/t.n*100)}% wrong</small></span>`).join('')}</div>`:'<p class="muted">Not enough answers yet.</p>'}</div>`;
 }
+// ----- competitions (School and School Plus plans) -----
+// Teachers make class competitions; school admins can also make school-wide ones. Teachers provide the prizes.
+const COMP_ERR={needs_plan:'Competitions come with the School and School Plus plans.',not_your_class:'You can only make competitions for your own classes.',not_admin:'Only school admins can make school-wide competitions.',
+  bad_class:'Pick a class first.',bad_target:'Enter a target number.',no_prize:'Enter the prize.',bad_dates:'Check the dates: the end must be after the start, at most 120 days later, and not in the past.',
+  too_many:'Your school has 20 competitions running. End one first.',bad_kind:'Pick a type of competition.',bad_measure:'Pick stars or correct answers.',not_allowed:'Only the teacher who made it, or a school admin, can change it.',not_found:'That competition is gone.'};
+let CMP={list:null,plan:null,draft:null,msg:'',busy:false};
+const TROPHY='<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>';
+function compDraft(){
+  const today=dayStr(Date.now()),later=dayStr(Date.now()+29*864e5);
+  if(!CMP.draft)CMP.draft={kind:'top_player',measure:'stars',target:'',title:'',prize:'',start:today,end:later};
+  if(!isAdmin()&&KINDS[CMP.draft.kind].scope==='school')CMP.draft.kind='top_player';
+  return CMP.draft;
+}
+async function loadComps(){
+  try{const r=await api.competitionsList();if(r&&!r.error){CMP.list=r.competitions||[];CMP.plan=r.plan||'free'}else{CMP.list=[];CMP.plan=CMP.plan||'free';CMP.msg='Could not load competitions: '+((r&&r.error)||'no reply')}}
+  catch(e){CMP.list=[];CMP.msg='Could not load competitions: '+e.message}
+}
+async function renderComp(reload){
+  if(reload||CMP.list==null||CMP.cid!==TEACH.classId){CMP.cid=TEACH.classId;$('compPane').innerHTML='<div class="card"><p class="muted">Loading…</p></div>';await loadComps()}
+  if(TEACH_TAB!=='comp')return;
+  const paid=PAID_PLANS.includes(CMP.plan),c=curClass(),d=compDraft(),k=KINDS[d.kind];
+  const kinds=Object.entries(KINDS).filter(([,x])=>x.scope==='class'||isAdmin());
+  const form=paid?`<div class="card"><h2>New competition</h2>
+    <p class="muted small">Pick what students compete for, and the prize. You or your school provide the prize and hand it out; MathWizz shows students how close they are.</p>
+    <form class="compform" id="compForm">
+      <span class="label">Who competes</span>
+      <div class="kindgrid" role="radiogroup" aria-label="Type of competition">${kinds.map(([id,x])=>`<button type="button" role="radio" aria-checked="${d.kind===id}" class="kindbtn ${d.kind===id?'on':''}" data-ckind="${id}"><b>${x.label}</b><small>${x.scope==='class'?esc(c.name):'Whole school'} · ${x.blurb}</small></button>`).join('')}</div>
+      <span class="label">What counts</span>
+      <div class="tchips" role="radiogroup" aria-label="What counts">${[['stars','Stars'],['correct','Correct answers']].map(([m,l])=>`<button type="button" role="radio" aria-checked="${d.measure===m}" class="tchip ${d.measure===m?'on':''}" data-cmeasure="${m}">${l}</button>`).join('')}</div>
+      <p class="note">${d.measure==='stars'?'A round earns up to 100 stars, so faster, more accurate players earn more.':'Correct answers reward effort: every right answer counts, however fast.'}</p>
+      <div class="frow">
+        ${k.target?`<label>Target (${cUnit(d.measure,2)} in total)<input id="cTarget" type="number" min="1" max="10000000" inputmode="numeric" value="${esc(d.target)}" placeholder="${d.kind==='class_target'?(d.measure==='stars'?'e.g. 20000':'e.g. 5000'):(d.measure==='stars'?'e.g. 100000':'e.g. 25000')}" required></label>`:''}
+        <label>Prize<input id="cPrize" maxlength="200" value="${esc(d.prize)}" placeholder="${k.scope==='class'?'e.g. $20 gift card':'e.g. Pizza party for the winning class'}" required></label>
+        <label>Name (optional)<input id="cTitle" maxlength="80" value="${esc(d.title)}" placeholder="${k.label}"></label>
+      </div>
+      <div class="frow">
+        <label>Starts<input id="cStart" type="date" value="${esc(d.start)}" required></label>
+        <label>Ends (last day)<input id="cEnd" type="date" value="${esc(d.end)}" required></label>
+      </div>
+      <div class="row"><button class="btn primary" type="submit" ${CMP.busy?'disabled':''}>Start competition</button></div>
+      <p class="note" id="compMsg" aria-live="polite">${esc(CMP.msg)}</p>
+    </form></div>`
+  :`<div class="card lockcard"><h2>Competitions</h2>
+    <p>Run class and school competitions with a prize you provide, for example a gift card for the student with the most stars this month, or a pizza party when the whole school reaches a goal. Students see how close they are on their home screen.</p>
+    <p><b>Competitions come with the School and School Plus plans.</b> Your school is on the ${PLAN_NAMES[CMP.plan]||'Free'} plan. To upgrade, email <a href="mailto:mathwizzapp@gmail.com?subject=MathWizz%20School%20plan">mathwizzapp@gmail.com</a> or reply to Jack.</p>
+    ${CMP.msg?`<p class="note">${esc(CMP.msg)}</p>`:''}</div>`;
+  const list=CMP.list||[],running=list.filter(x=>x.status!=='ended'),done=list.filter(x=>x.status==='ended');
+  const listHTML=list.length?`${running.length?`<div class="card"><h2>Running and coming up</h2><div class="clist">${running.map(compItemHTML).join('')}</div></div>`:''}
+    ${done.length?`<div class="card"><h2>Finished</h2><div class="clist">${done.map(compItemHTML).join('')}</div></div>`:''}`
+    :(paid?'<div class="card"><p class="muted">No competitions yet. Start one above.</p></div>':'');
+  $('compPane').innerHTML=form+listHTML;
+}
+function compItemHTML(x){
+  const u=n=>cUnit(x.measure,n),me=myId();
+  const canEdit=isAdmin()||x.created_by===me;
+  const who=x.scope==='school'?'Whole school':esc(x.class_name||'Class');
+  const tag=x.status==='active'?'<span class="ctag live">Running</span>':x.status==='upcoming'?'<span class="ctag">Coming up</span>':`<span class="ctag ended">Finished${x.ended_early?' early':''}</span>`;
+  let body='';
+  if(x.status==='upcoming')body=`<p class="muted small">Students see it on their home screen from a week before it starts.</p>`;
+  else if(x.kind==='top_player'){
+    const st=(x.standings||[]).slice(0,10);
+    body=st.length&&st[0].v>0?`<table class="cstand"><tbody>${st.map((r,i)=>`<tr><td class="num">${i+1}</td><td>${r.real_name?`<b>${esc(r.real_name)}</b> <small class="muted">${esc(r.name)}</small>`:esc(r.name)}</td><td class="r num">${fmtNum(r.v)} ${u(r.v)}</td></tr>`).join('')}</tbody></table>${(x.standings||[]).length>10?`<p class="note">Top 10 of ${x.players} students shown.</p>`:''}`
+      :'<p class="muted small">No rounds played yet.</p>';
+    if(x.status==='ended'&&st[0]&&st[0].v>0)body=`<p><b>Winner: ${esc(st[0].real_name||st[0].name)}</b>${st[0].real_name?` (${esc(st[0].name)})`:''} with ${fmtNum(st[0].v)} ${u(st[0].v)}.</p>`+body;
+  }else if(x.kind==='class_target'||x.kind==='school_target'){
+    const pct=Math.min(100,x.total/x.target*100);
+    body=`<div class="spread"><b>${fmtNum(x.total)} of ${fmtNum(x.target)} ${u(x.target)}</b><span>${x.reached?'Goal reached ✓':Math.floor(pct)+'%'}</span></div><span class="gbar"><i style="width:${pct.toFixed(0)}%"></i></span>`;
+    if(x.kind==='school_target'&&(x.classes||[]).length)body+=`<table class="cstand"><tbody>${x.classes.map(cl=>`<tr><td>${esc(cl.name)}</td><td class="r num">${fmtNum(cl.v)} ${u(cl.v)}</td></tr>`).join('')}</tbody></table>`;
+  }else if(x.kind==='class_race'){
+    const cls=x.classes||[];
+    body=cls.length?`<table class="cstand"><thead><tr><th>#</th><th>Class</th><th class="r">Per student</th><th class="r">Total</th></tr></thead><tbody>${cls.map((cl,i)=>`<tr><td class="num">${i+1}</td><td>${esc(cl.name)}</td><td class="r num">${fmtNum(cl.per)}</td><td class="r num">${fmtNum(cl.v)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted small">No rounds played yet.</p>';
+    if(x.status==='ended'&&cls[0])body=`<p><b>Winner: ${esc(cls[0].name)}</b> with ${fmtNum(cls[0].per)} ${u(2)} per student.</p>`+body;
+  }
+  return `<div class="citem"><div class="ctop"><div><h3>${esc(x.title)}</h3><div class="ctags">${tag}<span class="ctag">${KINDS[x.kind].label}</span><span class="ctag">${who}</span><span class="ctag">${x.measure==='correct'?'Correct answers':'Stars'}</span></div></div>
+    ${canEdit?`<div class="row">${x.status!=='ended'?`<button class="btn" data-cend="${x.id}">End now</button>`:''}<button class="linkbtn danger" data-cdel="${x.id}">Delete</button></div>`:''}</div>
+    <p class="small"><b>Prize:</b> ${esc(x.prize)} · ${shortDate(new Date(x.starts_at))} to ${shortDate(lastDay(x))} · ${whenText(x)}</p>${body}</div>`;
+}
+function readCompForm(){const d=compDraft();[['cTarget','target'],['cPrize','prize'],['cTitle','title'],['cStart','start'],['cEnd','end']].forEach(([id,key])=>{const el=$(id);if(el)d[key]=el.value})}
+$('compPane').addEventListener('input',()=>readCompForm());
+$('compPane').addEventListener('click',async e=>{
+  const kb=e.target.closest('[data-ckind]'),mb=e.target.closest('[data-cmeasure]'),eb=e.target.closest('[data-cend]'),db=e.target.closest('[data-cdel]');
+  if(kb){readCompForm();compDraft().kind=kb.dataset.ckind;CMP.msg='';renderComp();return}
+  if(mb){readCompForm();compDraft().measure=mb.dataset.cmeasure;renderComp();return}
+  if(eb||db){
+    const x=(CMP.list||[]).find(c=>c.id===(eb||db).dataset[eb?'cend':'cdel']);if(!x)return;
+    if(!confirm(eb?`End "${x.title}" now? The results so far are kept and students see it as finished.`:`Delete "${x.title}"? Students will no longer see it.`))return;
+    const r=await api.competitionEnd(x.id,!!db);CMP.msg=r&&r.error?(COMP_ERR[r.error]||r.error):eb?`"${x.title}" has ended.`:`"${x.title}" was deleted.`;
+    await renderComp(true);return;
+  }
+});
+$('compPane').addEventListener('submit',async e=>{
+  if(e.target.id!=='compForm')return;e.preventDefault();readCompForm();
+  const d=compDraft(),k=KINDS[d.kind];CMP.busy=true;
+  const r=await api.competitionCreate({kind:d.kind,measure:d.measure,class_id:k.scope==='class'?TEACH.classId:null,target:k.target?d.target:null,title:d.title,prize:d.prize,starts_on:d.start,ends_on:d.end});
+  CMP.busy=false;
+  if(!r||r.error){CMP.msg=COMP_ERR[r&&r.error]||('Could not start it: '+((r&&r.error)||'no reply'));renderComp();return}
+  CMP.msg=`"${r.title}" ${r.status==='upcoming'?'is set up. Students will see it a week before it starts.':'has started. Students see it on their home screen.'}`;
+  CMP.draft=null;await renderComp(true);
+});
 // ----- settings -----
 function renderSettings(){
   const c=curClass(),st=c.settings||{};
@@ -1325,9 +1428,9 @@ function renderSuper(){
   // schools
   const inSchool=id=>st.filter(s=>{const c=X.classes.find(x=>x.id===s.class_id);return c&&c.school_id===id});
   const lastOf=list=>Math.max(0,...list.map(xLastActive).filter(Boolean))||null;
-  $('xSchools').innerHTML=`<thead><tr><th>School</th><th class="r">Teachers</th><th class="r">Classes</th><th class="r">Students</th><th class="r">Active 7 days</th><th>Last activity</th><th>Admins</th></tr></thead><tbody>`+
+  $('xSchools').innerHTML=`<thead><tr><th>School</th><th>Plan</th><th class="r">Teachers</th><th class="r">Classes</th><th class="r">Students</th><th class="r">Active 7 days</th><th>Last activity</th><th>Admins</th></tr></thead><tbody>`+
     X.schools.map(sc=>{const ss=inSchool(sc.id),ts=X.teachers.filter(t=>t.school_id===sc.id);
-      return `<tr data-xs="${sc.id}" title="Show this school's students"><td><b>${esc(sc.name)}</b></td><td class="r">${ts.length}</td><td class="r">${X.classes.filter(c=>c.school_id===sc.id&&!c.archived_at).length}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td><td>${ts.filter(t=>t.role==='admin').map(t=>esc(t.name)+(t.email?` <small class="muted">${esc(t.email)}</small>`:'')).join('<br>')}</td></tr>`}).join('')+'</tbody>';
+      return `<tr data-xs="${sc.id}" title="Show this school's students"><td><b>${esc(sc.name)}</b></td><td><select data-xplan="${sc.id}" aria-label="Plan for ${esc(sc.name)}">${Object.entries(PLAN_NAMES).map(([k,v])=>`<option value="${k}" ${(sc.plan||'free')===k?'selected':''}>${v}</option>`).join('')}</select></td><td class="r">${ts.length}</td><td class="r">${X.classes.filter(c=>c.school_id===sc.id&&!c.archived_at).length}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td><td>${ts.filter(t=>t.role==='admin').map(t=>esc(t.name)+(t.email?` <small class="muted">${esc(t.email)}</small>`:'')).join('<br>')}</td></tr>`}).join('')+'</tbody>';
   // classes
   const sc=$('xSchool').value;
   $('xClasses').innerHTML=`<thead><tr><th>Class</th><th>School</th><th>Teacher</th><th>Code</th><th class="r">Students</th><th class="r">Played</th><th class="r">Active 7 days</th><th>Last activity</th></tr></thead><tbody>`+
@@ -1351,7 +1454,13 @@ $('xHideDemo').onchange=()=>{setLocal({xHideDemo:$('xHideDemo').checked});render
 $('xSchool').onchange=()=>{fillSuperClasses();renderSuper()};
 ['xClass','xStatus'].forEach(id=>$(id).onchange=renderSuperStudents);
 $('xSearch').oninput=renderSuperStudents;
-$('xSchools').addEventListener('click',e=>{const r=e.target.closest('[data-xs]');if(!r)return;$('xSchool').value=r.dataset.xs;fillSuperClasses();renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
+$('xSchools').addEventListener('change',async e=>{
+  const sel=e.target.closest('[data-xplan]');if(!sel)return;const sc=X.schools.find(x=>x.id===sel.dataset.xplan),was=sc.plan||'free';
+  const r=await api.superSetPlan(sc.id,sel.value);
+  if(!r||r.error){sel.value=was;$('xMsg').textContent='Could not change the plan: '+((r&&r.error)||'no reply');return}
+  sc.plan=sel.value;$('xMsg').textContent=`${sc.name} is now on the ${PLAN_NAMES[sc.plan]} plan.`;
+});
+$('xSchools').addEventListener('click',e=>{if(e.target.closest('select'))return;const r=e.target.closest('[data-xs]');if(!r)return;$('xSchool').value=r.dataset.xs;fillSuperClasses();renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
 $('xClasses').addEventListener('click',e=>{const r=e.target.closest('[data-xc]');if(!r)return;const c=X.classes.find(x=>x.id===r.dataset.xc);$('xSchool').value=c.school_id;fillSuperClasses();$('xClass').value=c.id;renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
 
 // ---------- stars fly into the counter ----------
@@ -1428,6 +1537,25 @@ async function refreshClass(force){
   applyState(st,true);if(screen==='home')renderHome();
 }
 
+// ---------- student home: competition cards ----------
+function renderCompBox(){
+  const box=$('compBox');if(!box)return;
+  const order={active:0,upcoming:1,ended:2},list=COMPS.slice().sort((a,b)=>order[a.status]-order[b.status]).slice(0,3);
+  box.hidden=!list.length;if(!list.length){box.innerHTML='';return}
+  box.innerHTML=list.map(c=>{const v=studentView(c);
+    return `<div class="ccard ${v.win?'win':''}"><span class="chead">${TROPHY}${esc(v.kindLabel)}</span><b class="ctitle">${esc(v.title)}</b>
+      ${v.main?`<span class="cmain">${esc(v.main)}</span>`:''}${v.pct!=null?`<span class="gbar" role="img" aria-label="${Math.round(v.pct)}% of the way"><i style="width:${v.pct.toFixed(0)}%"></i></span>`:''}
+      ${v.sub?`<span class="csub">${esc(v.sub)}</span>`:''}<span class="cfoot"><span><b>Prize:</b> ${esc(v.prize)}</span><span>${esc(v.when)}</span></span></div>`}).join('');
+}
+// Fresh competition numbers after playing (at most every 30 seconds)
+let compsPulled=0;
+async function refreshComps(){
+  if(!SESSION||TEACH||Date.now()-compsPulled<30000)return;compsPulled=Date.now();
+  let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
+  if(!st||st.error||!SESSION||!P()||P().id!==st.me.id)return;
+  COMPS=Array.isArray(st.competitions)?st.competitions:[];
+  if(screen==='home')renderCompBox();
+}
 // ---------- Play page: rocket journey strip ----------
 // Vertical journey: Galaxy at the top, Ground at the bottom, the player's rocket parked at their rank.
 function journeyHTML(p){
@@ -1474,6 +1602,7 @@ export const __test = {
   streakInfo, bumpStreak, scoreRound, gameStars, roundStars, ptsSince, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
+  renderCompBox, setComps(v) { COMPS = v; },
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
   rowsFromPlayers, pSeries,
   setG(v) { G = v; }, setQ(v) { q = v; }, resetRecent() { recent = []; },
