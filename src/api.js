@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { seedDemoStudents } from './demo-data.js';
 import { rowsFromPlayers } from './progress.js';
 import { compSummary, PAID_PLANS } from './competitions.js';
+import { demoPilotScore } from './pilot.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -85,6 +86,10 @@ function supabaseApi() {
     schoolProgress: () => rpc('school_progress', {}),
     superProgress: () => rpc('super_progress', {}),
     superSetPlan: (schoolId, plan) => rpc('super_set_plan', { p_school: schoolId, p_plan: plan }),
+    // pilot scorecards (owner only)
+    superPilots: () => rpc('super_pilots', {}),
+    superPilotSave: (p) => rpc('super_pilot_save', { p }),
+    superPilotDelete: (id) => rpc('super_pilot_delete', { p_id: id }),
     // competitions (School and School Plus plans; the database checks the plan and who may do what)
     competitionsList: () => rpc('competitions_list', {}),
     competitionCreate: (c) => rpc('competition_create', { p: c }),
@@ -125,10 +130,11 @@ function demoApi() {
   const persist = () => { try { localStorage.setItem(DEMO_KEY, JSON.stringify(db)); } catch (e) { /* storage full or blocked */ } };
   persist();
   // Re-read before every call so several tabs share one demo database
-  const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) db = x; } catch (e) { /* keep in-memory copy */ } };
+  // older saved demos lack newer lists, so fill them in whenever the saved copy is (re)loaded
+  const fill = () => { if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
+  const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) { db = x; fill(); } } catch (e) { /* keep in-memory copy */ } };
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
-  if (!db.school.plan) db.school.plan = 'school_plus';
-  if (!db.competitions) db.competitions = [];
+  fill();
   const paid = () => PAID_PLANS.includes(db.school.plan);
   const demoComps = (filter, meId, teacher) => db.competitions.filter(filter).map(c => compSummary(c, db.students, db.classes, meId, teacher, { includeDemo: true }));
   const localDay = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : NaN; };
@@ -236,6 +242,22 @@ function demoApi() {
       });
     },
     schoolProgress() { return ok({ rows: demoProgressRows() }); },
+    superPilots() {
+      return ok({ pilots: db.pilots.map(p => { const c = db.classes.find(x => x.id === p.class_id) || {};
+        return { ...p, class_name: c.name || 'Class', school_name: db.school.name, score: demoPilotScore(p, db.students, db.competitions, { includeDemo: true }) }; }) });
+    },
+    superPilotSave(p) {
+      const okDay = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+      if (!db.classes.some(c => c.id === p.class_id)) return ok({ error: 'bad_class' });
+      if (!okDay(p.starts_on) || !okDay(p.ends_on) || p.ends_on < p.starts_on) return ok({ error: 'bad_dates' });
+      const fields = { class_id: p.class_id, starts_on: p.starts_on, ends_on: p.ends_on, baseline_days: Math.min(60, Math.max(3, +p.baseline_days || 14)) };
+      let x = p.id && db.pilots.find(q => q.id === p.id);
+      if (p.id && !x) return ok({ error: 'not_found' });
+      if (x) Object.assign(x, fields, p.bonus != null ? { bonus: !!p.bonus } : {}, p.notes != null ? { notes: String(p.notes).slice(0, 1000) } : {});
+      else { x = { id: id(), ...fields, bonus: !!p.bonus, notes: String(p.notes || '').slice(0, 1000) }; db.pilots.push(x); }
+      persist(); return ok({ ok: true, id: x.id });
+    },
+    superPilotDelete(pid) { const n = db.pilots.length; db.pilots = db.pilots.filter(p => p.id !== pid); persist(); return ok({ ok: db.pilots.length < n }); },
     superSetPlan(_sid, plan) { if (!['free', 'school', 'school_plus'].includes(plan)) return ok({ error: 'bad_plan' }); db.school.plan = plan; persist(); return ok({ ok: true, plan }); },
     competitionsList() { return ok({ plan: db.school.plan, competitions: demoComps(c => Date.now() - new Date(c.ended_at || c.ends_at) < 90 * 864e5, null, true).sort((a, b) => (a.status === 'ended') - (b.status === 'ended') || new Date(b.starts_at) - new Date(a.starts_at)) }); },
     competitionCreate(p) {
