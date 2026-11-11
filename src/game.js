@@ -1395,7 +1395,8 @@ const PSTATE={met:'Met',missed:'Not met',progress:'Not yet',waiting:'No data yet
 async function renderPilots(reload){
   if(reload||XPL.list==null){$('xPilots').innerHTML='<p class="muted">Loading…</p>';
     try{const r=await api.superPilots();XPL.list=r&&!r.error?r.pilots||[]:[];if(r&&r.error)XPL.msg='Could not load pilots: '+r.error}catch(e){XPL.list=[];XPL.msg='Could not load pilots: '+e.message}}
-  const classes=(X&&X.classes||[]).filter(c=>!c.archived_at),school=id=>((X.schools||[]).find(s=>s.id===id)||{}).name||'';
+  const pick=$('xSchool').value,classes=(X&&X.classes||[]).filter(c=>!c.archived_at&&(!pick||c.school_id===pick)),school=id=>((X.schools||[]).find(s=>s.id===id)||{}).name||'';
+  const inPick=p=>!pick||((X.classes||[]).find(c=>c.id===p.class_id)||{}).school_id===pick;
   const today=dayStr(Date.now()),end=dayStr(Date.now()+25*864e5);
   const form=`<form class="pform" id="xPilotForm">
     <label>Class<select id="xpClass" required>${classes.map(c=>`<option value="${c.id}">${esc(school(c.school_id))} · ${esc(c.name)}</option>`).join('')}</select></label>
@@ -1404,7 +1405,7 @@ async function renderPilots(reload){
     <label>Baseline<select id="xpBase"><option value="14">2 weeks before</option><option value="7">1 week before</option><option value="28">4 weeks before</option></select></label>
     <label class="wide">Notes<input id="xpNotes" maxlength="1000" placeholder="e.g. Ms Berry's class; decision meeting week of 14 Dec"></label>
     <button class="btn primary" type="submit">Add pilot</button></form>`;
-  const cards=(XPL.list||[]).map(p=>{
+  const cards=(XPL.list||[]).filter(inPick).map(p=>{
     const sc=p.score,h=pilotHeadline(sc),rows=pilotRows(sc);
     const weeks=(sc.usage.weeks||[]).map(w=>`<span class="pweek ${w.state==='future'?'future':w.met?'met':w.state==='now'?'progress':'missed'}" title="Week ${w.i+1}: ${w.active} of ${w.students} students played 3+ days">W${w.i+1} ${w.state==='future'?'–':w.pct+'%'}</span>`).join('');
     return `<div class="pilot" data-pid="${p.id}">
@@ -1471,9 +1472,10 @@ const XLABEL={active:'Active',slipping:'Slipping',inactive:'Inactive',never:'Nev
 // Monday-start week number relative to this week (0 = this week, -1 = last week …)
 function xMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
 function xWeek(dayStr){const [y,m,d]=dayStr.split('-').map(Number);return Math.round((xMonday(new Date(y,m-1,d))-xMonday(new Date(X.now)))/(7*XDAY))}
-function xStudents(){const hide=$('xHideDemo').checked;return X.students.filter(s=>!(hide&&s.demo))}
+function xStudents(){const hide=$('xHideDemo').checked,sc=$('xSchool').value;
+  return X.students.filter(s=>!(hide&&s.demo)&&(!sc||(X.classes.find(c=>c.id===s.class_id)||{}).school_id===sc))}
 function fillSuperFilters(){
-  const sc=$('xSchool').value;
+  let sc=$('xSchool').value;if(!sc){try{sc=local().xSchool||''}catch(e){sc=''}}
   $('xSchool').innerHTML='<option value="">All schools</option>'+X.schools.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
   $('xSchool').value=X.schools.some(s=>s.id===sc)?sc:'';fillSuperClasses();
 }
@@ -1486,9 +1488,11 @@ function renderSuper(){
   const st=xStudents(),played=st.filter(s=>s.rounds>0),pct=(a,b)=>b?Math.round(a/b*100)+'%':'–';
   const act7=played.filter(s=>xStatus(s)==='active').length,act30=played.filter(s=>xStatus(s)!=='inactive').length;
   const back=played.filter(s=>(s.days||[]).length>=2).length;
-  const liveClasses=X.classes.filter(c=>!c.archived_at);
+  const sc=$('xSchool').value,school=X.schools.find(s=>s.id===sc);
+  const allClasses=X.classes.filter(c=>!sc||c.school_id===sc),liveClasses=allClasses.filter(c=>!c.archived_at),teachers=X.teachers.filter(t=>!sc||t.school_id===sc);
+  $('xAllBtn').hidden=!sc;$('xH1').textContent=school?school.name:'All schools';
   const tile=(n,l,sub)=>`<div class="xtile"><b>${n}</b><span>${l}</span>${sub?`<small>${sub}</small>`:''}</div>`;
-  $('xTiles').innerHTML=tile(X.schools.length,'Schools',X.teachers.length+' teachers')+tile(liveClasses.length,'Classes',X.classes.length-liveClasses.length?(X.classes.length-liveClasses.length)+' archived':'')
+  $('xTiles').innerHTML=(school?tile(PLAN_NAMES[school.plan||'free'],'Plan',teachers.length+' teacher'+(teachers.length===1?'':'s')):tile(X.schools.length,'Schools',teachers.length+' teachers'))+tile(liveClasses.length,'Classes',allClasses.length-liveClasses.length?(allClasses.length-liveClasses.length)+' archived':'')
     +tile(st.length,'Students',pct(played.length,st.length)+' have played')+tile(act7,'Active this week',pct(act7,played.length)+' of players')
     +tile(act30,'Active last 30 days',pct(act30,played.length)+' of players')+tile(pct(back,played.length),'Came back',back+' played on 2+ days');
   // weekly active, last 8 weeks
@@ -1509,10 +1513,15 @@ function renderSuper(){
   const inSchool=id=>st.filter(s=>{const c=X.classes.find(x=>x.id===s.class_id);return c&&c.school_id===id});
   const lastOf=list=>Math.max(0,...list.map(xLastActive).filter(Boolean))||null;
   $('xSchools').innerHTML=`<thead><tr><th>School</th><th>Plan</th><th class="r">Teachers</th><th class="r">Classes</th><th class="r">Students</th><th class="r">Active 7 days</th><th>Last activity</th><th>Admins</th></tr></thead><tbody>`+
-    X.schools.map(sc=>{const ss=inSchool(sc.id),ts=X.teachers.filter(t=>t.school_id===sc.id);
-      return `<tr data-xs="${sc.id}" title="Show this school's students"><td><b>${esc(sc.name)}</b></td><td><select data-xplan="${sc.id}" aria-label="Plan for ${esc(sc.name)}">${Object.entries(PLAN_NAMES).map(([k,v])=>`<option value="${k}" ${(sc.plan||'free')===k?'selected':''}>${v}</option>`).join('')}</select></td><td class="r">${ts.length}</td><td class="r">${X.classes.filter(c=>c.school_id===sc.id&&!c.archived_at).length}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td><td>${ts.filter(t=>t.role==='admin').map(t=>esc(t.name)+(t.email?` <small class="muted">${esc(t.email)}</small>`:'')).join('<br>')}</td></tr>`}).join('')+'</tbody>';
+    X.schools.filter(x=>!$('xSchool').value||x.id===$('xSchool').value).map(sc=>{const ss=inSchool(sc.id),ts=X.teachers.filter(t=>t.school_id===sc.id);
+      return `<tr data-xs="${sc.id}" title="View this school"><td><b>${esc(sc.name)}</b></td><td><select data-xplan="${sc.id}" aria-label="Plan for ${esc(sc.name)}">${Object.entries(PLAN_NAMES).map(([k,v])=>`<option value="${k}" ${(sc.plan||'free')===k?'selected':''}>${v}</option>`).join('')}</select></td><td class="r">${ts.length}</td><td class="r">${X.classes.filter(c=>c.school_id===sc.id&&!c.archived_at).length}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td><td>${ts.filter(t=>t.role==='admin').map(t=>esc(t.name)+(t.email?` <small class="muted">${esc(t.email)}</small>`:'')).join('<br>')}</td></tr>`}).join('')+'</tbody>';
+  $('xSchoolsTitle').textContent=sc?'School':'Schools';
+  // teachers of the chosen school
+  $('xTeachCard').hidden=!sc;
+  if(sc)$('xTeachers').innerHTML=`<thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th class="r">Classes</th><th>Joined</th></tr></thead><tbody>`+
+    (teachers.length?teachers.map(t=>`<tr><td><b>${esc(t.name||'')}</b></td><td>${esc(t.email||'')}</td><td>${t.role==='admin'?'Admin':'Teacher'}</td><td class="r">${X.classes.filter(c=>c.teacher_id===t.id&&!c.archived_at).length}</td><td>${xAgo(xTime(t.created_at))}</td></tr>`).join('')
+      :'<tr><td colspan="5" class="muted">No teachers yet.</td></tr>')+'</tbody>';
   // classes
-  const sc=$('xSchool').value;
   $('xClasses').innerHTML=`<thead><tr><th>Class</th><th>School</th><th>Teacher</th><th>Code</th><th class="r">Students</th><th class="r">Played</th><th class="r">Active 7 days</th><th>Last activity</th></tr></thead><tbody>`+
     X.classes.filter(c=>!sc||c.school_id===sc).map(c=>{const ss=st.filter(s=>s.class_id===c.id),t=X.teachers.find(x=>x.id===c.teacher_id);
       return `<tr data-xc="${c.id}" title="Show this class's students"><td><b>${esc(c.name)}</b>${c.archived_at?' <small class="muted">archived</small>':''}</td><td>${esc((X.schools.find(s=>s.id===c.school_id)||{}).name||'')}</td><td>${t?esc(t.name):'<span class="muted">None</span>'}</td><td class="num">${esc(c.code)}</td><td class="r">${ss.length}</td><td class="r">${ss.filter(s=>s.rounds>0).length}</td><td class="r">${ss.filter(s=>xStatus(s)==='active').length}</td><td>${xAgo(lastOf(ss))}</td></tr>`}).join('')+'</tbody>';
@@ -1531,7 +1540,9 @@ function renderSuperStudents(){
       :'<tr><td colspan="10" class="muted">No students match.</td></tr>')+'</tbody>'+(list.length>500?`<caption class="muted small">Showing the 500 most recently active.</caption>`:'');
 }
 $('xHideDemo').onchange=()=>{setLocal({xHideDemo:$('xHideDemo').checked});renderSuper()};
-$('xSchool').onchange=()=>{fillSuperClasses();renderSuper()};
+function xPickSchool(id){$('xSchool').value=id;try{setLocal({xSchool:id})}catch(e){}fillSuperClasses();renderSuper();renderPilots();}
+$('xSchool').onchange=()=>xPickSchool($('xSchool').value);
+$('xAllBtn').onclick=()=>xPickSchool('');
 ['xClass','xStatus'].forEach(id=>$(id).onchange=renderSuperStudents);
 $('xSearch').oninput=renderSuperStudents;
 $('xSchools').addEventListener('change',async e=>{
@@ -1540,8 +1551,8 @@ $('xSchools').addEventListener('change',async e=>{
   if(!r||r.error){sel.value=was;$('xMsg').textContent='Could not change the plan: '+((r&&r.error)||'no reply');return}
   sc.plan=sel.value;$('xMsg').textContent=`${sc.name} is now on the ${PLAN_NAMES[sc.plan]} plan.`;
 });
-$('xSchools').addEventListener('click',e=>{if(e.target.closest('select'))return;const r=e.target.closest('[data-xs]');if(!r)return;$('xSchool').value=r.dataset.xs;fillSuperClasses();renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
-$('xClasses').addEventListener('click',e=>{const r=e.target.closest('[data-xc]');if(!r)return;const c=X.classes.find(x=>x.id===r.dataset.xc);$('xSchool').value=c.school_id;fillSuperClasses();$('xClass').value=c.id;renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
+$('xSchools').addEventListener('click',e=>{if(e.target.closest('select'))return;const r=e.target.closest('[data-xs]');if(!r||$('xSchool').value===r.dataset.xs)return;xPickSchool(r.dataset.xs);$('super').scrollIntoView({behavior:'smooth',block:'start'})});
+$('xClasses').addEventListener('click',e=>{const r=e.target.closest('[data-xc]');if(!r)return;const c=X.classes.find(x=>x.id===r.dataset.xc);if($('xSchool').value!==c.school_id)xPickSchool(c.school_id);$('xClass').value=c.id;renderSuper();$('xStudents').scrollIntoView({behavior:'smooth',block:'start'})});
 
 // ---------- stars fly into the counter ----------
 function flyStars(n){
