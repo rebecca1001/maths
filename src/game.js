@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr } from './competitions.js';
+import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
 const TIER_COLORS=['#FF6B6F','#FF8559','#FF9A4D','#FFB23C','#FFC93C','#E8DC4F','#C9E86A','#9BE38C','#6FE39A','#4FE3B5'];
 const SKINS=[
@@ -1108,6 +1108,7 @@ function compDraft(){
   return CMP.draft;
 }
 async function loadComps(){
+  if(isAdmin()){try{const n=await api.countStudents();CMP.schoolKids=Object.values(n||{}).reduce((a,b)=>a+b,0)}catch(e){CMP.schoolKids=0}}
   try{const r=await api.competitionsList();if(r&&!r.error){CMP.list=r.competitions||[];CMP.plan=r.plan||'free'}else{CMP.list=[];CMP.plan=CMP.plan||'free';CMP.msg='Could not load competitions: '+((r&&r.error)||'no reply')}}
   catch(e){CMP.list=[];CMP.msg='Could not load competitions: '+e.message}
 }
@@ -1119,6 +1120,9 @@ async function renderComp(reload){
   const form=paid?`<div class="card"><h2>New competition</h2>
     <p class="muted small">Pick what students compete for, and the prize. You or your school provide the prize and hand it out; MathWizz shows students how close they are.</p>
     <form class="compform" id="compForm">
+      <span class="label">Quick start</span>
+      <div class="presets">${PRESETS.filter(x=>KINDS[x.kind].scope==='class'||isAdmin()).map(x=>`<button type="button" class="preset ${d.preset===x.id?'on':''}" data-cpreset="${x.id}"><b>${x.label}</b><small>${x.blurb}</small></button>`).join('')}</div>
+      <p class="note">Pick one to fill in everything below, then change anything you like.</p>
       <span class="label">Who competes</span>
       <div class="kindgrid" role="radiogroup" aria-label="Type of competition">${kinds.map(([id,x])=>`<button type="button" role="radio" aria-checked="${d.kind===id}" class="kindbtn ${d.kind===id?'on':''}" data-ckind="${id}"><b>${x.label}</b><small>${x.scope==='class'?esc(c.name):'Whole school'} · ${x.blurb}</small></button>`).join('')}</div>
       <span class="label">What counts</span>
@@ -1129,10 +1133,13 @@ async function renderComp(reload){
         <label>Prize<input id="cPrize" maxlength="200" value="${esc(d.prize)}" placeholder="${k.scope==='class'?'e.g. $20 gift card':'e.g. Pizza party for the winning class'}" required></label>
         <label>Name (optional)<input id="cTitle" maxlength="80" value="${esc(d.title)}" placeholder="${k.label}"></label>
       </div>
+      ${k.target?`<div class="qrow"><span class="qlabel">Suggested targets</span><div class="tchips">${compTargets(d).map(t=>`<button type="button" class="tchip ${String(d.target)===String(t.value)?'on':''}" data-ctarget="${t.value}" title="About ${t.rounds} rounds per student per school day">${t.label}: ${fmtNum(t.value)}</button>`).join('')||'<span class="note">Pick dates to see suggestions.</span>'}</div></div>`:''}
+      <div class="qrow"><span class="qlabel">Prize ideas</span><div class="tchips">${(k.scope==='class'&&d.kind==='top_player'?PRIZES.class:PRIZES.team).map(z=>`<button type="button" class="tchip ${d.prize===z?'on':''}" data-cprize="${esc(z)}">${esc(z)}</button>`).join('')}</div></div>
       <div class="frow">
         <label>Starts<input id="cStart" type="date" value="${esc(d.start)}" required></label>
         <label>Ends (last day)<input id="cEnd" type="date" value="${esc(d.end)}" required></label>
       </div>
+      <div class="qrow"><span class="qlabel">How long</span><div class="tchips">${TIMEFRAMES.map(t=>{const [a,b]=t.range(new Date());return `<button type="button" class="tchip ${d.start===a&&d.end===b?'on':''}" data-ctime="${t.id}">${t.label}</button>`}).join('')}</div></div>
       <div class="row"><button class="btn primary" type="submit" ${CMP.busy?'disabled':''}>Start competition</button></div>
       <p class="note" id="compMsg" aria-live="polite">${esc(CMP.msg)}</p>
     </form></div>`
@@ -1171,11 +1178,27 @@ function compItemHTML(x){
     ${canEdit?`<div class="row">${x.status!=='ended'?`<button class="btn" data-cend="${x.id}">End now</button>`:''}<button class="linkbtn danger" data-cdel="${x.id}">Delete</button></div>`:''}</div>
     <p class="small"><b>Prize:</b> ${esc(x.prize)} · ${shortDate(new Date(x.starts_at))} to ${shortDate(lastDay(x))} · ${whenText(x)}</p>${body}</div>`;
 }
+// Suggested goal targets, sized to the class (or the whole school) and the dates
+function compTargets(d){
+  const kids=d.kind==='school_target'?(CMP.schoolKids||S.order.length):S.order.length;
+  return suggestTargets(d.measure,kids,d.start,d.end);
+}
+function applyPreset(id){
+  const x=PRESETS.find(p=>p.id===id);if(!x)return;const d=compDraft(),t=TIMEFRAMES.find(f=>f.id===x.time);
+  const [a,b]=t.range(new Date());
+  Object.assign(d,{preset:x.id,kind:x.kind,measure:x.measure,prize:x.prize,title:x.label,start:a,end:b,target:''});
+  if(x.perStudent){const kids=x.kind==='school_target'?(CMP.schoolKids||S.order.length):S.order.length;d.target=String(niceNumber(x.perStudent*Math.max(1,kids)))}
+}
 function readCompForm(){const d=compDraft();[['cTarget','target'],['cPrize','prize'],['cTitle','title'],['cStart','start'],['cEnd','end']].forEach(([id,key])=>{const el=$(id);if(el)d[key]=el.value})}
 $('compPane').addEventListener('input',()=>readCompForm());
 $('compPane').addEventListener('click',async e=>{
   const kb=e.target.closest('[data-ckind]'),mb=e.target.closest('[data-cmeasure]'),eb=e.target.closest('[data-cend]'),db=e.target.closest('[data-cdel]');
-  if(kb){readCompForm();compDraft().kind=kb.dataset.ckind;CMP.msg='';renderComp();return}
+  const pb=e.target.closest('[data-cpreset]'),zb=e.target.closest('[data-cprize]'),tb=e.target.closest('[data-ctime]'),gb=e.target.closest('[data-ctarget]');
+  if(pb){readCompForm();applyPreset(pb.dataset.cpreset);CMP.msg='';renderComp();return}
+  if(zb){readCompForm();compDraft().prize=zb.dataset.cprize;renderComp();return}
+  if(tb){readCompForm();const t=TIMEFRAMES.find(f=>f.id===tb.dataset.ctime),[a,b]=t.range(new Date()),d=compDraft();d.start=a;d.end=b;renderComp();return}
+  if(gb){readCompForm();compDraft().target=gb.dataset.ctarget;renderComp();return}
+  if(kb){readCompForm();const d=compDraft();d.kind=kb.dataset.ckind;d.preset=null;d.target='';CMP.msg='';renderComp();return}
   if(mb){readCompForm();compDraft().measure=mb.dataset.cmeasure;renderComp();return}
   if(eb||db){
     const x=(CMP.list||[]).find(c=>c.id===(eb||db).dataset[eb?'cend':'cdel']);if(!x)return;
@@ -1543,7 +1566,7 @@ function renderCompBox(){
   const order={active:0,upcoming:1,ended:2},list=COMPS.slice().sort((a,b)=>order[a.status]-order[b.status]).slice(0,3);
   box.hidden=!list.length;if(!list.length){box.innerHTML='';return}
   box.innerHTML=list.map(c=>{const v=studentView(c);
-    return `<div class="ccard ${v.win?'win':''}"><span class="chead">${TROPHY}${esc(v.kindLabel)}</span><b class="ctitle">${esc(v.title)}</b>
+    return `<div class="ccard ${v.win?'win':''}"><span class="chead">${TROPHY}${esc(v.title===v.kindLabel?(c.scope==='school'?'School competition':'Class competition'):v.kindLabel)}</span><b class="ctitle">${esc(v.title)}</b>
       ${v.main?`<span class="cmain">${esc(v.main)}</span>`:''}${v.pct!=null?`<span class="gbar" role="img" aria-label="${Math.round(v.pct)}% of the way"><i style="width:${v.pct.toFixed(0)}%"></i></span>`:''}
       ${v.sub?`<span class="csub">${esc(v.sub)}</span>`:''}<span class="cfoot"><span><b>Prize:</b> ${esc(v.prize)}</span><span>${esc(v.when)}</span></span></div>`}).join('');
 }
