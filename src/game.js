@@ -1,6 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
+import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
 const TIER_COLORS=['#FF6B6F','#FF8559','#FF9A4D','#FFB23C','#FFC93C','#E8DC4F','#C9E86A','#9BE38C','#6FE39A','#4FE3B5'];
@@ -1386,8 +1387,64 @@ async function openSuper(){
   if(!r||r.error){$('xMsg').textContent=r&&r.error==='not_allowed'?'This page is only for the MathWizz owner.':'Could not load: '+(r&&r.error);$('gSuperBtn').hidden=true;return}
   X=r;$('xMsg').textContent='';$('xUpdated').textContent='Updated '+new Date(r.now).toLocaleString('en-CA',{dateStyle:'medium',timeStyle:'short'});
   try{$('xHideDemo').checked=!!local().xHideDemo}catch(e){}
-  XP=await pg;fillSuperFilters();renderSuper();
+  XP=await pg;fillSuperFilters();renderSuper();renderPilots(true);
 }
+// ----- owner: pilot scorecards -----
+let XPL={list:null,msg:''};
+const PSTATE={met:'Met',missed:'Not met',progress:'Not yet',waiting:'No data yet'};
+async function renderPilots(reload){
+  if(reload||XPL.list==null){$('xPilots').innerHTML='<p class="muted">Loading…</p>';
+    try{const r=await api.superPilots();XPL.list=r&&!r.error?r.pilots||[]:[];if(r&&r.error)XPL.msg='Could not load pilots: '+r.error}catch(e){XPL.list=[];XPL.msg='Could not load pilots: '+e.message}}
+  const classes=(X&&X.classes||[]).filter(c=>!c.archived_at),school=id=>((X.schools||[]).find(s=>s.id===id)||{}).name||'';
+  const today=dayStr(Date.now()),end=dayStr(Date.now()+25*864e5);
+  const form=`<form class="pform" id="xPilotForm">
+    <label>Class<select id="xpClass" required>${classes.map(c=>`<option value="${c.id}">${esc(school(c.school_id))} · ${esc(c.name)}</option>`).join('')}</select></label>
+    <label>Starts<input id="xpStart" type="date" value="${today}" required></label>
+    <label>Ends (last day)<input id="xpEnd" type="date" value="${end}" required></label>
+    <label>Baseline<select id="xpBase"><option value="14">2 weeks before</option><option value="7">1 week before</option><option value="28">4 weeks before</option></select></label>
+    <label class="wide">Notes<input id="xpNotes" maxlength="1000" placeholder="e.g. Ms Berry's class; decision meeting week of 14 Dec"></label>
+    <button class="btn primary" type="submit">Add pilot</button></form>`;
+  const cards=(XPL.list||[]).map(p=>{
+    const sc=p.score,h=pilotHeadline(sc),rows=pilotRows(sc);
+    const weeks=(sc.usage.weeks||[]).map(w=>`<span class="pweek ${w.state==='future'?'future':w.met?'met':w.state==='now'?'progress':'missed'}" title="Week ${w.i+1}: ${w.active} of ${w.students} students played 3+ days">W${w.i+1} ${w.state==='future'?'–':w.pct+'%'}</span>`).join('');
+    return `<div class="pilot" data-pid="${p.id}">
+      <div class="ctop"><div><h3>${esc(p.school_name)} · ${esc(p.class_name)}</h3>
+        <p class="small muted">${shortDay(p.starts_on)} to ${shortDay(p.ends_on)} · ${weekLabel(p)} · ${sc.students} students${p.notes?` · ${esc(p.notes)}`:''}</p></div>
+        <span class="pbadge ${h.state}">${esc(h.text)}</span></div>
+      <ol class="plist">${rows.map(r=>`<li><div class="pl"><b>${r.label}</b><span class="small muted">Target: ${esc(r.target)}</span><span class="small">${esc(r.detail)}</span></div>
+        <div class="pr"><b class="num">${esc(r.value)}</b><span class="pstate ${r.state}">${PSTATE[r.state]}</span></div></li>`).join('')}</ol>
+      <div class="pweeks" aria-label="Regular use by week">${weeks}</div>
+      <div class="row prow"><label class="pbonus"><input type="checkbox" data-pbonus ${sc.bonus?'checked':''}> Bonus: another teacher asked to join</label>
+        <button class="btn" data-pcopy>Copy Friday update</button><button class="linkbtn danger" data-pdel>Delete</button></div>
+    </div>`}).join('');
+  $('xPilots').innerHTML=`${XPL.msg?`<p class="note" aria-live="polite">${esc(XPL.msg)}</p>`:''}${cards||'<p class="muted small">No pilots yet. Add one below.</p>'}
+    <details class="pnew" ${cards?'':'open'}><summary>Add a pilot</summary>${classes.length?form:'<p class="muted">No classes yet.</p>'}</details>`;
+}
+$('xPilots').addEventListener('submit',async e=>{
+  if(e.target.id!=='xPilotForm')return;e.preventDefault();
+  const r=await api.superPilotSave({class_id:$('xpClass').value,starts_on:$('xpStart').value,ends_on:$('xpEnd').value,baseline_days:+$('xpBase').value,notes:$('xpNotes').value.trim()});
+  XPL.msg=r&&r.ok?'Pilot added.':'Could not add the pilot: '+({bad_dates:'check the dates (the end must be after the start, at most 120 days)',bad_class:'pick a class'}[r&&r.error]||(r&&r.error)||'no reply');
+  renderPilots(true);
+});
+$('xPilots').addEventListener('change',async e=>{
+  const cb=e.target.closest('[data-pbonus]');if(!cb)return;const p=XPL.list.find(x=>x.id===cb.closest('[data-pid]').dataset.pid);
+  const r=await api.superPilotSave({id:p.id,class_id:p.class_id,starts_on:p.starts_on,ends_on:p.ends_on,baseline_days:p.baseline_days,bonus:cb.checked});
+  XPL.msg=r&&r.ok?'':'Could not save: '+((r&&r.error)||'no reply');renderPilots(true);
+});
+$('xPilots').addEventListener('click',async e=>{
+  const card=e.target.closest('[data-pid]');if(!card)return;const p=XPL.list.find(x=>x.id===card.dataset.pid);
+  if(e.target.closest('[data-pcopy]')){
+    const text=weeklyText(p);
+    try{await navigator.clipboard.writeText(text);XPL.msg='Friday update copied. Paste it into your email.'}
+    catch(err){XPL.msg='';renderPilots();const ta=document.createElement('textarea');ta.className='pcopy';ta.readOnly=true;ta.value=text;ta.rows=10;card.appendChild(ta);ta.select();return}
+    renderPilots();return;
+  }
+  if(e.target.closest('[data-pdel]')){
+    if(!confirm(`Delete the pilot for ${p.class_name}? The class and its rounds are not affected.`))return;
+    const r=await api.superPilotDelete(p.id);XPL.msg=r&&r.ok?'Pilot deleted.':'Could not delete it.';renderPilots(true);
+  }
+});
+
 let XP=null;
 // Progress curve for whatever the filters select (a class, a school, or every school), plus a line for each school and class
 function renderSuperProgress(){

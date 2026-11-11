@@ -136,3 +136,8 @@ Teachers see a **Class progress** curve on the Students tab. School admins see a
 - Students see a card on their home screen with how close they or their class are, from a week before the start to a week after the end. Only space names are shown to students.
 - Scoring uses `round_log`, written only by `student_save` after it checks each round, so totals are exact and cannot be edited from a browser. Demo students are left out.
 - Migration: `supabase/migrations/20261111000000_competitions.sql`. Tests: `supabase/tests/test_competitions.sql`, `tests/competitions.test.js`.
+
+## Pilot scorecards (owner only)
+- On the **All schools** page, **Pilots** tracks one class against the agreed success criteria (3 of 4 met moves the school to a paid plan): regular use (70% play 3+ days a week in 3 of 4 weeks), class fluency (+15% correct answers per minute against the baseline), every child improves (70% beat their own baseline), competitions (60% of the class plays during one), plus a bonus ticked by hand when another teacher asks to join.
+- **Copy Friday update** gives a plain-text summary to paste into the weekly email.
+- Scored from `round_log`; demo students left out. Migration `20261112000000_pilots.sql`, tests `supabase/tests/test_pilots.sql` and `tests/pilot.test.js`.

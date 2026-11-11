@@ -95,7 +95,7 @@ revoke all on public.competitions from public, anon, authenticated;
 
 -- When a competition really stops counting (its end date, or earlier if it was ended early)
 create or replace function public._comp_end(c public.competitions) returns timestamptz
-language sql immutable as $$ select case when c.ended_at is not null and c.ended_at < c.ends_at then greatest(c.ended_at, c.starts_at) else c.ends_at end $$;
+language sql immutable set search_path = public, extensions as $$ select case when c.ended_at is not null and c.ended_at < c.ends_at then greatest(c.ended_at, c.starts_at) else c.ends_at end $$;
 revoke all on function public._comp_end(public.competitions) from public, anon, authenticated;
 
 -- Totals per student in scope (students with no rounds count as 0; demo students and archived classes left out)
