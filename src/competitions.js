@@ -126,3 +126,52 @@ export function studentView(c, now = Date.now()) {
   }
   return v;
 }
+
+// ---------------------------------------------------------------------------
+// Quick picks for teachers: ready-made competitions, prize ideas, timeframes, suggested targets
+// ---------------------------------------------------------------------------
+const pad = (n) => String(n).padStart(2, '0');
+const ds = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; };
+// Each returns [start, last day] as 'YYYY-MM-DD', starting today
+export const TIMEFRAMES = [
+  { id: 'week', label: '1 week', range: (t) => [ds(t), ds(addDays(t, 6))] },
+  { id: '2weeks', label: '2 weeks', range: (t) => [ds(t), ds(addDays(t, 13))] },
+  { id: 'month', label: 'Rest of this month', range: (t) => { const end = new Date(t.getFullYear(), t.getMonth() + 1, 0); return [ds(t), ds(addDays(t, 6) > end ? addDays(t, 6) : end)]; } },
+  { id: '30days', label: '30 days', range: (t) => [ds(t), ds(addDays(t, 29))] },
+  { id: '6weeks', label: '6 weeks', range: (t) => [ds(t), ds(addDays(t, 41))] },
+];
+export const PRIZES = {
+  class: ['$10 gift card', '$20 gift card', 'Homework pass', 'Lunch with the teacher', 'Certificate and a shout-out at assembly', 'First pick of the class prize box'],
+  team: ['Pizza party', 'Extra recess for the class', 'Class movie afternoon', 'Choose the class game on Friday', 'Pyjama day', 'Trophy for the winning class'],
+};
+// perStudent: target per student for the whole competition (goal presets)
+export const PRESETS = [
+  { id: 'week_star', label: 'Star of the week', kind: 'top_player', measure: 'stars', time: 'week', prize: '$10 gift card', blurb: 'Most stars in a week' },
+  { id: 'month_champ', label: 'Monthly champion', kind: 'top_player', measure: 'stars', time: 'month', prize: '$20 gift card', blurb: 'Most stars this month' },
+  { id: 'hard_worker', label: 'Hardest worker', kind: 'top_player', measure: 'correct', time: '2weeks', prize: 'Homework pass', blurb: 'Most correct answers in 2 weeks, rewards effort over speed' },
+  { id: 'class_stars', label: 'Class star challenge', kind: 'class_target', measure: 'stars', time: '2weeks', prize: 'Extra recess for the class', perStudent: 1000, blurb: 'The class reaches a star target together' },
+  { id: 'pizza_goal', label: 'Pizza party goal', kind: 'class_target', measure: 'correct', time: '30days', prize: 'Pizza party', perStudent: 600, blurb: 'The class reaches a correct-answer target' },
+  { id: 'school_drive', label: 'School star drive', kind: 'school_target', measure: 'stars', time: '30days', prize: 'Pizza party for the whole school', perStudent: 1500, blurb: 'Every class adds to one school total' },
+  { id: 'class_race', label: 'Class race of the month', kind: 'class_race', measure: 'stars', time: 'month', prize: 'Trophy for the winning class', blurb: 'Classes race, ranked per student' },
+];
+// A round-looking number: 1,234 -> 1,250; 23,456 -> 23,500
+export function niceNumber(n) {
+  if (!(n > 0)) return 0;
+  const step = n < 1000 ? 50 : n < 10000 ? 250 : n < 100000 ? 500 : 5000;
+  return Math.max(step, Math.round(n / step) * step);
+}
+// School days between two 'YYYY-MM-DD' dates (Mon-Fri, inclusive)
+export function schoolDays(start, end) {
+  const [a, b] = [start, end].map((s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); });
+  if (isNaN(a) || isNaN(b) || b < a) return 0;
+  let n = 0; for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) { const w = d.getDay(); if (w > 0 && w < 6) n++; }
+  return n;
+}
+// Easy / steady / stretch targets for a goal, from the number of students and school days
+// (a 1-minute round is worth about 50 stars and 20 correct answers; 2, 3 or 5 rounds per school day)
+export function suggestTargets(measure, students, start, end) {
+  const days = schoolDays(start, end), kids = Math.max(1, students || 0), per = measure === 'correct' ? 20 : 50;
+  if (!days) return [];
+  return [['Easy', 2], ['Steady', 3], ['Stretch', 5]].map(([label, rounds]) => ({ label, rounds, value: niceNumber(kids * days * rounds * per) }));
+}

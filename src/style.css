@@ -713,3 +713,10 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .cstand td,.cstand th{padding:5px 6px;border-top:1px solid var(--line);text-align:left}
 .cstand .r{text-align:right}
 .lockcard{border:2px dashed var(--line)}
+.presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.preset{text-align:left;padding:10px 12px;border-radius:12px;border:2px dashed var(--line);background:var(--surface);color:inherit;font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:44px}
+.preset b{font-size:15px}
+.preset small{opacity:.8}
+.preset.on{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+.qrow{display:flex;flex-direction:column;gap:6px}
+.qlabel{font-size:13px;font-weight:800;opacity:.8}

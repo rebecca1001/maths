@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compSummary, studentView, whenText, KINDS, unit } from '../src/competitions.js';
+import { compSummary, studentView, whenText, KINDS, unit, TIMEFRAMES, PRESETS, PRIZES, niceNumber, schoolDays, suggestTargets } from '../src/competitions.js';
 import { api } from '../src/api.js';
 import { __test } from '../src/game.js';
 
@@ -123,5 +123,36 @@ describe('student home card', () => {
     __test.renderCompBox();
     const box = document.getElementById('compBox');
     expect(box.querySelector('img')).toBeNull(); expect(box.textContent).toMatch(/<img src=x/);
+  });
+});
+
+describe('quick picks', () => {
+  const tf = (id, d) => TIMEFRAMES.find((t) => t.id === id).range(d);
+  it('timeframes start today and end on the right day', () => {
+    const wed = new Date(2026, 10, 11); // Wed 11 Nov 2026
+    expect(tf('week', wed)).toEqual(['2026-11-11', '2026-11-17']);
+    expect(tf('2weeks', wed)).toEqual(['2026-11-11', '2026-11-24']);
+    expect(tf('month', wed)).toEqual(['2026-11-11', '2026-11-30']);
+    expect(tf('30days', wed)).toEqual(['2026-11-11', '2026-12-10']);
+    expect(tf('month', new Date(2026, 10, 28))).toEqual(['2026-11-28', '2026-12-04']); // near month end: at least a week
+    for (const t of TIMEFRAMES) { const [a, b] = t.range(wed); expect(schoolDays(a, b)).toBeGreaterThan(0); }
+  });
+  it('every preset is valid: known kind, measure, timeframe, prize; goals have a per-student target', () => {
+    for (const p of PRESETS) {
+      expect(KINDS[p.kind], p.id).toBeTruthy(); expect(['stars', 'correct']).toContain(p.measure);
+      expect(TIMEFRAMES.some((t) => t.id === p.time), p.id).toBe(true); expect(p.prize.length).toBeGreaterThan(2);
+      expect(!!p.perStudent, p.id).toBe(KINDS[p.kind].target);
+    }
+    expect(PRIZES.class.length).toBeGreaterThan(3); expect(PRIZES.team.length).toBeGreaterThan(3);
+  });
+  it('school days skip weekends; targets are round numbers that grow with class size and effort', () => {
+    expect(schoolDays('2026-11-09', '2026-11-15')).toBe(5);
+    expect(schoolDays('2026-11-14', '2026-11-15')).toBe(0);
+    expect(niceNumber(1234)).toBe(1250); expect(niceNumber(23456)).toBe(23500); expect(niceNumber(12)).toBe(50);
+    const t = suggestTargets('stars', 24, '2026-11-09', '2026-11-20'); // 10 school days
+    expect(t.map((x) => x.label)).toEqual(['Easy', 'Steady', 'Stretch']);
+    expect(t[0].value).toBe(24000); expect(t[2].value).toBeGreaterThan(t[1].value);
+    expect(suggestTargets('correct', 24, '2026-11-09', '2026-11-20')[0].value).toBe(9500);
+    expect(suggestTargets('stars', 24, '2026-11-14', '2026-11-15')).toEqual([]);
   });
 });
