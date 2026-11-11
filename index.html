@@ -326,11 +326,13 @@
   <!-- OWNER ONLY: every school, class and student (the database refuses everyone else) -->
   <section class="screen" id="super" hidden>
     <div class="ttop">
-      <div class="ttitle"><span>Owner view</span><h1>All schools</h1></div>
+      <div class="ttitle"><span>Owner view</span><h1 id="xH1">All schools</h1></div>
       <div class="row"><button class="btn" id="xRefresh">Refresh</button><button class="btn" id="xBack">← Classes</button></div>
     </div>
     <p class="note" id="xMsg" aria-live="polite"></p>
     <div class="card xtop">
+      <label class="xpick">Viewing <select id="xSchool" aria-label="School to view"></select></label>
+      <button class="linkbtn" id="xAllBtn" hidden>← All schools</button>
       <label class="xchk"><input type="checkbox" id="xHideDemo"> Hide demo students</label>
       <span class="muted small" id="xUpdated"></span>
     </div>
@@ -344,13 +346,17 @@
       <div id="xPilots"></div>
     </div>
     <div class="card pcard">
-      <div class="spread"><h2 id="xProgTitle">Progress</h2><span class="note">Last 10 weeks · use the filters in the Students box below to pick a school or class</span></div>
+      <div class="spread"><h2 id="xProgTitle">Progress</h2><span class="note">Last 10 weeks · pick a class in the Students box below to see just that class</span></div>
       <div id="xProgress"></div>
       <div class="tbl-wrap"><table class="tbl plain" id="xProgTbl"></table></div>
     </div>
     <div class="card">
-      <h2>Schools</h2>
+      <h2 id="xSchoolsTitle">Schools</h2>
       <div class="tbl-wrap"><table class="tbl plain" id="xSchools"></table></div>
+    </div>
+    <div class="card" id="xTeachCard" hidden>
+      <h2>Teachers</h2>
+      <div class="tbl-wrap"><table class="tbl plain" id="xTeachers"></table></div>
     </div>
     <div class="card">
       <h2>Classes</h2>
@@ -359,7 +365,6 @@
     <div class="card">
       <div class="spread"><h2>Students</h2><span class="muted small" id="xCount"></span></div>
       <div class="xfilters">
-        <select id="xSchool" aria-label="School"></select>
         <select id="xClass" aria-label="Class"></select>
         <select id="xStatus" aria-label="Activity">
           <option value="">Any activity</option><option value="active">Active (last 7 days)</option><option value="slipping">Slipping (8 to 30 days)</option><option value="inactive">Inactive (30+ days)</option><option value="never">Never played</option>
