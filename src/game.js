@@ -298,7 +298,7 @@ function openLogin(keepClass){setAddress(false);
 }
 function renderLogin(){
   const st=L.step;
-  $('whoStep').hidden=st!=='who';$('emailStep').hidden=st!=='email';$('parentStep').hidden=st!=='parent';
+  $('whoStep').hidden=st!=='who';$('toWho').hidden=st==='who';$('emailStep').hidden=st!=='email';$('parentStep').hidden=st!=='parent';
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
   if(L.school)$('pickedSchool').textContent=L.school.name;
   $('loginTitle').textContent='Log in';

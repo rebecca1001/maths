@@ -22,22 +22,22 @@
         <h1>Welcome to MathWizz</h1>
         <p class="muted">Who's logging in?</p>
         <div class="whogrid">
-          <button type="button" class="whobtn2 w-student" data-who="student"><span class="wico" aria-hidden="true">🚀</span><b>Student</b></button>
-          <button type="button" class="whobtn2 w-teacher" data-who="teacher"><span class="wico" aria-hidden="true">🍎</span><b>Teacher</b></button>
-          <button type="button" class="whobtn2 w-principal" data-who="principal"><span class="wico" aria-hidden="true">🏫</span><b>Principal</b></button>
-          <button type="button" class="whobtn2 w-parent" data-who="parent"><span class="wico" aria-hidden="true">🏠</span><b>Parent</b></button>
+          <button type="button" class="whobtn2 w-student" data-who="student"><b>Student</b></button>
+          <button type="button" class="whobtn2 w-teacher" data-who="teacher"><b>Teacher</b></button>
+          <button type="button" class="whobtn2 w-principal" data-who="principal"><b>Principal</b></button>
+          <button type="button" class="whobtn2 w-parent" data-who="parent"><b>Parent</b></button>
         </div>
         <button type="button" class="linkbtn" id="whoCode">Log in with a class code</button>
       </div>
       <!-- 2a) students: school email + password -->
       <form class="pickstep emailform" id="emailStep" hidden autocomplete="on">
-        <button type="button" class="cornerlink" id="toCodeLogin">Log in with a class code</button>
         <h1>Student log in</h1>
         <label class="flabel">School email<input id="sEmail" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="surname.firstname@sd54.bc.ca" maxlength="120"></label>
         <label class="flabel">Password<span class="pwrow"><input id="sPass" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" placeholder="e.g. blue-tiger-42" maxlength="30"><button type="button" class="linkbtn small" id="sShow">Show</button></span></label>
         <div class="fb no" id="emailFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="sGo">Log in</button>
         <p class="muted small">Your password is on the login card from your teacher.</p>
+        <button type="button" class="btn codebtn" id="toCodeLogin">Have a class code? Log in with your code</button>
         <button type="button" class="linkbtn small" id="emailBack">← Back</button>
       </form>
       <!-- 2b) parents (not built yet) -->
