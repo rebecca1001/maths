@@ -30,7 +30,7 @@ describe('login screens (demo mode)', () => {
     expect($('emailStep').hidden).toBe(false); expect($('whoStep').hidden).toBe(true);
     $('toCodeLogin').click(); await settle();
     expect($('schoolStep').hidden).toBe(false); // the old flow, unchanged
-    $('toEmailLogin').click(); await settle(); expect($('emailStep').hidden).toBe(false);
+    $('toEmailLogin').click(); await settle(); expect($('whoStep').hidden).toBe(false); // Back goes to the first screen
   });
   it('wrong password says so; the right one logs in and remembers email on this device', async () => {
     $('sEmail').value = 'fox.comet@sd54.bc.ca'; $('sPass').value = 'red-fox-11';

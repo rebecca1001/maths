@@ -298,7 +298,7 @@ function openLogin(keepClass){setAddress(false);
 }
 function renderLogin(){
   const st=L.step;
-  $('whoStep').hidden=st!=='who';$('toWho').hidden=st==='who';$('emailStep').hidden=st!=='email';$('parentStep').hidden=st!=='parent';
+  $('whoStep').hidden=st!=='who';$('emailStep').hidden=st!=='email';$('parentStep').hidden=st!=='parent';
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
   if(L.school)$('pickedSchool').textContent=L.school.name;
   $('loginTitle').textContent='Log in';
@@ -336,7 +336,7 @@ document.querySelector('.whogrid').addEventListener('click',e=>{const b=e.target
 $('toWho').onclick=()=>goStep('who');
 $('emailBack').onclick=$('parentBack').onclick=()=>goStep('who');
 $('toCodeLogin').onclick=$('whoCode').onclick=()=>{setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
-$('toEmailLogin').onclick=()=>{setLocal({loginWay:'email'});goStep('email')};
+$('toEmailLogin').onclick=()=>{setLocal({loginWay:null});goStep('who')};
 $('sShow').onclick=()=>{const i=$('sPass'),show=i.type==='password';i.type=show?'text':'password';$('sShow').textContent=show?'Hide':'Show'};
 $('emailStep').addEventListener('submit',async e=>{
   e.preventDefault();if(L.busy)return;const em=$('sEmail').value.trim(),pw=$('sPass').value.trim(),fb=$('emailFb');

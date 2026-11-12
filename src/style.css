@@ -811,3 +811,4 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .uname{display:block;font-size:.78rem;color:var(--muted);font-weight:600}
 #grown.viewonly [data-newpass],#grown.viewonly #gdEmailForm{display:none!important}
 .codebtn{width:100%;justify-content:center}
+.backlink{color:var(--muted)!important}

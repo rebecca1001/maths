@@ -51,8 +51,8 @@
         <h1>Find your school</h1>
         <input id="schoolSearch" class="searchinput" autocomplete="off" spellcheck="false" placeholder="Type your school's name" aria-label="School name">
         <div class="picklist" id="schoolList" aria-live="polite"></div>
-        <button class="linkbtn small" id="useCode" type="button">Have a class code? Type it instead</button>
-        <button class="linkbtn small" id="toEmailLogin" type="button">Log in with your school email instead</button>
+        <button class="linkbtn small" id="useCode" type="button">Type a class code instead</button>
+        <button class="linkbtn small backlink" id="toEmailLogin" type="button">← Back</button>
       </div>
       <div class="pickstep" id="classStep" hidden>
         <h1>Pick your class</h1>
@@ -76,7 +76,7 @@
         <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
       </div>
     </div>
-    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">How do I log in?</button><button class="linkbtn" id="toWho" type="button">Not a student?</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><button class="linkbtn" id="toWho" type="button" hidden>Not a student?</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
     <p class="note demo" id="demoHint" hidden>Demo mode: Student → <b>fox.comet@sd54.bc.ca</b>, password <b>blue-tiger-42</b>. Or log in with a class code: search <b>Demo</b>, pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
@@ -412,16 +412,14 @@
 <div class="overlay" id="helpOv" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
   <div class="ovcard helpcard">
     <h1 id="helpTitle">How to log in</h1>
-    <p class="muted">You need your login card from your teacher.</p>
     <ol class="helpsteps">
-      <li><span class="hnum">1</span><div><b>Find your school</b><small>Type the first few letters of its name, then tap it. This device remembers it next time.</small></div></li>
-      <li><span class="hnum">2</span><div><b>Pick your class</b><small>Tap your class name. It's on your login card.</small></div></li>
-      <li><span class="hnum">3</span><div><b>Type your 4-digit code</b><small>Use the number pad. Keep your code secret!</small></div></li>
+      <li><span class="hnum">1</span><div><b>Tap Student</b></div></li>
+      <li><span class="hnum">2</span><div><b>Type your school email</b><small>The one you use on your Chromebook, like surname.firstname@sd54.bc.ca</small></div></li>
+      <li><span class="hnum">3</span><div><b>Type your password</b><small>It's on the login card from your teacher.</small></div></li>
     </ol>
     <div class="helptips">
-      <p><b>Wrong player?</b> Tap “Not you? Switch player”.</p>
-      <p><b>At home?</b> Tap “Have a class code? Type it instead” and type the class code from your card.</p>
-      <p><b>Forgot your code?</b> Ask your teacher. They can show it or give you a new one.</p>
+      <p><b>Have a 4-digit code?</b> Tap “Log in with a class code”, pick your school and class, then type your code.</p>
+      <p><b>Forgot?</b> Ask your teacher. They can see your password or code.</p>
     </div>
     <button class="go ovbtn" id="helpClose" type="button">Got it</button>
   </div>
