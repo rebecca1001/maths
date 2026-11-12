@@ -63,16 +63,20 @@ function supabaseApi() {
     },
     createSchool: (schoolName, teacherName) => rpc('create_school', { p_school_name: schoolName, p_teacher_name: teacherName }),
     joinSchool: (code, teacherName) => rpc('join_school', { p_join_code: code, p_teacher_name: teacherName }),
-    listClasses: () => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').is('archived_at', null).order('created_at')),
+    // every list is filtered to one school: the owner can read all schools, so the school must always be named
+    listClasses: (schoolId) => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').eq('school_id', schoolId).is('archived_at', null).order('created_at')),
+    listSchools: () => q(sb.from('schools').select('id,name,plan').order('name')),
     createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
     listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,data,created_at').eq('class_id', classId).order('created_at')),
+    // stars earned (not the spendable balance), stars this week and total rounds, from the server's round log
+    classStats: (classId) => rpc('class_stats', { p_class: classId }),
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
     addStudents: (classId, names, realNames) => q(sb.from('students').insert(names.map((name, i) => ({ class_id: classId, name, real_name: (realNames && realNames[i]) || null }))).select('id,name,real_name,pin,data')),
     setRealName: (id, realName) => q(sb.from('students').update({ real_name: realName || null }).eq('id', id)),
-    async countStudents() { const rows = await q(sb.from('students').select('class_id')); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
+    async countStudents(schoolId) { const rows = await q(sb.from('students').select('class_id,classes!inner(school_id)').eq('classes.school_id', schoolId)); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
     // school admin
-    listTeachers: () => q(sb.from('teachers').select('id,name,email,role,created_at').order('created_at')),
+    listTeachers: (schoolId) => q(sb.from('teachers').select('id,name,email,role,created_at').eq('school_id', schoolId).order('created_at')),
     setTeacherRole: (id, role) => rpc('admin_set_role', { p_teacher: id, p_role: role }),
     removeTeacher: (id) => rpc('admin_remove_teacher', { p_teacher: id }),
     newJoinCode: () => rpc('admin_new_join_code', {}),
@@ -110,6 +114,9 @@ function supabaseApi() {
 // Demo backend (browser only)
 // ---------------------------------------------------------------------------
 const DEMO_KEY = 'mm.demo.db.v1';
+const roundStarsOf = (r) => r.stars ?? Math.round((r.pts ?? r.c * 30) / 10);
+const mondayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+const weekStars = (s, cut) => ((s.data && s.data.rounds) || []).filter(r => r.d >= cut).reduce((t, r) => t + roundStarsOf(r), 0);
 function demoApi() {
   const id = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
   let db = null;
@@ -156,14 +163,16 @@ function demoApi() {
     studentState(token) {
       const m = me(token); if (!m) return ok({ error: 'signed_out' });
       const c = db.classes.find(x => x.id === m.class_id);
-      const cut = Date.now() - 7 * 864e5;
+      const cut = mondayStart();
       return ok({
+        school_board: paid() ? db.students.map(s => ({ id: s.id, name: s.name, skin: (s.data && s.data.skin) || 'blob', class: (db.classes.find(x => x.id === s.class_id) || {}).name || '', stars: weekStars(s, cut) }))
+          .filter(x => x.stars > 0).sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name)).slice(0, 10) : null,
         me: { id: m.id, name: m.name, data: m.data },
         class: { id: c.id, name: c.name, settings: c.settings },
         competitions: paid() ? demoComps(x => (!x.class_id || x.class_id === m.class_id) && new Date(x.starts_at) - Date.now() < 7 * 864e5 && Date.now() - new Date(x.ended_at || x.ends_at) < 7 * 864e5, m.id, false) : [],
         classmates: db.students.filter(s => s.class_id === m.class_id && s.id !== m.id).map(s => {
           const rs = (s.data.rounds || []).filter(r => r.d >= cut);
-          return { id: s.id, name: s.name, data: { skin: s.data.skin || 'blob', wkStars: rs.reduce((t, r) => t + (r.stars ?? Math.round((r.pts ?? r.c * 30) / 10)), 0), wkMins: Math.round(rs.reduce((t, r) => t + (r.len || 60), 0) / 60) } };
+          return { id: s.id, name: s.name, data: { skin: s.data.skin || 'blob', wkStars: weekStars(s, cut), wkMins: Math.round(rs.reduce((t, r) => t + (r.len || 60), 0) / 60) } };
         }),
       });
     },
@@ -178,6 +187,7 @@ function demoApi() {
     teacherSetPassword() { return ok({ ok: true }); },
     createSchool(schoolName, teacherName) { db.school.name = schoolName; db.teacher.name = teacherName; persist(); return ok('demo-school'); },
     joinSchool(code, teacherName) { db.teacher.name = teacherName; persist(); return ok('demo-school'); },
+    listSchools: () => ok([{ id: 'demo-school', name: db.school.name, plan: db.school.plan }]),
     listClasses: () => ok(db.classes.filter(c => !c.archived_at).map(c => ({ teacher_id: 'me', ...c }))),
     createClass(name, teacherId) {
       const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -187,6 +197,8 @@ function demoApi() {
     },
     updateClass(cid, patch) { Object.assign(db.classes.find(c => c.id === cid), patch); persist(); return ok(null); },
     listStudents: (cid) => ok(db.students.filter(s => s.class_id === cid)),
+    classStats: (cid) => ok({ students: db.students.filter(s => s.class_id === cid).map(s => { const rs = (s.data && s.data.rounds) || [];
+      return { id: s.id, stars_total: rs.reduce((t, r) => t + roundStarsOf(r), 0), stars_week: weekStars(s, mondayStart()), rounds_total: rs.length }; }) }),
     addStudent(cid, name) {
       let pin; do { pin = randomPin(); } while (db.students.some(s => s.class_id === cid && s.pin === pin));
       const s = { id: id(), class_id: cid, name, pin, data: {} }; db.students.push(s); persist(); return ok(s);
@@ -236,7 +248,7 @@ function demoApi() {
         students: db.students.map(s => {
           const rs = ((s.data && s.data.rounds) || []).filter(r => typeof r.d === 'number');
           return { id: s.id, class_id: s.class_id, name: s.name, real_name: s.real_name || null, created_at: null, last_login_at: s.last_login_at || null, last_seen_at: s.last_seen_at || null,
-            demo: true, stars: Math.round((s.data && s.data.coins) || 0), rounds: rs.length, mins: Math.round(rs.reduce((a, r) => a + (r.len || 60), 0) / 60),
+            demo: true, stars: rs.reduce((a, r) => a + roundStarsOf(r), 0), balance: Math.round((s.data && s.data.coins) || 0), rounds: rs.length, mins: Math.round(rs.reduce((a, r) => a + (r.len || 60), 0) / 60),
             first_round: rs.length ? Math.min(...rs.map(r => r.d)) : null, last_round: rs.length ? Math.max(...rs.map(r => r.d)) : null, days: [...new Set(rs.map(r => day(r.d)))] };
         }),
       });

@@ -122,6 +122,7 @@
               <h1 id="playTitle"></h1>
               <button class="linkbtn small notme" id="notMe" type="button">Not you? Switch player</button>
               <p class="jmsg" id="journeyMsg"></p>
+              <div class="streak" id="streakBox"></div>
               <div class="ptsline" id="playPts"></div>
               <div class="goalbox" id="goalBox" hidden></div>
               <div class="compbox" id="compBox" hidden aria-live="polite"></div>
@@ -137,7 +138,7 @@
         <!-- LEADERBOARD -->
         <div class="panel" id="tab-board" role="tabpanel" hidden>
           <div class="card">
-            <div class="spread"><h2 id="boardTitle">Top players this week</h2></div>
+            <div class="spread"><h2 id="boardTitle">Top 10 in your class</h2><div class="scopes" id="boardScope" role="group" aria-label="Which Top 10" hidden><button type="button" data-scope="class" aria-pressed="true">My class</button><button type="button" data-scope="school" aria-pressed="false">My school</button></div></div>
             <div class="board" id="board"></div>
             <p class="muted" id="boardMe"></p>
           </div>
@@ -224,6 +225,7 @@
     </div>
     <div class="card classbar">
       <div class="row" style="align-items:center">
+        <span class="row" id="gSchoolWrap" hidden style="align-items:center"><label class="muted" for="gSchool">School</label><select id="gSchool"></select></span>
         <label class="muted" for="gClass">Class</label>
         <select id="gClass"></select>
         <button class="btn" id="gNewClass">+ New class</button>
@@ -234,7 +236,6 @@
       <button role="tab" data-gtab="students" class="on">Students</button>
       <button role="tab" data-gtab="goal">Weekly goal</button>
       <button role="tab" data-gtab="help">Needs help</button>
-      <button role="tab" data-gtab="comp">Competitions</button>
       <button role="tab" data-gtab="settings">Settings</button>
     </div>
 
@@ -245,13 +246,13 @@
         <h2>Add students</h2>
         <label class="muted small" for="addNames">Type or paste your students' names, one per line. Each one gets a space name and a 4-digit login code.</label>
         <textarea id="addNames" rows="4" placeholder="Ava S&#10;Noah K&#10;Liam P"></textarea>
-        <div class="row"><button class="btn primary" id="addStudent">Add students</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="exportCsv">Download class data</button></div>
+        <div class="row"><button class="btn primary" id="addStudent">Add students</button><button class="btn" id="showCards">Print login cards</button></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
         <div class="codecards" id="codecards" hidden></div>
       </div>
       <div class="card">
-        <div class="spread"><h2>Students</h2><span class="note">Tap a student to see their details</span></div>
+        <div class="spread"><h2>Students</h2><span class="note">Tap a group above to filter · tap a student for details</span></div>
         <div class="tbl-wrap"><table class="tbl" id="tbl"></table></div>
       </div>
       <div class="card" id="gdetail"></div>

@@ -1,6 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
+import { GROUPS, groupOf, groupCounts, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
@@ -73,6 +74,7 @@ function applyState(st,keepMe){
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
   S.players=players;S.order=order;S.current=me.id;
   COMPS=Array.isArray(st.competitions)?st.competitions:[];
+  SCHOOLBOARD=Array.isArray(st.school_board)?st.school_board:null;if(!SCHOOLBOARD)boardScope='class';
 }
 
 // ---------- fluency maths ----------
@@ -98,7 +100,7 @@ const rate=r=>Math.round(r.c*60/(r.len||60));
 // Personal best = fastest average seconds per question in a round (rounds with 5+ right count first)
 function pb(p,rounds){const rs=(rounds||p.rounds).filter(r=>r.c>0&&r.ms>0&&r.n>=8);if(!rs.length)return null;return Math.min(...rs.map(r=>r.ms/1000))}
 const secTxt=v=>v.toFixed(1)+' s';
-function weekStart(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()} // Monday
+function weekStart(now){const d=new Date(now||Date.now());d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()} // Monday
 function goalRounds(p){return p.rounds.filter(r=>r.d>=weekStart()).length}
 function todayCount(p){const k=dayKey(Date.now());return p.rounds.filter(r=>dayKey(r.d)===k).length}
 function tableScore(p,a){let tot=0,n=0;for(let b=1;b<=12;b++){const f=p.facts[a+','+b];if(f&&f.r.length){tot+=level(f);n++}}return n?tot/n:null}
@@ -374,7 +376,41 @@ const FLAME='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
 const ICE='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="#3DB8FF" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2"/></svg>';
 const dayStart=t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
 const weekKey=t=>{const d=new Date(dayStart(t));d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()};
-function missedSchoolDays(fromDay,toDay){let n=0;for(let t=fromDay+864e5*1.5;dayStart(t)<toDay;t+=864e5){const g=new Date(t).getDay();if(g>=1&&g<=5)n++}return n}
+// Days with no school in BC (2026-27): breaks and stat holidays never cost a streak. Pro-D days are covered by the weekly freeze.
+const NO_SCHOOL=[['2026-11-11'],['2026-12-19','2027-01-04'],['2027-02-15'],['2027-03-13','2027-03-29'],['2027-05-24'],['2027-06-25','2027-09-07'],['2027-09-30'],['2027-10-11'],['2027-11-11']];
+const ymd=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+function isSchoolDay(t){const g=new Date(t).getDay();if(g<1||g>5)return false;const k=ymd(t);return !NO_SCHOOL.some(([a,b])=>b?k>=a&&k<=b:k===a)}
+function missedSchoolDays(fromDay,toDay){let n=0;for(let t=fromDay+864e5*1.5;dayStart(t)<toDay;t+=864e5){if(isSchoolDay(t))n++}return n}
+// Next school day after today, as a word for the streak message ("tomorrow", "Monday", or a date after a break)
+function nextSchoolDay(now){let t=dayStart(now)+864e5*1.5;for(let i=0;i<120&&!isSchoolDay(t);i++)t+=864e5;const days=Math.round((dayStart(t)-dayStart(now))/864e5);
+  return days===1?'tomorrow':days<7?new Date(t).toLocaleDateString('en-CA',{weekday:'long'}):new Date(t).toLocaleDateString('en-CA',{month:'long',day:'numeric'})}
+// Streak card on the Play screen (Duolingo style): flame and day count, this week's school days, and what to do next
+function streakHTML(p,now){
+  now=now||Date.now();const st=streakInfo(p,now),best=(p.daily&&p.daily.best)||0,mon=weekStart(now);
+  const played=new Set(p.rounds.map(r=>ymd(r.d)));
+  if(p.daily&&p.daily.lastT)played.add(ymd(p.daily.lastT));
+  const days=['M','T','W','T','F'].map((l,i)=>{const t=mon+i*864e5+36e5,k=ymd(t),today=k===ymd(now),off=!isSchoolDay(t),done=played.has(k);
+    return `<span class="sday ${done?'done':''} ${today?'today':''} ${off&&!done?'off':''}" title="${off?'No school':''}"><i>${done?'✓':off?'–':''}</i><small>${l}</small></span>`}).join('');
+  let msg;
+  if(st.playedToday)msg=`Streak safe today! Come back ${nextSchoolDay(now)} to make it ${st.count+1}.`;
+  else if(st.count&&!isSchoolDay(now))msg=`No school today, so your ${st.count}-day streak is safe. Playing still earns stars!`;
+  else if(st.count&&st.needsFreeze)msg=`You missed a day, but your streak freeze will save it. Play today!`;
+  else if(st.count)msg=`Play a round today to keep your ${st.count}-day streak going!`;
+  else msg=best?`Play a round to start a new streak. Your best is ${best} days.`:'Play a round today to start a streak!';
+  const lit=st.count>0&&st.playedToday;
+  return `<div class="streakbox ${lit?'lit':st.count?'risk':'cold'}">
+    <div class="shead"><span class="sflame">${FLAME}</span><b class="num">${st.count}</b><span class="slabel">day streak</span>${st.freeLeft&&st.count?`<span class="sfreeze" title="One missed school day each week is forgiven">${ICE} 1 freeze</span>`:''}</div>
+    <div class="sweek">${days}</div>
+    <p class="smsg">${msg}${best>st.count&&st.count?` <span class="muted">Best: ${best}</span>`:''}</p></div>`;
+}
+// Players saved before the streak existed: work it out from the rounds they have, with the same rules as bumpStreak
+function streakFromRounds(rounds){
+  const days=[...new Set(rounds.filter(r=>typeof r.d==='number').map(r=>dayStart(r.d)))].sort((a,b)=>a-b);const d={count:0,lastT:0,best:0};
+  for(const t of days){const q={daily:{...d}},st=d.count?streakInfo(q,t+36e5):{alive:false};
+    if(st.alive){d.count++;if(st.needsFreeze)d.freezeWeek=weekKey(t)}else d.count=1;d.lastT=t;d.best=Math.max(d.best,d.count)}
+  return d;
+}
+function renderStreak(p){const b=$('streakBox');if(b)b.innerHTML=streakHTML(p)}
 function streakInfo(p,now){
   const d=p.daily,today=dayStart(now||Date.now());
   if(!d||!d.lastT||!d.count)return {count:0,alive:false,playedToday:false,freeLeft:true};
@@ -408,36 +444,40 @@ const roundStars=r=>r.stars!=null?r.stars:gameStars(r.c,r.n,r.ms);
 const ptsSince=(p,t)=>p.wkStars!=null?p.wkStars:p.rounds.filter(r=>r.d>=t).reduce((s,r)=>s+roundStars(r),0);
 function migrateStars(p){if(p.starsV2)return;p.maxCoins=Math.max(p.maxCoins||0,p.coins||0);p.coins=Math.max(p.coins||0,p.rounds.reduce((s,r)=>s+roundStars(r),0));p.starsV2=true}
 const fmtN=n=>n.toLocaleString();
-function weekBoard(){const wk=Date.now()-7*864e5;return S.order.map(id=>S.players[id]).map(q=>({p:q,s:ptsSince(q,wk)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
+let SCHOOLBOARD=null,boardScope='class'; // school Top 10 (School and School Plus plans), and which board the Top 10 tab shows
+function weekBoard(){const wk=weekStart();return S.order.map(id=>S.players[id]).map(q=>({p:q,s:ptsSince(q,wk)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
 function renderHome(){
   const p=P();applyWorld();
   $('heroAvatar').innerHTML=`<div class="herowrap">${avatar(p.skin,110)}</div>`;
   const best=pb(p);
   $('playTitle').textContent=`Ready, ${p.name}?`;
   {const wb=weekBoard(),pos=wb.findIndex(x=>x.p.id===p.id);
-   $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(ptsSince(p,Date.now()-7*864e5))}</b>${pos>=0?` <b>#${pos+1}</b>`:''}`;
-}
+   // the rank is only shown inside the Top 10, so nobody sees that they are near the bottom
+   $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(ptsSince(p,weekStart()))}</b> this week${pos>=0&&pos<10?` · <b>#${pos+1}</b>`:''}`;
+  }
+  renderStreak(p);
   {const j=journeyHTML(p);$('journey').innerHTML=j.track;$('journeyMsg').innerHTML=j.msg;}
   {const g=S.goal,box=$('goalBox');box.hidden=!g;
    if(g){const n=goalRounds(p),N=g.rounds,done=N&&n>=N;
      box.innerHTML=`<span class="label">This week's goal</span><div class="gline">${N?`<b class="num">${Math.min(n,N)} of ${N}</b> rounds`:''}${g.tables.length?`<span class="gt">${N?' · ':''}Practise ${g.tables.map(t=>`<span class="fchip">${t}×</span>`).join(' ')}</span>`:''}</div>${N?`<div class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></div>`:''}${done?'<span class="gdone">Goal done! ✓</span>':''}`;
      box.classList.toggle('done',!!done)}}
-  renderCompBox();
-
-  $('boardTitle').textContent=S.showBoard?'Top players this week':'My stars';
-  const wk=Date.now()-7*864e5;
-  if(S.showBoard){
-    const all=weekBoard(),rows=all.slice(0,10);
-    const mins=q=>q.wkMins!=null?q.wkMins:Math.round(q.rounds.filter(r=>r.d>=wk).reduce((t,r)=>t+(r.len||60),0)/60);
-    const fmtT=m=>m>=60?`${Math.floor(m/60)} h ${m%60} min`:`${m} min`;
-    $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Time played</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.p.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.p.skin,40)}<span class="lnm">${esc(x.p.name)}${x.p.id===p.id?' <small>(you)</small>':''}</span><span class="lstat num" data-l="Time">${fmtT(mins(x.p))}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet.</p>';
-    const pos=all.findIndex(x=>x.p.id===p.id),mine=ptsSince(p,wk);
-    $('boardMe').textContent=pos>=0&&pos<10?'':mine>0?`You have ${fmtN(mine)} stars this week (#${pos+1}). Play more games to climb into the top 10!`:'Play a round to get on the board.';
-  }else{
-    $('board').innerHTML='';$('boardMe').textContent=`You have ${fmtN(ptsSince(p,wk))} stars this week and ${fmtN(p.coins)} in total.`;
-  }
+  $('compBox').hidden=true; // competitions are paused: the class and school Top 10 replace them
+  renderBoard(p);
   syncTab();
 }
+function renderBoard(p){
+  const wk=weekStart(),mine=ptsSince(p,wk),school=boardScope==='school'&&SCHOOLBOARD;
+  $('boardTitle').textContent=S.showBoard?(school?'Top 10 in your school':'Top 10 in your class'):'My stars';
+  $('boardScope').hidden=!S.showBoard||!SCHOOLBOARD;
+  $('boardScope').querySelectorAll('[data-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scope===boardScope)));
+  if(!S.showBoard){$('board').innerHTML='';$('boardMe').textContent=`You have ${fmtN(mine)} stars this week and ${fmtN(p.coins)} in total.`;return}
+  const list=school?SCHOOLBOARD.map(x=>({id:x.id,name:x.name,skin:x.skin,sub:x.class,s:x.stars})):weekBoard().map(x=>({id:x.p.id,name:x.p.name,skin:x.p.skin,s:x.s}));
+  const rows=list.slice(0,10),inTop=rows.some(x=>x.id===p.id);
+  $('board').classList.add('simple');
+  $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Stars this week</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.skin,40)}<span class="lnm">${esc(x.name)}${x.id===p.id?' <small>(you)</small>':''}${x.sub?`<small class="lsub">${esc(x.sub)}</small>`:''}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet. Be the first!</p>';
+  $('boardMe').textContent=inTop?'The board starts again every Monday.':mine>0?`You have ${fmtN(mine)} stars this week. Keep playing to climb into the Top 10! The board starts again every Monday.`:'Play a round to get on the board.';
+}
+$('boardScope').addEventListener('click',e=>{const b=e.target.closest('[data-scope]');if(!b)return;boardScope=b.dataset.scope;renderBoard(P())});
 $('start').onclick=()=>startRound();
 let tab='play';
 function logout(){toLogin()}
@@ -763,34 +803,34 @@ function spark(p){
 function focusOf(p){return ALL.map(t=>({t,s:tableScore(p,t)})).filter(x=>x.s!=null&&x.s<3).sort((a,b)=>a.s-b.s).slice(0,3).map(x=>x.t)}
 const LEVELS=['Not tried','Tricky','Getting there','Quick','Instant'];
 function weekAcc(p,wk){const rs=p.rounds.filter(r=>r.d>=wk),n=rs.reduce((s,r)=>s+r.n,0);return n?Math.round(rs.reduce((s,r)=>s+r.c,0)/n*100):null}
+let GFilter=null; // which group the teacher clicked, or null for everyone
+const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
-  const wk=Date.now()-7*864e5,players=S.order.map(id=>S.players[id]);
-  const wrs=players.flatMap(p=>p.rounds.filter(r=>r.d>=wk));
-  const today=players.filter(p=>todayCount(p)>0).length;
-  const wc=wrs.reduce((s,r)=>s+r.c,0),avg=wc?wrs.reduce((s,r)=>s+r.ms*r.c,0)/wc/1000:0;
-  const tn=wrs.reduce((s,r)=>s+r.n,0),acc=tn?Math.round(wrs.reduce((s,r)=>s+r.c,0)/tn*100):null;
-  $('kpis').innerHTML=[
-    ['Played today',`${today}<small> of ${players.length}</small>`],
-    ['Rounds this week',wrs.length],
-    ['Seconds per question',avg?avg.toFixed(1)+'<small> s</small>':'—'],
-    ['Accuracy this week',acc==null?'—':acc+'%']
-  ].map(([l,v])=>`<div class="kpi"><span class="label">${l}</span><b>${v}</b></div>`).join('');
+  const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
+  const n=groupCounts(players,now);
+  $('kpis').innerHTML=GROUPS.map(g=>`<button type="button" class="kpi grp g-${g.id} ${GFilter===g.id?'on':''}" data-group="${g.id}" aria-pressed="${GFilter===g.id}" title="${g.hint}"><span class="label">${g.label}</span><b>${n[g.id]}<small> of ${players.length}</small></b><span class="ghint">${g.hint}</span></button>`).join('');
 
   $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
-  if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Tap + Add a student.</td></tr></tbody>';$('gdetail').hidden=true;return}
+  if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Add them above, then print their login cards.</td></tr></tbody>';$('gdetail').hidden=true;return}
+  const order=Object.fromEntries(GROUPS.map((g,i)=>[g.id,i]));
+  const rows=players.map(p=>({p,g:groupOf(p.rounds,now)})).filter(x=>!GFilter||x.g===GFilter).sort((a,b)=>order[a.g]-order[b.g]);
   if(!GSel||!S.players[GSel])GSel=players[0].id;
-  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds (7 days)</th><th class="r">Accuracy</th><th>Last played</th><th>Needs practice</th><th>Login code</th></tr></thead><tbody>`+
-    players.map(p=>{
-      const ti=tierIndex(statusSecs(p)),wa=weekAcc(p,wk),f=focusOf(p);
+  const label=Object.fromEntries(GROUPS.map(g=>[g.id,g.label]));
+  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Group</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th><th>Login code</th></tr></thead><tbody>`+
+    (rows.length?rows.map(({p,g})=>{
+      const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
         <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td>
-        <td><span class="tpill">${ti<0?'New':TIERS[ti].name}</span></td>
-        <td class="r">${p.rounds.filter(r=>r.d>=wk).length}</td>
-        <td class="r">${wa==null?'—':wa+'%'}</td>
+        <td><span class="gpill g-${g}">${label[g]}</span></td>
         <td>${lastPlayed(p)}</td>
-        <td>${f.length?f.map(t=>`<span class="fchip">${t}×</span>`).join(' '):'<span class="muted">—</span>'}</td>
+        <td class="r">${daysPlayed(p.rounds,now)}</td>
+        <td class="r">${st.rounds_total!=null?st.rounds_total:p.rounds.length}</td>
+        <td class="r">${a==null?'—':Math.round(a*100)+'%'}</td>
+        <td class="r">${cpm==null?'—':cpm.toFixed(0)}</td>
+        <td class="r">${st.stars_total!=null?fmtN(st.stars_total):'—'}</td>
+        <td>${tr?`<span class="trend t-${tr}" title="${TREND[tr][1]}">${TREND[tr][0]}</span>`:'<span class="muted">—</span>'}</td>
         <td><b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button></td>
-      </tr>`}).join('')+'</tbody>';
+      </tr>`}).join(''):`<tr><td colspan="10" class="muted">Nobody in this group right now.</td></tr>`)+'</tbody>';
 
   const p=S.players[GSel],ti=tierIndex(statusSecs(p));$('gdetail').hidden=false;
   const bars=ALL.map(t=>{const s=tableScore(p,t),lv=s==null?0:Math.min(4,Math.max(1,Math.round(s)));
@@ -811,6 +851,7 @@ function renderGrown(){
     <div class="gd-col"><span class="label">Recent rounds</span>${recent.length?`<div class="rr">${recent.map(r=>`<span>${new Date(r.d).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}</span><span><b>${r.c}</b> <span class="muted">/ ${r.n}</span></span><span class="muted">${r.len/60} min</span><span class="muted">${r.c?(r.ms/1000).toFixed(1)+' s':'—'}</span>`).join('')}</div>`:'<p class="muted">No rounds yet.</p>'}</div>`;
 }
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
+$('kpis').addEventListener('click',e=>{const b=e.target.closest('[data-group]');if(!b)return;GFilter=GFilter===b.dataset.group?null:b.dataset.group;renderGrown()});
 $('tbl').addEventListener('click',async e=>{
   const nb=e.target.closest('[data-newpin]');
   if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
@@ -947,7 +988,9 @@ async function openTeacher(){setAddress(true);
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
   TEACH={info,classes:[],classId:local().teacherClass||null,super:false};setLocal({teacher:true});
-  api.isSuperAdmin().then(v=>{if(TEACH){TEACH.super=!!v;$('gSuperBtn').hidden=!TEACH.super}}).catch(()=>{});
+  try{TEACH.super=!!(await api.isSuperAdmin())}catch(e){TEACH.super=false}
+  if(TEACH.super){try{TEACH.schools=await api.listSchools()}catch(e){TEACH.schools=[]}
+    const saved=local().ownerSchool;if(saved&&TEACH.schools.some(x=>x.id===saved))TEACH.viewSchool=saved}
   await loadClasses();show('grown');
 }
 // Sign-in messages: green for progress and info, red for problems
@@ -1008,12 +1051,18 @@ $('tSetup').addEventListener('submit',async e=>{
 $('tSetupOut').onclick=async()=>{await api.teacherSignOut();openTeacher()};
 const isAdmin=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.role==='admin';
 const myId=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.id;
+// The owner can open any school's teacher view (read-only). Every list is fetched for one school.
+const ownSchool=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school&&TEACH.info.teacher.school.id;
+const viewSchool=()=>(TEACH&&TEACH.viewSchool)||ownSchool();
+const viewingOther=()=>!!(TEACH&&TEACH.super&&TEACH.viewSchool&&TEACH.viewSchool!==ownSchool());
 // Teachers see their own classes; admins see every class in the school
-function visibleClasses(){return isAdmin()?TEACH.all:TEACH.all.filter(c=>c.teacher_id===myId())}
+function visibleClasses(){return isAdmin()||viewingOther()?TEACH.all:TEACH.all.filter(c=>c.teacher_id===myId())}
 async function loadClasses(){
-  TEACH.all=await api.listClasses();
-  if(isAdmin()){try{TEACH.teachers=await api.listTeachers()}catch(e){TEACH.teachers=[]}}
-  if(!visibleClasses().length){TEACH.all.push(await api.createClass('My class'))}
+  const sid=viewSchool();TEACH.all=await api.listClasses(sid);
+  if(isAdmin()||viewingOther()){try{TEACH.teachers=await api.listTeachers(sid)}catch(e){TEACH.teachers=[]}}
+  if(!visibleClasses().length){
+    if(viewingOther()){TEACH.classes=[];TEACH.classId=null;renderOwnerEmpty();return}
+    TEACH.all.push(await api.createClass('My class'))}
   TEACH.classes=visibleClasses();
   if(!TEACH.classes.some(c=>c.id===TEACH.classId))TEACH.classId=(TEACH.classes.find(c=>c.teacher_id===myId())||TEACH.classes[0]).id;
   await loadClassStudents();
@@ -1022,20 +1071,36 @@ function curClass(){return TEACH.classes.find(c=>c.id===TEACH.classId)}
 const teacherName=id=>{const t=(TEACH.teachers||[]).find(x=>x.id===id);return t?t.name:id===myId()?TEACH.info.teacher.name:'No teacher'};
 async function loadClassStudents(){
   const c=curClass();setLocal({teacherClass:c.id});applySettings(c.settings);
-  const list=await api.listStudents(c.id);
+  const [list,cs]=await Promise.all([api.listStudents(c.id),api.classStats(c.id).catch(()=>null)]);
+  TEACH.stats={};if(cs&&Array.isArray(cs.students))cs.students.forEach(x=>{TEACH.stats[x.id]=x});
   S={players:{},order:[],current:null,showBoard:true,muted:true,goal:S.goal};
   list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,realName:st.real_name||''});S.order.push(st.id)});
   sortStudents();GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
 function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
+function renderSchoolPicker(){
+  const w=$('gSchoolWrap'),other=viewingOther();$('grown').classList.toggle('viewonly',other);
+  if(other&&['goal','settings','comp'].includes(TEACH_TAB))TEACH_TAB='students';
+  w.hidden=!TEACH.super||!(TEACH.schools||[]).length;if(w.hidden)return;
+  $('gSchool').innerHTML=TEACH.schools.map(x=>`<option value="${x.id}" ${x.id===viewSchool()?'selected':''}>${esc(x.name)}${x.id===ownSchool()?' (yours)':''}</option>`).join('');
+}
+function renderOwnerEmpty(){
+  renderSchoolPicker();const vs=(TEACH.schools||[]).find(x=>x.id===viewSchool());
+  $('gWho').textContent=`Owner view · ${vs?vs.name:'School'} · view only`;$('gTitle').textContent='No classes yet';$('gClass').innerHTML='';$('gCode').textContent='—';
+  $('kpis').innerHTML='';$('gProgress').innerHTML='';$('tbl').innerHTML='<tbody><tr><td class="muted">This school has no classes yet.</td></tr></tbody>';$('gdetail').hidden=true;
+  $('gSchoolBtn').hidden=true;show('grown');
+}
+$('gSchool').onchange=async()=>{TEACH.viewSchool=$('gSchool').value===ownSchool()?null:$('gSchool').value;setLocal({ownerSchool:TEACH.viewSchool});TEACH.classId=null;GFilter=null;TEACH_TAB='students';await loadClasses()};
 function renderTeacherBar(){
   const c=curClass(),t=TEACH.info.teacher,me=myId();
   const opt=x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}${isAdmin()&&x.teacher_id!==me?' ('+esc(teacherName(x.teacher_id))+')':''}</option>`;
   const mine=TEACH.classes.filter(x=>x.teacher_id===me),others=TEACH.classes.filter(x=>x.teacher_id!==me);
   $('gClass').innerHTML=isAdmin()&&others.length?`<optgroup label="My classes">${mine.map(opt).join('')}</optgroup><optgroup label="Other classes">${others.map(opt).join('')}</optgroup>`:TEACH.classes.map(opt).join('');
   $('gCode').textContent=c.code;$('gTitle').textContent=c.name;
-  $('gWho').textContent=t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
-  $('gSchoolBtn').hidden=!isAdmin();$('gSuperBtn').hidden=!TEACH.super;
+  const other=viewingOther(),vs=(TEACH.schools||[]).find(x=>x.id===viewSchool());
+  $('gWho').textContent=other?`Owner view · ${vs?vs.name:'School'} · view only`:t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
+  $('gSchoolBtn').hidden=!isAdmin()||other;$('gSuperBtn').hidden=!TEACH.super;
+  renderSchoolPicker();
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
@@ -1109,7 +1174,7 @@ function compDraft(){
   return CMP.draft;
 }
 async function loadComps(){
-  if(isAdmin()){try{const n=await api.countStudents();CMP.schoolKids=Object.values(n||{}).reduce((a,b)=>a+b,0)}catch(e){CMP.schoolKids=0}}
+  if(isAdmin()){try{const n=await api.countStudents(ownSchool());CMP.schoolKids=Object.values(n||{}).reduce((a,b)=>a+b,0)}catch(e){CMP.schoolKids=0}}
   try{const r=await api.competitionsList();if(r&&!r.error){CMP.list=r.competitions||[];CMP.plan=r.plan||'free'}else{CMP.list=[];CMP.plan=CMP.plan||'free';CMP.msg='Could not load competitions: '+((r&&r.error)||'no reply')}}
   catch(e){CMP.list=[];CMP.msg='Could not load competitions: '+e.message}
 }
@@ -1289,7 +1354,7 @@ $('acctDelete').onclick=async()=>{
 };
 // ----- download class data (CSV) -----
 function csvCell(v){v=v==null?'':String(v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v} // also stops spreadsheet formulas
-$('exportCsv').onclick=()=>{
+if($('exportCsv'))$('exportCsv').onclick=()=>{
   const c=curClass(),ws=weekStart(),wk=Date.now()-7*864e5;
   const head=['Real name','Space name','Login code','Rank','Seconds per answer','Rounds (all)','Rounds this week','Accuracy this week (%)','Last played','Needs practice','Stars (total)',...ALL.map(t=>t+'x table')];
   const rows=S.order.map(id=>{const p=S.players[id],ti=tierIndex(statusSecs(p)),wa=weekAcc(p,wk);
@@ -1305,10 +1370,10 @@ $('exportCsv').onclick=()=>{
 
 // ---------- school page (admins) ----------
 $('gSchoolBtn').onclick=()=>openSchool();
-$('sBack').onclick=async()=>{TEACH.classes=visibleClasses();await loadClassStudents();show('grown')};
+$('sBack').onclick=async()=>{TEACH.viewSchool=null;TEACH.classes=visibleClasses();await loadClassStudents();show('grown')};
 async function openSchool(){
   show('school');$('sClassMsg').textContent='';$('sTeachMsg').textContent='';
-  try{[TEACH.teachers,TEACH.all,TEACH.counts]=await Promise.all([api.listTeachers(),api.listClasses(),api.countStudents()])}catch(e){$('sClassMsg').textContent='Could not load the school: '+e.message}
+  try{[TEACH.teachers,TEACH.all,TEACH.counts]=await Promise.all([api.listTeachers(ownSchool()),api.listClasses(ownSchool()),api.countStudents(ownSchool())])}catch(e){$('sClassMsg').textContent='Could not load the school: '+e.message}
   TEACH.progress=null;renderSchool();
   try{const r=await api.schoolProgress();TEACH.progress=r&&r.rows?r.rows:(r&&r.error)||'none'}catch(e){TEACH.progress='none'}
   renderSchoolProgress();
@@ -1645,7 +1710,8 @@ async function refreshComps(){
   let st;try{st=await api.studentState(SESSION.token)}catch(e){return}
   if(!st||st.error||!SESSION||!P()||P().id!==st.me.id)return;
   COMPS=Array.isArray(st.competitions)?st.competitions:[];
-  if(screen==='home')renderCompBox();
+  SCHOOLBOARD=Array.isArray(st.school_board)?st.school_board:SCHOOLBOARD;
+  if(screen==='home'&&tab==='board')renderBoard(P());
 }
 // ---------- Play page: rocket journey strip ----------
 // Vertical journey: Galaxy at the top, Ground at the bottom, the player's rocket parked at their rank.
@@ -1669,7 +1735,8 @@ function fixPlayer(p){
   p.rockets=arr(p.rockets,['classic']);p.rocket=p.rocket||'classic';p.owned=arr(p.owned,['blob']);
   const facts={};if(p.facts&&typeof p.facts==='object'&&!Array.isArray(p.facts))for(const [k,f] of Object.entries(p.facts))if(f&&Array.isArray(f.r)&&Array.isArray(f.t))facts[k]=f;
   p.facts=facts;p.rounds=arr(p.rounds,[]).filter(r=>r&&typeof r==='object');
-  p.badges=arr(p.badges,[]).filter(b=>b!=='duelwin');delete p.seenBattles;migrateStars(p);return p}
+  p.badges=arr(p.badges,[]).filter(b=>b!=='duelwin');delete p.seenBattles;migrateStars(p);
+  if((!p.daily||!p.daily.lastT)&&p.rounds.length)p.daily=streakFromRounds(p.rounds);return p}
 
 // ---------- boot ----------
 export async function boot(){
@@ -1690,10 +1757,10 @@ export async function boot(){
 // Test-only access to the game's pure logic and state. Not used by the app itself.
 export const __test = {
   level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
-  streakInfo, bumpStreak, scoreRound, gameStars, roundStars, ptsSince, migrateStars, fixPlayer, newPlayerData,
+  streakInfo, bumpStreak, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, ptsSince, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
-  renderCompBox, setComps(v) { COMPS = v; },
+  renderCompBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
   rowsFromPlayers, pSeries,
   setG(v) { G = v; }, setQ(v) { q = v; }, resetRecent() { recent = []; },
