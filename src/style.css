@@ -747,3 +747,43 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 
 .xpick{display:flex;align-items:center;gap:8px;font-weight:800}
 .xpick select{font:inherit;font-weight:700;min-width:220px;min-height:40px}
+
+/* ---------- teacher view: four groups (Nov 2026) ---------- */
+.kpi.grp{cursor:pointer;text-align:left;font:inherit;color:inherit;border-left:6px solid var(--gc,var(--line));transition:transform .12s,box-shadow .12s}
+.kpi.grp:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.kpi.grp.on{box-shadow:inset 0 0 0 2px var(--gc);background:color-mix(in srgb,var(--gc) 10%,var(--surface))}
+.kpi .ghint{font-size:.78rem;color:var(--muted);font-weight:600}
+.g-none{--gc:#9AA3B5}.g-help{--gc:#E8833A}.g-ok{--gc:#2F6FED}.g-flying{--gc:#1F9455}
+.gpill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:800;font-size:.8rem;white-space:nowrap;background:color-mix(in srgb,var(--gc) 16%,transparent);color:color-mix(in srgb,var(--gc) 80%,var(--ink))}
+.trend{font-weight:900;font-size:1.1rem}.trend.t-up{color:var(--good)}.trend.t-down{color:var(--bad)}.trend.t-flat{color:var(--muted)}
+
+/* ---------- student Top 10: class or school ---------- */
+.board.simple .lrow,.board.simple .lhead{grid-template-columns:46px 44px 1fr 110px}
+.lnm .lsub{display:block;font-size:.78rem;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.scopes{display:inline-flex;border-radius:999px;background:color-mix(in srgb,var(--ink) 7%,transparent);padding:3px}
+.scopes button{border:0;background:none;font:inherit;font-weight:800;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer}
+.scopes button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+@media (max-width:640px){.board.simple .lrow,.board.simple .lhead{grid-template-columns:34px 40px 1fr 84px;gap:8px}}
+
+/* ---------- daily streak (Duolingo style) ---------- */
+.streak{width:100%;max-width:420px}
+.streakbox{border-radius:18px;padding:12px 16px;display:flex;flex-direction:column;gap:8px;align-items:center;background:color-mix(in srgb,#FF8A1A 10%,var(--surface));border:2px solid color-mix(in srgb,#FF8A1A 35%,transparent)}
+.streakbox.cold{background:color-mix(in srgb,var(--ink) 5%,transparent);border-color:var(--line)}
+.streakbox.cold .sflame svg{filter:grayscale(1);opacity:.5}
+.shead{display:flex;align-items:center;gap:8px}
+.sflame svg{width:38px;height:38px}
+.streakbox.lit .sflame svg{animation:flick 1.6s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes flick{0%,100%{transform:scale(1) rotate(0)}30%{transform:scale(1.08) rotate(-3deg)}60%{transform:scale(.97) rotate(2deg)}}
+.shead b{font-family:var(--display);font-size:2.2rem;line-height:1;color:#E8650F}
+.streakbox.cold .shead b{color:var(--muted)}
+.slabel{font-weight:800;font-size:1.05rem}
+.sfreeze{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:.75rem;font-weight:800;color:#1B7FC4;background:color-mix(in srgb,#3DB8FF 16%,transparent)}
+.sweek{display:flex;gap:10px}
+.sday{display:flex;flex-direction:column;align-items:center;gap:2px}
+.sday i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;color:#fff;background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.sday.done i{background:linear-gradient(180deg,#FFB347,#E8650F)}
+.sday.today i{box-shadow:0 0 0 3px var(--surface),0 0 0 5px #FF8A1A}
+.sday.off i{background:none;color:var(--muted);border:2px dashed var(--line)}
+.sday small{font-weight:800;color:var(--muted);font-size:.72rem}
+.smsg{margin:0;font-weight:700;text-align:center;font-size:.95rem}
+@media (prefers-reduced-motion:reduce){.streakbox.lit .sflame svg{animation:none}}
