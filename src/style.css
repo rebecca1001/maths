@@ -792,3 +792,24 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 #grown.viewonly .addcard,#grown.viewonly #gNewClass,#grown.viewonly [data-gtab="goal"],#grown.viewonly [data-gtab="settings"],
 #grown.viewonly #gdRealForm,#grown.viewonly #gdActions,#grown.viewonly [data-newpin]{display:none!important}
 #gSchool{max-width:260px}
+
+/* ---------- login: who is logging in, student email login ---------- */
+.logincard{position:relative}
+.whogrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;width:100%;max-width:460px;margin-top:6px}
+.whobtn2{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 12px;border-radius:20px;border:0;cursor:pointer;font:inherit;color:#fff;
+  box-shadow:0 5px 0 rgba(0,0,0,.25);transition:transform .1s}
+.whobtn2:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.whobtn2 b{font-family:var(--display);font-size:1.4rem}
+.whobtn2 .wico{font-size:2.4rem;line-height:1}
+.w-student{background:linear-gradient(180deg,#5B8CFF,#2F5FD9)}.w-teacher{background:linear-gradient(180deg,#38C979,#1E8E50)}
+.w-principal{background:linear-gradient(180deg,#B47BFF,#7A3FD6)}.w-parent{background:linear-gradient(180deg,#FFAE45,#E07A12)}
+.emailform{display:flex;flex-direction:column;align-items:stretch;gap:12px;width:100%;max-width:400px;text-align:left}
+.emailform h1{text-align:center}
+.flabel{display:flex;flex-direction:column;gap:6px;font-weight:800}
+.flabel input{font:inherit;font-size:1.15rem;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--surface);color:var(--ink)}
+.flabel input:focus{outline:none;border-color:var(--accent)}
+.pwrow{display:flex;align-items:center;gap:8px}.pwrow input{flex:1;min-width:0}
+.cornerlink{position:absolute;top:12px;right:12px;border:0;background:var(--accent-soft);color:var(--accent);font:inherit;font-weight:800;font-size:.8rem;padding:6px 12px;border-radius:999px;cursor:pointer}
+@media (max-width:480px){.cornerlink{position:static;align-self:flex-end}}
+.uname{display:block;font-size:.78rem;color:var(--muted);font-weight:600}
+#grown.viewonly [data-newpass],#grown.viewonly #gdEmailForm{display:none!important}

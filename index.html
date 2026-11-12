@@ -16,12 +16,43 @@
 
   <!-- STUDENT LOGIN: class code, then 4-digit code -->
   <section class="screen" id="login" hidden>
-    <div class="card" style="align-items:center;text-align:center">
+    <div class="card logincard" style="align-items:center;text-align:center">
+      <!-- 1) who is logging in -->
+      <div class="pickstep" id="whoStep" hidden>
+        <h1>Welcome to MathWizz</h1>
+        <p class="muted">Who's logging in?</p>
+        <div class="whogrid">
+          <button type="button" class="whobtn2 w-student" data-who="student"><span class="wico" aria-hidden="true">🚀</span><b>Student</b></button>
+          <button type="button" class="whobtn2 w-teacher" data-who="teacher"><span class="wico" aria-hidden="true">🍎</span><b>Teacher</b></button>
+          <button type="button" class="whobtn2 w-principal" data-who="principal"><span class="wico" aria-hidden="true">🏫</span><b>Principal</b></button>
+          <button type="button" class="whobtn2 w-parent" data-who="parent"><span class="wico" aria-hidden="true">🏠</span><b>Parent</b></button>
+        </div>
+        <button type="button" class="linkbtn" id="whoCode">Log in with a class code</button>
+      </div>
+      <!-- 2a) students: school email + password -->
+      <form class="pickstep emailform" id="emailStep" hidden autocomplete="on">
+        <button type="button" class="cornerlink" id="toCodeLogin">Log in with a class code</button>
+        <h1>Student log in</h1>
+        <label class="flabel">School email<input id="sEmail" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="surname.firstname@sd54.bc.ca" maxlength="120"></label>
+        <label class="flabel">Password<span class="pwrow"><input id="sPass" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" placeholder="e.g. blue-tiger-42" maxlength="30"><button type="button" class="linkbtn small" id="sShow">Show</button></span></label>
+        <div class="fb no" id="emailFb" aria-live="assertive"></div>
+        <button class="go" type="submit" id="sGo">Log in</button>
+        <p class="muted small">Your password is on the login card from your teacher.</p>
+        <button type="button" class="linkbtn small" id="emailBack">← Back</button>
+      </form>
+      <!-- 2b) parents (not built yet) -->
+      <div class="pickstep" id="parentStep" hidden>
+        <h1>Parents</h1>
+        <p>Parent accounts are coming soon.</p>
+        <p class="muted">For now, your child logs in at school with their school email and the password on their login card. Their teacher can tell you how they're doing.</p>
+        <button type="button" class="linkbtn small" id="parentBack">← Back</button>
+      </div>
       <div class="pickstep" id="schoolStep" hidden>
         <h1>Find your school</h1>
         <input id="schoolSearch" class="searchinput" autocomplete="off" spellcheck="false" placeholder="Type your school's name" aria-label="School name">
         <div class="picklist" id="schoolList" aria-live="polite"></div>
         <button class="linkbtn small" id="useCode" type="button">Have a class code? Type it instead</button>
+        <button class="linkbtn small" id="toEmailLogin" type="button">Log in with your school email instead</button>
       </div>
       <div class="pickstep" id="classStep" hidden>
         <h1>Pick your class</h1>
@@ -45,15 +76,16 @@
         <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
       </div>
     </div>
-    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">How do I log in?</button><button class="linkbtn" id="toTeacher">Teachers</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
-    <p class="note demo" id="demoHint" hidden>Demo mode: search <b>Demo</b>, pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
+    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">How do I log in?</button><button class="linkbtn" id="toWho" type="button">Not a student?</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+    <p class="note demo" id="demoHint" hidden>Demo mode: Student → <b>fox.comet@sd54.bc.ca</b>, password <b>blue-tiger-42</b>. Or log in with a class code: search <b>Demo</b>, pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
   <!-- TEACHER SIGN IN / SIGN UP / SCHOOL SETUP -->
   <section class="screen" id="teach" hidden>
     <div class="card teachcard">
       <form id="tSignIn" class="tform">
-        <h1>Teachers</h1>
+        <h1 id="tTitle">Teachers</h1>
+        <p class="muted small" id="tRoleNote" hidden>Principals sign in here too. Your account knows you run the school, so you'll see the School page.</p>
         <div class="tmode" role="tablist">
           <button type="button" role="tab" data-tmode="create">Create account</button>
           <button type="button" role="tab" data-tmode="signin" class="on">Sign in</button>
@@ -244,8 +276,8 @@
       <div class="card pcard"><div class="spread"><h2>Class progress</h2><span class="note">Last 10 weeks</span></div><div id="gProgress"></div></div>
       <div class="card addcard">
         <h2>Add students</h2>
-        <label class="muted small" for="addNames">Type or paste your students' names, one per line. Each one gets a space name and a 4-digit login code.</label>
-        <textarea id="addNames" rows="4" placeholder="Ava S&#10;Noah K&#10;Liam P"></textarea>
+        <label class="muted small" for="addNames">Paste your students' school emails, one per line. Each one gets a space name and a password to print on their login card. (Typing a name instead gives a 4-digit class code, the old way.)</label>
+        <textarea id="addNames" rows="4" placeholder="franklin.joshua@sd54.bc.ca&#10;smith.ava@sd54.bc.ca&#10;lee.noah@sd54.bc.ca"></textarea>
         <div class="row"><button class="btn primary" id="addStudent">Add students</button><button class="btn" id="showCards">Print login cards</button></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
