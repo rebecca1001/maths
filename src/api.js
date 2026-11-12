@@ -25,6 +25,7 @@ function supabaseApi() {
     mode: 'supabase',
     // students
     studentLogin: (classCode, pin) => rpc('student_login', { p_class_code: classCode, p_pin: pin }),
+    studentLoginEmail: (email, passcode) => rpc('student_login_email', { p_email: email, p_passcode: passcode }),
     findSchools: (q) => rpc('find_schools', { p_query: q }),
     schoolClasses: (schoolId) => rpc('school_classes', { p_school: schoolId }),
     studentState: (token) => rpc('student_state', { p_token: token }),
@@ -68,11 +69,15 @@ function supabaseApi() {
     listSchools: () => q(sb.from('schools').select('id,name,plan').order('name')),
     createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
-    listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,data,created_at').eq('class_id', classId).order('created_at')),
+    listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,username,passcode,data,created_at').eq('class_id', classId).order('created_at')),
     // stars earned (not the spendable balance), stars this week and total rounds, from the server's round log
     classStats: (classId) => rpc('class_stats', { p_class: classId }),
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
     addStudents: (classId, names, realNames) => q(sb.from('students').insert(names.map((name, i) => ({ class_id: classId, name, real_name: (realNames && realNames[i]) || null }))).select('id,name,real_name,pin,data')),
+    // students who log in with their school email: rows = [{ email, name }] (name = space name)
+    addEmailStudents: (classId, rows) => rpc('add_email_students', { p_class: classId, p_rows: rows }),
+    // give a student email login, or a new password (email null)
+    setStudentLogin: (id, email) => rpc('set_student_login', { p_student: id, p_email: email || null }),
     setRealName: (id, realName) => q(sb.from('students').update({ real_name: realName || null }).eq('id', id)),
     async countStudents(schoolId) { const rows = await q(sb.from('students').select('class_id,classes!inner(school_id)').eq('classes.school_id', schoolId)); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
     // school admin
@@ -114,6 +119,13 @@ function supabaseApi() {
 // Demo backend (browser only)
 // ---------------------------------------------------------------------------
 const DEMO_KEY = 'mm.demo.db.v1';
+// Same rules as the database: "Franklin.Joshua@SD54.bc.ca" -> "franklin.joshua@sd54"
+export const normStudentEmail = (e) => { const x = String(e || '').replace(/\s/g, '').toLowerCase(); return /^[a-z0-9._'-]{1,64}@[a-z0-9-]{1,40}(\.[a-z0-9-]+)*$/.test(x) ? x.split('@')[0] + '@' + x.split('@')[1].split('.')[0] : null; };
+export const nameFromEmail = (u) => { const l = String(u).split('@')[0], cap = (w) => w.charAt(0).toUpperCase() + w.slice(1); return l.includes('.') ? cap(l.split('.')[1]) + ' ' + cap(l.split('.')[0]) : cap(l); };
+const COLOURS = ['red', 'blue', 'green', 'gold', 'pink', 'purple', 'orange', 'silver', 'teal', 'lime', 'ruby', 'mint', 'coral', 'sky', 'sun', 'moon'];
+const ANIMALS = ['tiger', 'panda', 'otter', 'falcon', 'koala', 'shark', 'eagle', 'fox', 'wolf', 'owl', 'lynx', 'hawk', 'bear', 'frog', 'whale', 'comet', 'rocket', 'dragon', 'zebra', 'llama'];
+const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+export const newPasscode = () => `${pickOne(COLOURS)}-${pickOne(ANIMALS)}-${10 + Math.floor(Math.random() * 90)}`;
 const roundStarsOf = (r) => r.stars ?? Math.round((r.pts ?? r.c * 30) / 10);
 const mondayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
 const weekStars = (s, cut) => ((s.data && s.data.rounds) || []).filter(r => r.d >= cut).reduce((t, r) => t + roundStarsOf(r), 0);
@@ -138,7 +150,8 @@ function demoApi() {
   persist();
   // Re-read before every call so several tabs share one demo database
   // older saved demos lack newer lists, so fill them in whenever the saved copy is (re)loaded
-  const fill = () => { if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
+  const fill = () => { if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet@sd54', passcode: 'blue-tiger-42', real_name: db.students[0].real_name || 'Comet Fox' });
+    if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
   const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) { db = x; fill(); } } catch (e) { /* keep in-memory copy */ } };
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
   fill();
@@ -157,6 +170,14 @@ function demoApi() {
       if (!c) return ok({ error: 'no_class' });
       const s = db.students.find(x => x.class_id === c.id && x.pin === pin);
       if (!s) return ok({ error: 'wrong_code' });
+      const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
+      return ok({ token: t, student_id: s.id });
+    },
+    studentLoginEmail(email, passcode) {
+      const u = normStudentEmail(email); if (!u) return ok({ error: 'not_an_email' });
+      const pc = String(passcode || '').replace(/\s/g, '').toLowerCase();
+      const s = db.students.find(x => x.username === u && x.passcode === pc && db.classes.some(c => c.id === x.class_id && !c.archived_at));
+      if (!s) return ok({ error: 'wrong_login' });
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
     },
@@ -207,6 +228,25 @@ function demoApi() {
       const out = await Promise.all(names.map(n => methods.addStudent(cid, n)));
       out.forEach((st, i) => { const s = db.students.find(x => x.id === st.id); s.real_name = st.real_name = (realNames && realNames[i]) || null; });
       persist(); return out;
+    },
+    async addEmailStudents(cid, rows) {
+      const added = [], skipped = [];
+      for (const r of rows || []) {
+        const u = normStudentEmail(r.email);
+        if (!u) { skipped.push({ email: String(r.email || '').slice(0, 80), why: 'not_an_email' }); continue; }
+        if (db.students.some(x => x.username === u)) { skipped.push({ email: u, why: 'already_added' }); continue; }
+        const st = await methods.addStudent(cid, r.name || 'Space Cadet'), s = db.students.find(x => x.id === st.id);
+        Object.assign(s, { username: u, passcode: newPasscode(), real_name: nameFromEmail(u) });
+        added.push({ ...s });
+      }
+      persist(); return { added, skipped };
+    },
+    setStudentLogin(sid, email) {
+      const s = db.students.find(x => x.id === sid); if (!s) return ok({ error: 'not_allowed' });
+      let u = s.username;
+      if (email) { u = normStudentEmail(email); if (!u) return ok({ error: 'not_an_email' }); if (db.students.some(x => x.username === u && x.id !== sid)) return ok({ error: 'already_added' }); }
+      if (!u) return ok({ error: 'not_an_email' });
+      s.username = u; s.passcode = newPasscode(); persist(); return ok({ ok: true, username: s.username, passcode: s.passcode });
     },
     setRealName(sid, realName) { const s = db.students.find(x => x.id === sid); if (s) { s.real_name = realName || null; persist(); } return ok(null); },
     countStudents() { const n = {}; db.students.forEach(s => { n[s.class_id] = (n[s.class_id] || 0) + 1; }); return ok(n); },

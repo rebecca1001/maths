@@ -285,15 +285,20 @@ function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(locatio
 let lastClass=null; // the class just used, so "Not you? Switch player" goes straight to the keypad
 function openLogin(keepClass){setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass;
-  L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,step:kc?'pin':sc?'class':'school'};
-  $('classFb').textContent='';$('loginFb').textContent='';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
+  // Which door first: a device that already logs in with a class code (Ms Berry's class) goes straight there, as before.
+  // A device that used school email goes to email. A new device asks who is logging in (TT Rock Stars style).
+  const way=local().loginWay,codeDevice=way==='code'||(sc&&way!=='email');
+  L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,step:kc?'pin':codeDevice?(sc?'class':'school'):way==='email'?'email':'who'};
+  $('classFb').textContent='';$('loginFb').textContent='';$('emailFb').textContent='';$('sPass').value='';$('sPass').type='password';$('sShow').textContent='Show';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
   if(L.step==='class')loadClasses4Login();
   if(L.step==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},50);
+  if(L.step==='email')setTimeout(()=>{try{$('sEmail').focus()}catch(e){}},50);
 }
 function renderLogin(){
   const st=L.step;
+  $('whoStep').hidden=st!=='who';$('emailStep').hidden=st!=='email';$('parentStep').hidden=st!=='parent';
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
   if(L.school)$('pickedSchool').textContent=L.school.name;
   $('loginTitle').textContent='Log in';
@@ -303,6 +308,7 @@ function renderLogin(){
 function goStep(st){L.step=st;L.entry='';renderLogin();
   if(st==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},30);
   if(st==='code')setTimeout(()=>{try{$('classCode').focus()}catch(e){}},30);
+  if(st==='email')setTimeout(()=>{try{$('sEmail').focus()}catch(e){}},30);
   if(st==='class')loadClasses4Login();}
 let schoolTimer=null;
 $('schoolSearch').addEventListener('input',()=>{clearTimeout(schoolTimer);schoolTimer=setTimeout(searchSchools,250)});
@@ -324,6 +330,26 @@ async function loadClasses4Login(){
 }
 $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
+// who is logging in
+document.querySelector('.whogrid').addEventListener('click',e=>{const b=e.target.closest('[data-who]');if(!b)return;const w=b.dataset.who;
+  if(w==='student')goStep('email');else if(w==='parent')goStep('parent');else openTeacher(w)});
+$('toWho').onclick=()=>goStep('who');
+$('emailBack').onclick=$('parentBack').onclick=()=>goStep('who');
+$('toCodeLogin').onclick=$('whoCode').onclick=()=>{setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
+$('toEmailLogin').onclick=()=>{setLocal({loginWay:null});goStep('who')};
+$('sShow').onclick=()=>{const i=$('sPass'),show=i.type==='password';i.type=show?'text':'password';$('sShow').textContent=show?'Hide':'Show'};
+$('emailStep').addEventListener('submit',async e=>{
+  e.preventDefault();if(L.busy)return;const em=$('sEmail').value.trim(),pw=$('sPass').value.trim(),fb=$('emailFb');
+  if(!em.includes('@')){fb.textContent='Type your whole school email, like surname.firstname@sd54.bc.ca';$('sEmail').focus();return}
+  if(!pw){fb.textContent='Type the password from your login card.';$('sPass').focus();return}
+  L.busy=true;$('sGo').disabled=true;fb.textContent='';
+  let r;try{r=await api.studentLoginEmail(em,pw)}catch(err){r={error:'network'}}
+  L.busy=false;$('sGo').disabled=false;
+  if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'email'});try{sessionStorage.setItem(TAB,r.token)}catch(err){}$('sPass').value='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  const er=r&&r.error;
+  fb.textContent=er==='not_an_email'?'Type your whole school email, like surname.firstname@sd54.bc.ca':er==='too_many_tries'?'Too many tries. Wait 10 minutes, or ask your teacher for your password.':er==='wrong_login'?"That email and password don't match. Check your login card, or ask your teacher.":'Could not connect. Check the internet and try again.';
+  $('sPass').value='';$('sPass').focus();
+});
 $('changeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
 $('useCode').onclick=()=>goStep('code');
 $('backToSchool').onclick=()=>goStep(L.school?'class':'school');
@@ -345,7 +371,7 @@ function loginFail(msg){
 }
 async function loginSubmit(){
   let r;try{r=await api.studentLogin(L.classCode,L.entry)}catch(e){r={error:'network'}}
-  if(r&&r.token){SESSION={token:r.token};lastClass={code:L.classCode,name:L.className};setLocal({token:r.token});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  if(r&&r.token){SESSION={token:r.token};lastClass={code:L.classCode,name:L.className};setLocal({token:r.token,loginWay:'code'});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
   if(e&&!['wrong_code','no_class','too_many_tries'].includes(e))console.error('Student login failed:',e);
   if(e==='no_class'){L.classCode='';L.busy=false;goStep(L.school?'class':'code');$('classFb').textContent="We couldn't find that class. Check it with your teacher.";return}
@@ -804,6 +830,11 @@ function focusOf(p){return ALL.map(t=>({t,s:tableScore(p,t)})).filter(x=>x.s!=nu
 const LEVELS=['Not tried','Tricky','Getting there','Quick','Instant'];
 function weekAcc(p,wk){const rs=p.rounds.filter(r=>r.d>=wk),n=rs.reduce((s,r)=>s+r.n,0);return n?Math.round(rs.reduce((s,r)=>s+r.c,0)/n*100):null}
 let GFilter=null; // which group the teacher clicked, or null for everyone
+// Email students: school email + password (teacher can always see it). Code students: 4-digit code, as before.
+function loginCell(p){
+  if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.passcode)}</b> <button class="linkbtn" data-newpass="${p.id}">New password</button>`;
+  return `<b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
+}
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
   const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
@@ -816,7 +847,7 @@ function renderGrown(){
   const rows=players.map(p=>({p,g:groupOf(p.rounds,now)})).filter(x=>!GFilter||x.g===GFilter).sort((a,b)=>order[a.g]-order[b.g]);
   if(!GSel||!S.players[GSel])GSel=players[0].id;
   const label=Object.fromEntries(GROUPS.map(g=>[g.id,g.label]));
-  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Group</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th><th>Login code</th></tr></thead><tbody>`+
+  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Group</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th><th>Login</th></tr></thead><tbody>`+
     (rows.length?rows.map(({p,g})=>{
       const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
@@ -829,7 +860,7 @@ function renderGrown(){
         <td class="r">${cpm==null?'—':cpm.toFixed(0)}</td>
         <td class="r">${st.stars_total!=null?fmtN(st.stars_total):'—'}</td>
         <td>${tr?`<span class="trend t-${tr}" title="${TREND[tr][1]}">${TREND[tr][0]}</span>`:'<span class="muted">—</span>'}</td>
-        <td><b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button></td>
+        <td>${loginCell(p)}</td>
       </tr>`}).join(''):`<tr><td colspan="10" class="muted">Nobody in this group right now.</td></tr>`)+'</tbody>';
 
   const p=S.players[GSel],ti=tierIndex(statusSecs(p));$('gdetail').hidden=false;
@@ -840,6 +871,8 @@ function renderGrown(){
   const recent=p.rounds.slice(-6).reverse();
   $('gdetail').innerHTML=`
     <form class="row realrow" id="gdRealForm"><label for="gdReal">Real name</label><input id="gdReal" maxlength="80" placeholder="Only teachers see this" value="${esc(p.realName||'')}"><button class="btn" type="submit">Save</button></form>
+    ${p.username?`<p class="note gdlogin">Logs in with <b>${esc(p.username)}</b> · password <b class="num">${esc(p.passcode)}</b>${p.pin?` · class code login still works (code <b class="num">${esc(p.pin)}</b>)`:''}</p>`
+      :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">School email</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="surname.firstname@sd54.bc.ca"><button class="btn" type="submit">Add email login</button></form>`}
     <div class="row" id="gdActions" style="justify-content:flex-end"><button class="btn" id="gdNewCode">Give a new code</button><button class="btn danger" id="gdRemove">Remove student</button></div>
     <p class="note" id="gdMsg" aria-live="polite" style="background:none;padding:0"></p>
     <div class="kid-head">${avatar(p.skin,56)}<div style="min-width:0"><h2>${esc(p.realName||p.name)}</h2><span class="muted">${p.realName?'Space name '+esc(p.name)+' · ':''}${ti<0?'No status yet':TIERS[ti].name+' · '+statusSecs(p).toFixed(1)+' s per answer'} · login code <b class="num">${esc(p.pin)}</b></span></div></div>
@@ -854,6 +887,9 @@ function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollI
 $('kpis').addEventListener('click',e=>{const b=e.target.closest('[data-group]');if(!b)return;GFilter=GFilter===b.dataset.group?null:b.dataset.group;renderGrown()});
 $('tbl').addEventListener('click',async e=>{
   const nb=e.target.closest('[data-newpin]');
+  const np=e.target.closest('[data-newpass]');
+  if(np){const p=S.players[np.dataset.newpass];np.disabled=true;const r=await api.setStudentLogin(p.id,null);
+    if(r&&r.passcode){p.passcode=r.passcode;renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New password for ${p.realName||p.name}: ${p.passcode}`}else{np.disabled=false;alert('Could not make a new password: '+((r&&r.error)||'no reply'))}return}
   if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
   const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
 $('tbl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-id]');if(tr){e.preventDefault();selectStudent(tr)}}});
@@ -976,13 +1012,13 @@ function celebrateBadges(list){
 }
 
 // ---------- teachers: sign in, school setup, classes and students ----------
-$('toTeacher').onclick=()=>openTeacher();
 const closeHelp=()=>{$('helpOv').hidden=true;$('loginHelp').focus()};
 $('loginHelp').onclick=()=>{$('helpOv').hidden=false;$('helpClose').focus()};
 $('helpClose').onclick=closeHelp;
 $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()});
-$('tBack').onclick=()=>openLogin();
-async function openTeacher(){setAddress(true);
+$('tBack').onclick=()=>{openLogin();goStep('who')};
+async function openTeacher(who){setAddress(true);
+  const pr=who==='principal';$('tTitle').textContent=pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
@@ -1074,7 +1110,7 @@ async function loadClassStudents(){
   const [list,cs]=await Promise.all([api.listStudents(c.id),api.classStats(c.id).catch(()=>null)]);
   TEACH.stats={};if(cs&&Array.isArray(cs.students))cs.students.forEach(x=>{TEACH.stats[x.id]=x});
   S={players:{},order:[],current:null,showBoard:true,muted:true,goal:S.goal};
-  list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,realName:st.real_name||''});S.order.push(st.id)});
+  list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',passcode:st.passcode||'',realName:st.real_name||''});S.order.push(st.id)});
   sortStudents();GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
 function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
@@ -1304,23 +1340,41 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span></div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>School email <b>${esc(p.username)}</b></span><span>Password <b class="num">${esc(p.passcode)}</b></span><span class="small muted">mathwizz.co · Student</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 $('addStudent').onclick=async()=>{
-  const real=[...new Set($('addNames').value.split(/\r?\n/).map(x=>x.trim().slice(0,80)).filter(Boolean))].slice(0,60);
-  if(!real.length){$('addMsg').textContent='Type at least one name first, one per line.';$('addNames').focus();return}
-  const btn=$('addStudent');btn.disabled=true;$('addMsg').textContent=`Adding ${real.length} student${real.length>1?'s':''}…`;
+  const lines=[...new Set($('addNames').value.split(/\r?\n/).map(x=>x.trim().slice(0,80)).filter(Boolean))].slice(0,60);
+  if(!lines.length){$('addMsg').textContent="Paste at least one school email first, one per line.";$('addNames').focus();return}
+  const emails=lines.filter(x=>x.includes('@')),real=lines.filter(x=>!x.includes('@'));
+  const btn=$('addStudent');btn.disabled=true;$('addMsg').textContent=`Adding ${lines.length} student${lines.length>1?'s':''}…`;
+  const used=[],nextName=()=>{let nm;do{nm=spaceName()}while(used.includes(nm));used.push(nm);return nm};
+  const add=st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',passcode:st.passcode||'',realName:st.real_name||''});S.order.push(st.id)};
+  const msgs=[];let n=0;
   try{
-    const names=[];for(let i=0;i<real.length;i++){let nm;do{nm=spaceName()}while(names.includes(nm));names.push(nm)}
-    const list=await api.addStudents(TEACH.classId,names,real);
-    list.forEach((st,i)=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,realName:st.real_name||real[i]});S.order.push(st.id)});
+    if(emails.length){
+      const r=await api.addEmailStudents(TEACH.classId,emails.map(email=>({email,name:nextName()})));
+      if(!r||r.error)throw new Error((r&&r.error)||'no reply');
+      r.added.forEach(add);n+=r.added.length;
+      const bad=r.skipped.filter(x=>x.why==='not_an_email').map(x=>x.email),dup=r.skipped.filter(x=>x.why==='already_added').map(x=>x.email);
+      if(bad.length)msgs.push(`Not school emails, so not added: ${bad.join(', ')}.`);
+      if(dup.length)msgs.push(`Already on MathWizz: ${dup.join(', ')}.`);
+    }
+    if(real.length){
+      const names=real.map(()=>nextName()),list=await api.addStudents(TEACH.classId,names,real);
+      list.forEach((st,i)=>add({...st,real_name:st.real_name||real[i]}));n+=list.length;
+    }
     sortStudents();renderGrown();if(!$('codecards').hidden)renderCodeCards();
-    $('addMsg').textContent=list.length===1?`Added ${real[0]} as ${list[0].name}. Their code is ${list[0].pin} (class code ${curClass().code}).`:`Added ${list.length} students. Tap Print login cards to hand out their codes.`;
+    $('addMsg').textContent=[n?`Added ${n} student${n>1?'s':''}. Tap Print login cards to hand out their passwords.`:'',...msgs].filter(Boolean).join(' ');
     $('addNames').value='';
   }catch(e){$('addMsg').textContent='Could not add students: '+e.message}
   btn.disabled=false;
 };
 $('gdetail').addEventListener('submit',async e=>{
+  if(e.target.closest('#gdEmailForm')){e.preventDefault();const p=S.players[GSel];if(!p)return;
+    const r=await api.setStudentLogin(p.id,$('gdEmail').value);
+    if(r&&r.ok){p.username=r.username;p.passcode=r.passcode;renderGrown();$('gdMsg').textContent=`${p.realName||p.name} can now log in with ${r.username} and password ${r.passcode}. Their 4-digit code still works too.`}
+    else $('gdMsg').textContent=r&&r.error==='already_added'?'That email is already on MathWizz.':r&&r.error==='not_an_email'?'Type the whole school email, like surname.firstname@sd54.bc.ca.':'Could not save: '+((r&&r.error)||'no reply');
+    return}
   if(!e.target.closest('#gdRealForm'))return;e.preventDefault();
   const p=S.players[GSel];if(!p)return;const v=$('gdReal').value.trim().slice(0,80);
   try{await api.setRealName(p.id,v);p.realName=v;sortStudents();renderGrown();$('gdMsg').textContent=v?`Saved: ${p.name} is ${v}.`:'Real name removed.'}
@@ -1393,12 +1447,12 @@ function renderSchool(){
   $('sName').textContent=sc.name||'My school';$('sNameInput').value=sc.name||'';
   const tOpts=sel=>`<option value="">No teacher</option>`+ts.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`).join('');
   $('sClasses').innerHTML=`<thead><tr><th>Class</th><th>Teacher</th><th class="r">Students</th><th>Class code</th><th></th></tr></thead><tbody>`+
-    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td><button class="btn" data-open="${c.id}">Open</button></td></tr>`).join('')+'</tbody>';
+    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}" aria-label="Teacher for ${esc(c.name)}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td><button class="btn" data-open="${c.id}">Open</button></td></tr>`).join('')+'</tbody>';
   $('sClassTeacher').innerHTML=ts.map(x=>`<option value="${x.id}" ${x.id===me?'selected':''}>${esc(x.name)}</option>`).join('');
   const nClasses=id=>TEACH.all.filter(c=>c.teacher_id===id).length,admins=ts.filter(x=>x.role==='admin').length;
   $('sTeachers').innerHTML=`<thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="r">Classes</th><th></th></tr></thead><tbody>`+
     ts.map(x=>`<tr><td><b>${esc(x.name)}</b>${x.id===me?' <small class="muted">(you)</small>':''}</td><td>${esc(x.email||'')}</td>
-      <td><select data-role="${x.id}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
+      <td><select data-role="${x.id}" aria-label="Role for ${esc(x.name)}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
       <td class="r">${nClasses(x.id)}</td><td class="nowrap">${x.id===me?'':`<button class="linkbtn" data-pw="${x.id}">Set password</button> <button class="linkbtn danger" data-rm="${x.id}">Remove</button>`}</td></tr>`).join('')+'</tbody>';
   $('sInvite').value=`Hi! Our class uses MathWizz for times tables.\n1. Go to ${location.origin}/?teacher=1\n2. Create an account with your school email\n3. Choose "Join my school" and enter the school code: ${sc.join_code||''}`;
 }
