@@ -63,7 +63,9 @@ function supabaseApi() {
     },
     createSchool: (schoolName, teacherName) => rpc('create_school', { p_school_name: schoolName, p_teacher_name: teacherName }),
     joinSchool: (code, teacherName) => rpc('join_school', { p_join_code: code, p_teacher_name: teacherName }),
-    listClasses: () => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').is('archived_at', null).order('created_at')),
+    // every list is filtered to one school: the owner can read all schools, so the school must always be named
+    listClasses: (schoolId) => q(sb.from('classes').select('id,name,code,settings,teacher_id,archived_at,created_at').eq('school_id', schoolId).is('archived_at', null).order('created_at')),
+    listSchools: () => q(sb.from('schools').select('id,name,plan').order('name')),
     createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
     listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,data,created_at').eq('class_id', classId).order('created_at')),
@@ -72,9 +74,9 @@ function supabaseApi() {
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
     addStudents: (classId, names, realNames) => q(sb.from('students').insert(names.map((name, i) => ({ class_id: classId, name, real_name: (realNames && realNames[i]) || null }))).select('id,name,real_name,pin,data')),
     setRealName: (id, realName) => q(sb.from('students').update({ real_name: realName || null }).eq('id', id)),
-    async countStudents() { const rows = await q(sb.from('students').select('class_id')); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
+    async countStudents(schoolId) { const rows = await q(sb.from('students').select('class_id,classes!inner(school_id)').eq('classes.school_id', schoolId)); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
     // school admin
-    listTeachers: () => q(sb.from('teachers').select('id,name,email,role,created_at').order('created_at')),
+    listTeachers: (schoolId) => q(sb.from('teachers').select('id,name,email,role,created_at').eq('school_id', schoolId).order('created_at')),
     setTeacherRole: (id, role) => rpc('admin_set_role', { p_teacher: id, p_role: role }),
     removeTeacher: (id) => rpc('admin_remove_teacher', { p_teacher: id }),
     newJoinCode: () => rpc('admin_new_join_code', {}),
@@ -185,6 +187,7 @@ function demoApi() {
     teacherSetPassword() { return ok({ ok: true }); },
     createSchool(schoolName, teacherName) { db.school.name = schoolName; db.teacher.name = teacherName; persist(); return ok('demo-school'); },
     joinSchool(code, teacherName) { db.teacher.name = teacherName; persist(); return ok('demo-school'); },
+    listSchools: () => ok([{ id: 'demo-school', name: db.school.name, plan: db.school.plan }]),
     listClasses: () => ok(db.classes.filter(c => !c.archived_at).map(c => ({ teacher_id: 'me', ...c }))),
     createClass(name, teacherId) {
       const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';

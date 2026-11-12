@@ -136,6 +136,7 @@ Teachers see a **Class progress** curve on the Students tab. School admins see a
 - **Stars earned:** teachers and the owner view see stars earned from `round_log` (never goes down when a student shops). Students still spend their balance in the shop.
 - **Top 10:** students see the class Top 10, and on School / School Plus plans a school Top 10, ranked on stars earned since Monday. Nobody sees their rank outside the top 10.
 - **Streak:** Duolingo-style card on the Play screen. Counts school days only: weekends, BC stat holidays and breaks (`NO_SCHOOL` in `src/game.js`, update each year) never break it, and one missed school day a week is covered by a freeze.
+- **Owner view of any school:** the owner (super admin) gets a School picker in the class bar and sees the same teacher view for any school, read-only (no adding students, settings, goals or code changes). Migration `20261114000000_owner_views_any_school.sql` adds SELECT-only policies; writes stay limited to the owner's own school. Every teacher-side list is filtered by school id. Tests: `supabase/tests/test_owner_view.sql`.
 - Migration: `supabase/migrations/20261113000000_simple_teacher_and_boards.sql` (`class_stats`, `_school_board`, `student_state`, `super_overview`). Tests: `supabase/tests/test_boards.sql`, `tests/dashboard.test.js`.
 
 ## Competitions (paused in the app since Nov 2026; database kept)

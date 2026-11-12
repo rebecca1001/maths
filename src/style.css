@@ -787,3 +787,8 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .sday small{font-weight:800;color:var(--muted);font-size:.72rem}
 .smsg{margin:0;font-weight:700;text-align:center;font-size:.95rem}
 @media (prefers-reduced-motion:reduce){.streakbox.lit .sflame svg{animation:none}}
+
+/* ---------- owner viewing another school: read-only ---------- */
+#grown.viewonly .addcard,#grown.viewonly #gNewClass,#grown.viewonly [data-gtab="goal"],#grown.viewonly [data-gtab="settings"],
+#grown.viewonly #gdRealForm,#grown.viewonly #gdActions,#grown.viewonly [data-newpin]{display:none!important}
+#gSchool{max-width:260px}

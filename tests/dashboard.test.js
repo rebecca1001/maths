@@ -87,6 +87,10 @@ describe('screens (demo mode)', () => {
     const rows = () => document.querySelectorAll('#tbl tbody tr[data-id]').length, all = rows();
     k.querySelector('[data-group="none"]').click(); expect(rows()).toBeLessThanOrEqual(all);
     k.querySelector('[data-group="none"]').click(); expect(rows()).toBe(all);
+    // the owner gets a school picker; their own school is marked and nothing is view-only
+    expect(document.getElementById('gSchoolWrap').hidden).toBe(false);
+    expect(document.getElementById('gSchool').textContent).toMatch(/\(yours\)/);
+    expect(document.getElementById('grown').classList.contains('viewonly')).toBe(false);
     expect(err).not.toHaveBeenCalled();
     history.pushState({}, '', '/');
   });

@@ -988,7 +988,9 @@ async function openTeacher(){setAddress(true);
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
   TEACH={info,classes:[],classId:local().teacherClass||null,super:false};setLocal({teacher:true});
-  api.isSuperAdmin().then(v=>{if(TEACH){TEACH.super=!!v;$('gSuperBtn').hidden=!TEACH.super}}).catch(()=>{});
+  try{TEACH.super=!!(await api.isSuperAdmin())}catch(e){TEACH.super=false}
+  if(TEACH.super){try{TEACH.schools=await api.listSchools()}catch(e){TEACH.schools=[]}
+    const saved=local().ownerSchool;if(saved&&TEACH.schools.some(x=>x.id===saved))TEACH.viewSchool=saved}
   await loadClasses();show('grown');
 }
 // Sign-in messages: green for progress and info, red for problems
@@ -1049,12 +1051,18 @@ $('tSetup').addEventListener('submit',async e=>{
 $('tSetupOut').onclick=async()=>{await api.teacherSignOut();openTeacher()};
 const isAdmin=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.role==='admin';
 const myId=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.id;
+// The owner can open any school's teacher view (read-only). Every list is fetched for one school.
+const ownSchool=()=>TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school&&TEACH.info.teacher.school.id;
+const viewSchool=()=>(TEACH&&TEACH.viewSchool)||ownSchool();
+const viewingOther=()=>!!(TEACH&&TEACH.super&&TEACH.viewSchool&&TEACH.viewSchool!==ownSchool());
 // Teachers see their own classes; admins see every class in the school
-function visibleClasses(){return isAdmin()?TEACH.all:TEACH.all.filter(c=>c.teacher_id===myId())}
+function visibleClasses(){return isAdmin()||viewingOther()?TEACH.all:TEACH.all.filter(c=>c.teacher_id===myId())}
 async function loadClasses(){
-  TEACH.all=await api.listClasses();
-  if(isAdmin()){try{TEACH.teachers=await api.listTeachers()}catch(e){TEACH.teachers=[]}}
-  if(!visibleClasses().length){TEACH.all.push(await api.createClass('My class'))}
+  const sid=viewSchool();TEACH.all=await api.listClasses(sid);
+  if(isAdmin()||viewingOther()){try{TEACH.teachers=await api.listTeachers(sid)}catch(e){TEACH.teachers=[]}}
+  if(!visibleClasses().length){
+    if(viewingOther()){TEACH.classes=[];TEACH.classId=null;renderOwnerEmpty();return}
+    TEACH.all.push(await api.createClass('My class'))}
   TEACH.classes=visibleClasses();
   if(!TEACH.classes.some(c=>c.id===TEACH.classId))TEACH.classId=(TEACH.classes.find(c=>c.teacher_id===myId())||TEACH.classes[0]).id;
   await loadClassStudents();
@@ -1070,14 +1078,29 @@ async function loadClassStudents(){
   sortStudents();GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
 function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
+function renderSchoolPicker(){
+  const w=$('gSchoolWrap'),other=viewingOther();$('grown').classList.toggle('viewonly',other);
+  if(other&&['goal','settings','comp'].includes(TEACH_TAB))TEACH_TAB='students';
+  w.hidden=!TEACH.super||!(TEACH.schools||[]).length;if(w.hidden)return;
+  $('gSchool').innerHTML=TEACH.schools.map(x=>`<option value="${x.id}" ${x.id===viewSchool()?'selected':''}>${esc(x.name)}${x.id===ownSchool()?' (yours)':''}</option>`).join('');
+}
+function renderOwnerEmpty(){
+  renderSchoolPicker();const vs=(TEACH.schools||[]).find(x=>x.id===viewSchool());
+  $('gWho').textContent=`Owner view · ${vs?vs.name:'School'} · view only`;$('gTitle').textContent='No classes yet';$('gClass').innerHTML='';$('gCode').textContent='—';
+  $('kpis').innerHTML='';$('gProgress').innerHTML='';$('tbl').innerHTML='<tbody><tr><td class="muted">This school has no classes yet.</td></tr></tbody>';$('gdetail').hidden=true;
+  $('gSchoolBtn').hidden=true;show('grown');
+}
+$('gSchool').onchange=async()=>{TEACH.viewSchool=$('gSchool').value===ownSchool()?null:$('gSchool').value;setLocal({ownerSchool:TEACH.viewSchool});TEACH.classId=null;GFilter=null;TEACH_TAB='students';await loadClasses()};
 function renderTeacherBar(){
   const c=curClass(),t=TEACH.info.teacher,me=myId();
   const opt=x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}${isAdmin()&&x.teacher_id!==me?' ('+esc(teacherName(x.teacher_id))+')':''}</option>`;
   const mine=TEACH.classes.filter(x=>x.teacher_id===me),others=TEACH.classes.filter(x=>x.teacher_id!==me);
   $('gClass').innerHTML=isAdmin()&&others.length?`<optgroup label="My classes">${mine.map(opt).join('')}</optgroup><optgroup label="Other classes">${others.map(opt).join('')}</optgroup>`:TEACH.classes.map(opt).join('');
   $('gCode').textContent=c.code;$('gTitle').textContent=c.name;
-  $('gWho').textContent=t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
-  $('gSchoolBtn').hidden=!isAdmin();$('gSuperBtn').hidden=!TEACH.super;
+  const other=viewingOther(),vs=(TEACH.schools||[]).find(x=>x.id===viewSchool());
+  $('gWho').textContent=other?`Owner view · ${vs?vs.name:'School'} · view only`:t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
+  $('gSchoolBtn').hidden=!isAdmin()||other;$('gSuperBtn').hidden=!TEACH.super;
+  renderSchoolPicker();
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
@@ -1151,7 +1174,7 @@ function compDraft(){
   return CMP.draft;
 }
 async function loadComps(){
-  if(isAdmin()){try{const n=await api.countStudents();CMP.schoolKids=Object.values(n||{}).reduce((a,b)=>a+b,0)}catch(e){CMP.schoolKids=0}}
+  if(isAdmin()){try{const n=await api.countStudents(ownSchool());CMP.schoolKids=Object.values(n||{}).reduce((a,b)=>a+b,0)}catch(e){CMP.schoolKids=0}}
   try{const r=await api.competitionsList();if(r&&!r.error){CMP.list=r.competitions||[];CMP.plan=r.plan||'free'}else{CMP.list=[];CMP.plan=CMP.plan||'free';CMP.msg='Could not load competitions: '+((r&&r.error)||'no reply')}}
   catch(e){CMP.list=[];CMP.msg='Could not load competitions: '+e.message}
 }
@@ -1347,10 +1370,10 @@ if($('exportCsv'))$('exportCsv').onclick=()=>{
 
 // ---------- school page (admins) ----------
 $('gSchoolBtn').onclick=()=>openSchool();
-$('sBack').onclick=async()=>{TEACH.classes=visibleClasses();await loadClassStudents();show('grown')};
+$('sBack').onclick=async()=>{TEACH.viewSchool=null;TEACH.classes=visibleClasses();await loadClassStudents();show('grown')};
 async function openSchool(){
   show('school');$('sClassMsg').textContent='';$('sTeachMsg').textContent='';
-  try{[TEACH.teachers,TEACH.all,TEACH.counts]=await Promise.all([api.listTeachers(),api.listClasses(),api.countStudents()])}catch(e){$('sClassMsg').textContent='Could not load the school: '+e.message}
+  try{[TEACH.teachers,TEACH.all,TEACH.counts]=await Promise.all([api.listTeachers(ownSchool()),api.listClasses(ownSchool()),api.countStudents(ownSchool())])}catch(e){$('sClassMsg').textContent='Could not load the school: '+e.message}
   TEACH.progress=null;renderSchool();
   try{const r=await api.schoolProgress();TEACH.progress=r&&r.rows?r.rows:(r&&r.error)||'none'}catch(e){TEACH.progress='none'}
   renderSchoolProgress();
