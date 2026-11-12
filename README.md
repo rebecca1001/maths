@@ -130,6 +130,18 @@ npm run build   # outputs to dist/
 Teachers see a **Class progress** curve on the Students tab. School admins see a **School progress** curve and one line per class on the School page. The owner sees every school and class on **All schools**. They show whether students are getting faster and getting more answers right per round (minutes played are not counted): average correct answers per round and seconds per correct answer, by week, for the last 10 weeks. Each student counts equally, rounds under 8 answers are ignored, and demo students and archived classes are left out. School and owner curves come from `school_progress()` / `super_progress()` (migration `20261109000000_progress_curves.sql`); the class curve is worked out in the browser (`src/progress.js`).
 
 
+## Walkthrough script (finds bugs and clutter)
+
+`scripts/walkthrough.py` clicks through the whole login (all four doors, email and class code, wrong and right passwords) and the teacher side (groups, adding students by email, details, passwords, goal, needs help, settings, school page, all schools) at desktop and phone widths, in demo mode.
+
+```
+npm run build && npx vite preview --port 4173 &
+pip install playwright && playwright install chromium
+python3 scripts/walkthrough.py            # writes walkthrough-report/report.md + screenshots
+```
+
+It reports JavaScript/console errors, sideways scrolling, overlapping or cut-off buttons, unlabelled fields, steps that land on the wrong screen, small tap targets on phones, and screens with more than 12 controls. Exit code 1 means it found a possible bug.
+
 ## Logging in (Nov 2026)
 
 - **First screen asks who is logging in:** Student, Teacher, Principal or Parent (TT Rock Stars style). Teacher and Principal open the same sign-in; the account's role decides what they see. Parent is "coming soon".

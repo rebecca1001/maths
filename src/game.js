@@ -1447,12 +1447,12 @@ function renderSchool(){
   $('sName').textContent=sc.name||'My school';$('sNameInput').value=sc.name||'';
   const tOpts=sel=>`<option value="">No teacher</option>`+ts.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`).join('');
   $('sClasses').innerHTML=`<thead><tr><th>Class</th><th>Teacher</th><th class="r">Students</th><th>Class code</th><th></th></tr></thead><tbody>`+
-    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td><button class="btn" data-open="${c.id}">Open</button></td></tr>`).join('')+'</tbody>';
+    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}" aria-label="Teacher for ${esc(c.name)}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td><button class="btn" data-open="${c.id}">Open</button></td></tr>`).join('')+'</tbody>';
   $('sClassTeacher').innerHTML=ts.map(x=>`<option value="${x.id}" ${x.id===me?'selected':''}>${esc(x.name)}</option>`).join('');
   const nClasses=id=>TEACH.all.filter(c=>c.teacher_id===id).length,admins=ts.filter(x=>x.role==='admin').length;
   $('sTeachers').innerHTML=`<thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="r">Classes</th><th></th></tr></thead><tbody>`+
     ts.map(x=>`<tr><td><b>${esc(x.name)}</b>${x.id===me?' <small class="muted">(you)</small>':''}</td><td>${esc(x.email||'')}</td>
-      <td><select data-role="${x.id}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
+      <td><select data-role="${x.id}" aria-label="Role for ${esc(x.name)}" ${x.id===me&&admins<2?'disabled title="A school needs at least one admin"':''}><option value="teacher" ${x.role==='teacher'?'selected':''}>Teacher</option><option value="admin" ${x.role==='admin'?'selected':''}>Admin</option></select></td>
       <td class="r">${nClasses(x.id)}</td><td class="nowrap">${x.id===me?'':`<button class="linkbtn" data-pw="${x.id}">Set password</button> <button class="linkbtn danger" data-rm="${x.id}">Remove</button>`}</td></tr>`).join('')+'</tbody>';
   $('sInvite').value=`Hi! Our class uses MathWizz for times tables.\n1. Go to ${location.origin}/?teacher=1\n2. Create an account with your school email\n3. Choose "Join my school" and enter the school code: ${sc.join_code||''}`;
 }

@@ -345,14 +345,14 @@
       <div class="invite">
         <h3>Add a teacher</h3>
         <p class="muted small">Send them this message. They make an account and join your school with the school code.</p>
-        <textarea id="sInvite" rows="4" readonly></textarea>
+        <textarea id="sInvite" rows="4" readonly aria-label="Invite message for teachers"></textarea>
         <div class="row"><button class="btn primary" id="sCopy" type="button">Copy message</button><button class="btn" id="sNewCode" type="button">New school code</button></div>
         <p class="muted small">A new school code stops the old one working, for example after a teacher leaves.</p>
       </div>
     </div>
     <div class="card">
       <h2>School name</h2>
-      <form class="row" id="sRename" style="align-items:center"><input id="sNameInput" maxlength="120" required><button class="btn" type="submit">Save</button></form>
+      <form class="row" id="sRename" style="align-items:center"><input id="sNameInput" maxlength="120" required aria-label="School name"><button class="btn" type="submit">Save</button></form>
     </div>
   </section>
 
