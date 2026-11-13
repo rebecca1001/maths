@@ -152,7 +152,7 @@ It reports JavaScript/console errors, sideways scrolling, overlapping or cut-off
 
 ## Simple teacher view, Top 10 and streaks (Nov 2026)
 
-- **Teacher view:** four groups at the top (Not playing: no rounds in 7 days; Needs help: under 80% right; On track; Flying: 3+ days and 90%+ right). Tap a group to filter. One table per student: group, last played, days played (7 days), rounds (all), accuracy, correct per minute, stars earned, trend. "Download class data" and the Competitions tab are removed. Logic: `src/dashboard.js`.
+- **Teacher view:** a minimum-rounds panel at the top (one number for the whole class, "each time they play" = each day), and one table per student: Today (rounds today against their minimum), last played, days played (7 days), rounds (all), accuracy, correct per minute, stars earned, trend. A student can have their own minimum (or none) in their details. Stored in `classes.settings` as `minRounds` and `minFor` (teachers only can change it); the student's Play screen shows "2 of 3 rounds · 1 to go". Logic: `src/dashboard.js`. (The four group cards were removed 12 Nov.)
 - **Stars earned:** teachers and the owner view see stars earned from `round_log` (never goes down when a student shops). Students still spend their balance in the shop.
 - **Top 10:** students see the class Top 10, and on School / School Plus plans a school Top 10, ranked on stars earned since Monday. Nobody sees their rank outside the top 10.
 - **Streak:** Duolingo-style card on the Play screen. Counts school days only: weekends, BC stat holidays and breaks (`NO_SCHOOL` in `src/game.js`, update each year) never break it, and one missed school day a week is covered by a freeze.
