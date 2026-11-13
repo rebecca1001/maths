@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { groupOf, groupCounts, daysPlayed, accuracy, correctPerMin, trend, GROUPS } from '../src/dashboard.js';
+import { daysPlayed, accuracy, correctPerMin, trend, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin } from '../src/dashboard.js';
 import { __test as g, boot } from '../src/game.js';
 import { api } from '../src/api.js';
 
@@ -7,19 +7,19 @@ const NOW = new Date(2026, 10, 12, 14).getTime(); // Thu 12 Nov 2026
 const DAY = 864e5;
 const r = (daysAgo, c, n, extra = {}) => ({ d: NOW - daysAgo * DAY, c, n, len: 60, ...extra });
 
-describe('teacher groups', () => {
-  it('nobody played in 7 days = Not playing', () => {
-    expect(groupOf([], NOW)).toBe('none');
-    expect(groupOf([r(9, 20, 20)], NOW)).toBe('none');
+describe('minimum rounds each time they play', () => {
+  it('class number, own number for one child, 0 = off', () => {
+    let st = withClassMin({ maxTable: 10 }, 3);
+    expect(st).toMatchObject({ maxTable: 10, minRounds: 3 });
+    expect(minFor(st, 'a')).toBe(3);
+    st = withStudentMin(st, 'a', 5); expect(minFor(st, 'a')).toBe(5); expect(hasOwnMin(st, 'a')).toBe(true); expect(minFor(st, 'b')).toBe(3);
+    st = withStudentMin(st, 'b', 0); expect(minFor(st, 'b')).toBe(0); // no minimum for this child
+    st = withClassMin(st, 4); expect(minFor(st, 'a')).toBe(5); expect(minFor(st, 'c')).toBe(4); // class change keeps own numbers
+    st = withStudentMin(st, 'a', null); st = withStudentMin(st, 'b', null); expect(minFor(st, 'a')).toBe(4); expect(st.minFor).toBeUndefined();
+    expect(minFor({}, 'x')).toBe(0); expect(minFor(null, 'x')).toBe(0);
+    expect(minFor(withClassMin({}, 99), 'x')).toBe(10); expect(minFor(withClassMin({}, -2), 'x')).toBe(0);
   });
-  it('playing but under 80% right = Needs help', () => expect(groupOf([r(1, 15, 20), r(2, 15, 20)], NOW)).toBe('help'));
-  it('3+ days and 90%+ = Flying', () => expect(groupOf([r(0, 19, 20), r(1, 19, 20), r(2, 20, 20)], NOW)).toBe('flying'));
-  it('playing well but on only 2 days = On track', () => expect(groupOf([r(0, 19, 20), r(1, 20, 20)], NOW)).toBe('ok'));
-  it('counts add up to the class and follow GROUPS order', () => {
-    const n = groupCounts([{ rounds: [] }, { rounds: [r(1, 10, 20)] }, { rounds: [r(1, 18, 20)] }], NOW);
-    expect(n).toEqual({ none: 1, help: 1, ok: 1, flying: 0 });
-    expect(GROUPS.map((x) => x.id)).toEqual(['none', 'help', 'ok', 'flying']);
-  });
+  it('counts only today\'s rounds', () => expect(roundsToday([r(0, 1, 1), r(0, 1, 1), r(1, 1, 1), r(3, 1, 1)], NOW)).toBe(2));
 });
 
 describe('teacher numbers', () => {
@@ -72,27 +72,52 @@ describe('streak: school holidays and the streak card', () => {
 });
 
 describe('screens (demo mode)', () => {
-  it('teacher view shows four groups, no "Played today", no download, no competitions tab', async () => {
+  it('teacher view: no group cards; class minimum, Today column, own minimum per student', async () => {
     const err = vi.spyOn(console, 'error');
     await api.teacherSignIn('t@demo.ca', 'password123');
     history.pushState({}, '', '/?teacher=1'); await boot(); await new Promise((res) => setTimeout(res, 60));
     expect(document.getElementById('grown').hidden).toBe(false);
     const k = document.getElementById('kpis');
-    expect([...k.querySelectorAll('.label')].map((x) => x.textContent)).toEqual(['Not playing', 'Needs help', 'On track', 'Flying']);
-    expect(k.textContent).not.toMatch(/Played today/);
+    expect(k.querySelector('[data-group]')).toBeNull();
+    expect(k.textContent).not.toMatch(/Not playing|Flying|On track/);
     expect(document.getElementById('exportCsv')).toBeNull();
     expect(document.querySelector('[data-gtab="comp"]')).toBeNull();
-    expect(document.querySelector('#tbl thead').textContent).toMatch(/Stars earned/);
-    // clicking a group filters the table, clicking again shows everyone
-    const rows = () => document.querySelectorAll('#tbl tbody tr[data-id]').length, all = rows();
-    k.querySelector('[data-group="none"]').click(); expect(rows()).toBeLessThanOrEqual(all);
-    k.querySelector('[data-group="none"]').click(); expect(rows()).toBe(all);
+    const head = document.querySelector('#tbl thead').textContent;
+    expect(head).toMatch(/Today/); expect(head).not.toMatch(/Group/);
+    // whole class: 3 rounds
+    const sel = document.getElementById('minClass'); sel.value = '3'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((res) => setTimeout(res, 30));
+    const cls = (await api.listClasses())[0];
+    expect(cls.settings.minRounds).toBe(3);
+    expect(document.querySelector('#kpis .mintoday').textContent).toMatch(/of \d+/);
+    expect(document.querySelectorAll('#tbl .mincell').length).toBeGreaterThan(0);
+    // one student: 5 rounds
+    document.querySelector('#tbl tbody tr[data-id]').click(); await new Promise((res) => setTimeout(res, 10));
+    const id = document.querySelector('#tbl tbody tr.sel').dataset.id;
+    const one = document.getElementById('gdMin'); one.value = '5'; one.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((res) => setTimeout(res, 30));
+    expect((await api.listClasses())[0].settings.minFor[id]).toBe(5);
+    expect(document.querySelector(`#tbl tr[data-id="${id}"] .mincell`).textContent).toMatch(/\/ 5/);
+    expect(document.getElementById('kpis').textContent).toMatch(/1 student has their own number/);
+    // back to the class number
+    const again = document.getElementById('gdMin'); again.value = 'class'; again.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((res) => setTimeout(res, 30));
+    expect((await api.listClasses())[0].settings.minFor).toBeUndefined();
     // the owner gets a school picker; their own school is marked and nothing is view-only
     expect(document.getElementById('gSchoolWrap').hidden).toBe(false);
     expect(document.getElementById('gSchool').textContent).toMatch(/\(yours\)/);
     expect(document.getElementById('grown').classList.contains('viewonly')).toBe(false);
     expect(err).not.toHaveBeenCalled();
     history.pushState({}, '', '/');
+  });
+  it("kid's Play screen shows today's minimum, or nothing when there is none", () => {
+    const now = Date.now(), p = { id: 'k1', rounds: [{ d: now - 60e3 }] };
+    g.applySettings({ minRounds: 3 }); g.renderMinBox(p);
+    const box = document.getElementById('minBox');
+    expect(box.hidden).toBe(false); expect(box.textContent).toMatch(/1 of 3/); expect(box.textContent).toMatch(/2 to go/);
+    g.applySettings({ minRounds: 3, minFor: { k1: 1 } }); g.renderMinBox(p);
+    expect(box.textContent).toMatch(/Done for today/); expect(box.classList.contains('done')).toBe(true);
+    g.applySettings({}); g.renderMinBox(p); expect(box.hidden).toBe(true);
   });
 });
 

@@ -147,13 +147,13 @@ async def walkthrough(r: Run, url):
         await r.fill('#tName', 'Ms Walkthrough'); await r.fill('#tSchoolName', 'Demo School'); await p.click('#tSetup button[type=submit]'); await p.wait_for_timeout(1200)
     # ---------------- teacher side ----------------
     await r.check('Teacher: class view', '#grown')
-    for g in ['none', 'help', 'ok', 'flying']:
-        await r.click(f'#kpis [data-group={g}]'); await r.check(f'Teacher: filter group "{g}"')
-        await r.click(f'#kpis [data-group={g}]')
+    await p.select_option('#minClass', '3'); await r.check('Teacher: class minimum 3 rounds', '#kpis .mintoday')
     await r.click('#addStudent'); await r.check('Teacher: Add students with nothing typed', '#addMsg:not(:empty)', 'a message')
     await r.fill('#addNames', 'walk.through@sd54.bc.ca\nnot-an-email@\nwalk.through@sd54\nAva S')
     await r.click('#addStudent'); await p.wait_for_timeout(600); await r.check('Teacher: add 2 good, 1 bad, 1 duplicate', '#addMsg:not(:empty)')
     await r.click('#tbl tbody tr[data-id]'); await r.check('Teacher: student details', '#gdetail')
+    await p.select_option('#gdMin', '5'); await r.check('Teacher: one student minimum 5 rounds', '#tbl .mincell small')
+    await p.select_option('#gdMin', 'class'); await r.check('Teacher: student back to the class minimum')
     if await p.is_visible('[data-newpass]'):
         await r.click('[data-newpass]'); await r.check('Teacher: new password')
     if await p.is_visible('#gdEmailForm'):

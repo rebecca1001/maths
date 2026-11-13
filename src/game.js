@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { GROUPS, groupOf, groupCounts, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
@@ -64,7 +64,7 @@ function applySettings(st){
   st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
   ALL=Array.from({length:mx-1},(_,i)=>i+2);
   S.muted=st.sound===false;S.division=!!st.division;
-  const g=st.goal;let goal=null;if(g&&Array.isArray(g.tables)){const tables=g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds=Math.max(0,Math.min(50,+g.rounds||0));if(tables.length||rounds)goal={tables,rounds}}S.goal=goal;
+  const g=st.goal;let goal=null;if(g&&Array.isArray(g.tables)){const tables=g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds=Math.max(0,Math.min(50,+g.rounds||0));if(tables.length||rounds)goal={tables,rounds}}S.goal=goal;S.settings=st;
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
@@ -483,6 +483,7 @@ function renderHome(){
   }
   renderStreak(p);
   {const j=journeyHTML(p);$('journey').innerHTML=j.track;$('journeyMsg').innerHTML=j.msg;}
+  renderMinBox(p);
   {const g=S.goal,box=$('goalBox');box.hidden=!g;
    if(g){const n=goalRounds(p),N=g.rounds,done=N&&n>=N;
      box.innerHTML=`<span class="label">This week's goal</span><div class="gline">${N?`<b class="num">${Math.min(n,N)} of ${N}</b> rounds`:''}${g.tables.length?`<span class="gt">${N?' · ':''}Practise ${g.tables.map(t=>`<span class="fchip">${t}×</span>`).join(' ')}</span>`:''}</div>${N?`<div class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></div>`:''}${done?'<span class="gdone">Goal done! ✓</span>':''}`;
@@ -490,6 +491,13 @@ function renderHome(){
   $('compBox').hidden=true; // competitions are paused: the class and school Top 10 replace them
   renderBoard(p);
   syncTab();
+}
+// Kid's Play screen: today's minimum from the teacher
+function renderMinBox(p){
+  const box=$('minBox');if(!box)return;const m=minFor(S.settings,p.id);box.hidden=!m;if(!m)return;
+  const n=roundsToday(p.rounds),done=n>=m;
+  box.classList.toggle('done',done);
+  box.innerHTML=`<span class="label">Today</span><div class="gline">${done?`<b>Done for today! ✓</b> <span class="muted">${n} round${n>1?'s':''}</span>`:`<b class="num">${n} of ${m}</b> rounds · <span>${m-n} to go</span>`}</div><div class="gbar"><i style="width:${Math.min(100,n/m*100).toFixed(0)}%"></i></div>`;
 }
 function renderBoard(p){
   const wk=weekStart(),mine=ptsSince(p,wk),school=boardScope==='school'&&SCHOOLBOARD;
@@ -829,30 +837,45 @@ function spark(p){
 function focusOf(p){return ALL.map(t=>({t,s:tableScore(p,t)})).filter(x=>x.s!=null&&x.s<3).sort((a,b)=>a.s-b.s).slice(0,3).map(x=>x.t)}
 const LEVELS=['Not tried','Tricky','Getting there','Quick','Instant'];
 function weekAcc(p,wk){const rs=p.rounds.filter(r=>r.d>=wk),n=rs.reduce((s,r)=>s+r.n,0);return n?Math.round(rs.reduce((s,r)=>s+r.c,0)/n*100):null}
-let GFilter=null; // which group the teacher clicked, or null for everyone
 // Email students: school email + password (teacher can always see it). Code students: 4-digit code, as before.
 function loginCell(p){
   if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.passcode)}</b> <button class="linkbtn" data-newpass="${p.id}">New password</button>`;
   return `<b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
 }
+const minOpts=(sel,first)=>(first?[first]:[]).concat(Array.from({length:MAX_MIN+1},(_,i)=>[String(i),i?`${i} round${i>1?'s':''}`:'No minimum'])).map(([v,l])=>`<option value="${v}" ${String(sel)===v?'selected':''}>${l}</option>`).join('');
+// Today column: "2 / 3 ✓" against this child's minimum
+function todayCell(p,cs,now){
+  const n=roundsToday(p.rounds,now),m=minFor(cs,p.id),own=hasOwnMin(cs,p.id);
+  if(!m)return n?`<span class="num">${n}</span>`:'<span class="muted">—</span>';
+  return `<span class="mincell ${n>=m?'ok':n?'part':'none'}" title="${own?'Own minimum':'Class minimum'}: ${m}"><b class="num">${Math.min(n,m)} / ${m}</b>${n>=m?' ✓':''}${own?'<small>own</small>':''}</span>`;
+}
+// Where the four cards were: one number for the class, and how many reached it today
+function renderMinPanel(players,now){
+  const c=curClass(),cs=c&&c.settings,m=+(cs&&cs.minRounds)||0;
+  const withMin=players.filter(p=>minFor(cs,p.id)>0),done=withMin.filter(p=>roundsToday(p.rounds,now)>=minFor(cs,p.id)).length;
+  const own=players.filter(p=>hasOwnMin(cs,p.id)).length;
+  $('kpis').innerHTML=`<div class="minpanel">
+    <label class="minset" for="minClass"><span class="label">Minimum rounds each time they play</span>
+      <span class="row" style="align-items:center;gap:10px"><select id="minClass" ${viewingOther()?'disabled':''}>${minOpts(m)}</select><span class="muted small">for the whole class${own?` · ${own} student${own>1?'s have':' has'} their own number`:''}</span></span></label>
+    ${withMin.length?`<div class="mintoday"><span class="label">Today</span><b class="num">${done}<small> of ${withMin.length}</small></b><span class="muted small">played their minimum</span></div>`:''}
+    <p class="note" id="minMsg" aria-live="polite" style="background:none;padding:0;margin:0"></p></div>`;
+}
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
   const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
-  const n=groupCounts(players,now);
-  $('kpis').innerHTML=GROUPS.map(g=>`<button type="button" class="kpi grp g-${g.id} ${GFilter===g.id?'on':''}" data-group="${g.id}" aria-pressed="${GFilter===g.id}" title="${g.hint}"><span class="label">${g.label}</span><b>${n[g.id]}<small> of ${players.length}</small></b><span class="ghint">${g.hint}</span></button>`).join('');
+  renderMinPanel(players,now);
 
   $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
   if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Add them above, then print their login cards.</td></tr></tbody>';$('gdetail').hidden=true;return}
-  const order=Object.fromEntries(GROUPS.map((g,i)=>[g.id,i]));
-  const rows=players.map(p=>({p,g:groupOf(p.rounds,now)})).filter(x=>!GFilter||x.g===GFilter).sort((a,b)=>order[a.g]-order[b.g]);
+  const rows=players.map(p=>({p}));
   if(!GSel||!S.players[GSel])GSel=players[0].id;
-  const label=Object.fromEntries(GROUPS.map(g=>[g.id,g.label]));
-  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Group</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th><th>Login</th></tr></thead><tbody>`+
-    (rows.length?rows.map(({p,g})=>{
+  const cs=curClass()&&curClass().settings;
+  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Today</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th><th>Login</th></tr></thead><tbody>`+
+    (rows.length?rows.map(({p})=>{
       const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
         <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td>
-        <td><span class="gpill g-${g}">${label[g]}</span></td>
+        <td>${todayCell(p,cs,now)}</td>
         <td>${lastPlayed(p)}</td>
         <td class="r">${daysPlayed(p.rounds,now)}</td>
         <td class="r">${st.rounds_total!=null?st.rounds_total:p.rounds.length}</td>
@@ -861,7 +884,7 @@ function renderGrown(){
         <td class="r">${st.stars_total!=null?fmtN(st.stars_total):'—'}</td>
         <td>${tr?`<span class="trend t-${tr}" title="${TREND[tr][1]}">${TREND[tr][0]}</span>`:'<span class="muted">—</span>'}</td>
         <td>${loginCell(p)}</td>
-      </tr>`}).join(''):`<tr><td colspan="10" class="muted">Nobody in this group right now.</td></tr>`)+'</tbody>';
+      </tr>`}).join(''):'')+'</tbody>';
 
   const p=S.players[GSel],ti=tierIndex(statusSecs(p));$('gdetail').hidden=false;
   const bars=ALL.map(t=>{const s=tableScore(p,t),lv=s==null?0:Math.min(4,Math.max(1,Math.round(s)));
@@ -873,6 +896,8 @@ function renderGrown(){
     <form class="row realrow" id="gdRealForm"><label for="gdReal">Real name</label><input id="gdReal" maxlength="80" placeholder="Only teachers see this" value="${esc(p.realName||'')}"><button class="btn" type="submit">Save</button></form>
     ${p.username?`<p class="note gdlogin">Logs in with <b>${esc(p.username)}</b> · password <b class="num">${esc(p.passcode)}</b>${p.pin?` · class code login still works (code <b class="num">${esc(p.pin)}</b>)`:''}</p>`
       :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">School email</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="surname.firstname@sd54.bc.ca"><button class="btn" type="submit">Add email login</button></form>`}
+    ${(()=>{const cs=curClass()&&curClass().settings,cm=+(cs&&cs.minRounds)||0,own=hasOwnMin(cs,p.id),td=roundsToday(p.rounds);
+      return `<form class="row realrow" id="gdMinForm"><label for="gdMin">Minimum rounds</label><select id="gdMin">${minOpts(own?String(minFor(cs,p.id)):'class',['class',`Same as class (${cm?cm+' round'+(cm>1?'s':''):'none'})`])}</select><span class="muted small">Today: ${td} round${td===1?'':'s'}</span></form>`})()}
     <div class="row" id="gdActions" style="justify-content:flex-end"><button class="btn" id="gdNewCode">Give a new code</button><button class="btn danger" id="gdRemove">Remove student</button></div>
     <p class="note" id="gdMsg" aria-live="polite" style="background:none;padding:0"></p>
     <div class="kid-head">${avatar(p.skin,56)}<div style="min-width:0"><h2>${esc(p.realName||p.name)}</h2><span class="muted">${p.realName?'Space name '+esc(p.name)+' · ':''}${ti<0?'No status yet':TIERS[ti].name+' · '+statusSecs(p).toFixed(1)+' s per answer'} · login code <b class="num">${esc(p.pin)}</b></span></div></div>
@@ -884,7 +909,15 @@ function renderGrown(){
     <div class="gd-col"><span class="label">Recent rounds</span>${recent.length?`<div class="rr">${recent.map(r=>`<span>${new Date(r.d).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}</span><span><b>${r.c}</b> <span class="muted">/ ${r.n}</span></span><span class="muted">${r.len/60} min</span><span class="muted">${r.c?(r.ms/1000).toFixed(1)+' s':'—'}</span>`).join('')}</div>`:'<p class="muted">No rounds yet.</p>'}</div>`;
 }
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
-$('kpis').addEventListener('click',e=>{const b=e.target.closest('[data-group]');if(!b)return;GFilter=GFilter===b.dataset.group?null:b.dataset.group;renderGrown()});
+// whole-class minimum
+$('kpis').addEventListener('change',async e=>{
+  if(e.target.id!=='minClass'||viewingOther())return;const c=curClass();if(!c)return;
+  c.settings=withClassMin(c.settings,e.target.value);await saveMin(c,'minMsg');
+});
+async function saveMin(c,msgId){
+  try{await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);renderGrown();if($(msgId))$(msgId).textContent='Saved. Students see it the next time they open the game.'}
+  catch(err){if($(msgId))$(msgId).textContent='Could not save: '+err.message}
+}
 $('tbl').addEventListener('click',async e=>{
   const nb=e.target.closest('[data-newpin]');
   const np=e.target.closest('[data-newpass]');
@@ -1103,7 +1136,7 @@ async function loadClasses(){
   if(!TEACH.classes.some(c=>c.id===TEACH.classId))TEACH.classId=(TEACH.classes.find(c=>c.teacher_id===myId())||TEACH.classes[0]).id;
   await loadClassStudents();
 }
-function curClass(){return TEACH.classes.find(c=>c.id===TEACH.classId)}
+function curClass(){return TEACH&&(TEACH.classes||[]).find(c=>c.id===TEACH.classId)}
 const teacherName=id=>{const t=(TEACH.teachers||[]).find(x=>x.id===id);return t?t.name:id===myId()?TEACH.info.teacher.name:'No teacher'};
 async function loadClassStudents(){
   const c=curClass();setLocal({teacherClass:c.id});applySettings(c.settings);
@@ -1126,7 +1159,7 @@ function renderOwnerEmpty(){
   $('kpis').innerHTML='';$('gProgress').innerHTML='';$('tbl').innerHTML='<tbody><tr><td class="muted">This school has no classes yet.</td></tr></tbody>';$('gdetail').hidden=true;
   $('gSchoolBtn').hidden=true;show('grown');
 }
-$('gSchool').onchange=async()=>{TEACH.viewSchool=$('gSchool').value===ownSchool()?null:$('gSchool').value;setLocal({ownerSchool:TEACH.viewSchool});TEACH.classId=null;GFilter=null;TEACH_TAB='students';await loadClasses()};
+$('gSchool').onchange=async()=>{TEACH.viewSchool=$('gSchool').value===ownSchool()?null:$('gSchool').value;setLocal({ownerSchool:TEACH.viewSchool});TEACH.classId=null;TEACH_TAB='students';await loadClasses()};
 function renderTeacherBar(){
   const c=curClass(),t=TEACH.info.teacher,me=myId();
   const opt=x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}${isAdmin()&&x.teacher_id!==me?' ('+esc(teacherName(x.teacher_id))+')':''}</option>`;
@@ -1369,6 +1402,10 @@ $('addStudent').onclick=async()=>{
   }catch(e){$('addMsg').textContent='Could not add students: '+e.message}
   btn.disabled=false;
 };
+$('gdetail').addEventListener('change',async e=>{
+  if(e.target.id!=='gdMin'||viewingOther())return;const c=curClass(),p=S.players[GSel];if(!c||!p)return;
+  c.settings=withStudentMin(c.settings,p.id,e.target.value==='class'?null:e.target.value);await saveMin(c,'gdMsg');
+});
 $('gdetail').addEventListener('submit',async e=>{
   if(e.target.closest('#gdEmailForm')){e.preventDefault();const p=S.players[GSel];if(!p)return;
     const r=await api.setStudentLogin(p.id,$('gdEmail').value);
@@ -1814,7 +1851,7 @@ export const __test = {
   streakInfo, bumpStreak, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, ptsSince, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
-  renderCompBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
+  renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
   rowsFromPlayers, pSeries,
   setG(v) { G = v; }, setQ(v) { q = v; }, resetRecent() { recent = []; },

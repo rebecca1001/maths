@@ -1,13 +1,6 @@
-// Teacher view: which group each student is in, and the few numbers a teacher needs.
+// Teacher view numbers and the minimum-rounds rule.
 // Pure functions (no DOM) so they can be tested. A student's rounds: [{ d: ms timestamp, c: right, n: answered, len: seconds }].
 const DAY = 864e5;
-
-export const GROUPS = [
-  { id: 'none', label: 'Not playing', hint: 'No rounds in the last 7 days' },
-  { id: 'help', label: 'Needs help', hint: 'Playing, but under 80% right' },
-  { id: 'ok', label: 'On track', hint: 'Playing and getting most right' },
-  { id: 'flying', label: 'Flying', hint: 'Played 3+ days this week, 90%+ right' },
-];
 
 const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 export const recent = (rounds, now = Date.now()) => (rounds || []).filter((r) => r && r.d >= now - 7 * DAY && r.d <= now + DAY);
@@ -36,17 +29,27 @@ export function trend(rounds) {
   return diff >= 1 ? 'up' : diff <= -1 ? 'down' : 'flat';
 }
 
-export function groupOf(rounds, now = Date.now()) {
-  if (!recent(rounds, now).length) return 'none';
-  const acc = accuracy(rounds, now);
-  if (acc != null && acc < 0.8) return 'help';
-  if (daysPlayed(rounds, now) >= 3 && acc >= 0.9) return 'flying';
-  return 'ok';
+// ---------- minimum rounds each time they play ----------
+// settings.minRounds = the class minimum (0 or missing = off); settings.minFor = { studentId: n } for a different
+// number for one child (0 = no minimum for them). Children can't change class settings, only teachers can.
+export const MAX_MIN = 10;
+const clampMin = (v) => Math.max(0, Math.min(MAX_MIN, Math.round(+v || 0)));
+export function minFor(settings, id) {
+  const st = settings || {}, own = st.minFor && Object.prototype.hasOwnProperty.call(st.minFor, id) ? st.minFor[id] : null;
+  return own != null ? clampMin(own) : clampMin(st.minRounds);
 }
-
-// Count per group, in GROUPS order
-export function groupCounts(players, now = Date.now()) {
-  const n = Object.fromEntries(GROUPS.map((g) => [g.id, 0]));
-  players.forEach((p) => { n[groupOf(p.rounds, now)]++; });
-  return n;
+export function hasOwnMin(settings, id) { return !!(settings && settings.minFor && Object.prototype.hasOwnProperty.call(settings.minFor, id)); }
+// Rounds played today (a "session" is one school day)
+export function roundsToday(rounds, now = Date.now()) {
+  const d = new Date(now); d.setHours(0, 0, 0, 0); const from = d.getTime(), to = from + DAY;
+  return (rounds || []).filter((r) => r && r.d >= from && r.d < to).length;
+}
+// Settings after the teacher sets the whole class (clears no one's own number) or one child (null = back to the class number)
+export function withClassMin(settings, n) { return { ...(settings || {}), minRounds: clampMin(n) }; }
+export function withStudentMin(settings, id, n) {
+  const minForMap = { ...((settings && settings.minFor) || {}) };
+  if (n == null) delete minForMap[id]; else minForMap[id] = clampMin(n);
+  const out = { ...(settings || {}), minFor: minForMap };
+  if (!Object.keys(minForMap).length) delete out.minFor;
+  return out;
 }
