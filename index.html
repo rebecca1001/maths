@@ -293,8 +293,9 @@
         <h2>Add students</h2>
         <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</label>
         <textarea id="addNames" rows="5" placeholder="franklin.joshua@sd54.bc.ca&#10;Ava Smith&#10;Lee, Noah"></textarea>
-        <div class="row"><button class="btn primary" id="addStudent">Check list</button><button class="btn" id="showCards">Print login cards</button></div>
+        <div class="row"><button class="btn primary" id="addStudent">Check list</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Give everyone a username</button></div>
         <div id="addReview" hidden></div>
+        <div id="unameReview" hidden></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
         <div class="codecards" id="codecards" hidden></div>

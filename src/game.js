@@ -889,6 +889,7 @@ const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="sta
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
   const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
+  updateGiveAll();
   renderMinPanel(players,now);
 
   $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
@@ -1458,6 +1459,46 @@ $('gdetail').addEventListener('submit',async e=>{
   const p=S.players[GSel];if(!p)return;const v=$('gdReal').value.trim().slice(0,80);
   try{await api.setRealName(p.id,v);p.realName=v;sortStudents();renderGrown();$('gdMsg').textContent=v?`Saved: ${p.name} is ${v}.`:'Real name removed.'}
   catch(err){$('gdMsg').textContent='Could not save: '+err.message}
+});
+// Give everyone a username: for a class from before usernames (Ms Berry's). Same students, same 4-digit codes.
+// Usernames come from each student's real name (surname.firstname); the teacher checks the list, then one tap saves them all.
+let UREVIEW=null; // [{p, u}] while the teacher checks the list
+function updateGiveAll(){
+  const n=S.order.filter(id=>!S.players[id].username).length,b=$('giveAll');if(!b)return;
+  b.hidden=!n||viewingOther();b.textContent=`Give everyone a username (${n})`;
+}
+function planUsernames(){
+  const taken=new Set(S.order.map(id=>S.players[id].username).filter(Boolean));
+  return S.order.map(id=>S.players[id]).filter(p=>!p.username).map(p=>{
+    const base=suggestUsername(p);if(!base)return {p,u:''};
+    let u=base,k=1;while(taken.has(u)){k++;u=base+k}taken.add(u);return {p,u};
+  });
+}
+function renderUReview(){
+  const box=$('unameReview');if(!UREVIEW){box.hidden=true;box.innerHTML='';return}
+  const ok=UREVIEW.filter(x=>x.u),miss=UREVIEW.length-ok.length;
+  box.hidden=false;
+  box.innerHTML=`<p><b>${ok.length} username${ok.length===1?'':'s'} ready.</b> Each student keeps their 4-digit code, stars and history.${miss?` ${miss} student${miss>1?'s need':' needs'} a first and last name first, so skipped: tap them in the table, add it under Real name, then come back here.`:''}</p>
+    <div class="tbl-wrap"><table class="tbl plain"><thead><tr><th>Real name</th><th>Username</th><th>Code</th></tr></thead><tbody>${UREVIEW.map(({p,u})=>`<tr${u?'':' class="muted"'}><td>${esc(p.realName||p.name)}</td><td><b>${esc(u||'needs first + last name')}</b></td><td class="num">${esc(p.pin||'')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="row">${ok.length?`<button class="btn primary" id="uConfirm">Give ${ok.length} username${ok.length===1?'':'s'}</button>`:''}<button class="btn" id="uCancel">Cancel</button></div>`;
+}
+$('giveAll').onclick=()=>{if(viewingOther())return;UREVIEW=planUsernames();renderUReview();$('unameReview').scrollIntoView({behavior:'smooth',block:'nearest'})};
+$('unameReview').addEventListener('click',async e=>{
+  if(!UREVIEW)return;
+  if(e.target.closest('#uCancel')){UREVIEW=null;renderUReview();return}
+  if(!e.target.closest('#uConfirm'))return;
+  const btn=$('uConfirm');btn.disabled=true;let done=0,failed=0;
+  for(const {p,u} of UREVIEW.filter(x=>x.u)){
+    $('addMsg').textContent=`Giving usernames… ${done+failed+1} of ${UREVIEW.filter(x=>x.u).length}`;
+    let r=null,name=u;
+    for(let k=2;k<12;k++){ // a clash with another class at the school: add a number
+      try{r=await api.setStudentLogin(p.id,name)}catch(err){r={error:err.message}}
+      if(!(r&&r.error==='already_added'))break;name=u.replace(/\d+$/,'')+k;
+    }
+    if(r&&r.ok){p.username=r.username;done++}else failed++;
+  }
+  UREVIEW=null;renderUReview();renderGrown();if(!$('codecards').hidden)renderCodeCards();
+  $('addMsg').textContent=`Done: ${done} student${done===1?'':'s'} now ${done===1?'has a username':'have usernames'}, with the same 4-digit codes.`+(failed?` ${failed} could not be saved: try again or give them one from the table.`:'')+' Next: tap Print login cards.';
 });
 $('showCards').onclick=()=>{renderCodeCards();$('codecards').hidden=false;setTimeout(()=>window.print(),300)};
 $('gdetail').addEventListener('click',async e=>{
