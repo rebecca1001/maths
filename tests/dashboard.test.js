@@ -160,3 +160,14 @@ describe('streak message on a day with no school', () => {
     expect(div.textContent).toMatch(/No school today, so your 4-day streak is safe/);
   });
 });
+
+import { groupOf as _groupOf } from '../src/dashboard.js';
+describe('status label', () => {
+  const now = Date.now(), r = (daysAgo, c, n) => ({ d: now - daysAgo * 864e5, c, n, len: 60 });
+  it('not playing / needs help / on track / flying', () => {
+    expect(_groupOf([], now)).toBe('none');
+    expect(_groupOf([r(1, 5, 10)], now)).toBe('help');
+    expect(_groupOf([r(1, 9, 10)], now)).toBe('ok');
+    expect(_groupOf([r(0, 10, 10), r(1, 10, 10), r(2, 10, 10)], now)).toBe('flying');
+  });
+});

@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 import { parseRoster, swapNames, usernameFromName } from './usernames.js';
@@ -864,6 +864,7 @@ function renderMinPanel(players,now){
     ${withMin.length?`<div class="mintoday"><span class="label">Today</span><b class="num">${done}<small> of ${withMin.length}</small></b><span class="muted small">played their minimum</span></div>`:''}
     <p class="note" id="minMsg" aria-live="polite" style="background:none;padding:0;margin:0"></p></div>`;
 }
+const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="stag s-${g}" title="${STATUS[g][1]}">${STATUS[g][0]}</span>`};
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
   const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
@@ -878,7 +879,7 @@ function renderGrown(){
     (rows.length?rows.map(({p})=>{
       const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
-        <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td>
+        <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}${statusTag(p,now)}</span></td>
         <td>${todayCell(p,cs,now)}</td>
         <td>${lastPlayed(p)}</td>
         <td class="r">${daysPlayed(p.rounds,now)}</td>

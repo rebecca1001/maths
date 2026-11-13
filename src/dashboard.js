@@ -29,6 +29,21 @@ export function trend(rounds) {
   return diff >= 1 ? 'up' : diff <= -1 ? 'down' : 'flat';
 }
 
+// A label next to each child's name: Not playing / Needs help / On track / Flying
+export const STATUS = {
+  none: ['Not playing', 'No rounds in the last 7 days'],
+  help: ['Needs help', 'Playing, but under 80% right this week'],
+  ok: ['On track', 'Playing and getting most right'],
+  flying: ['Flying', 'Played 3+ days this week, 90%+ right'],
+};
+export function groupOf(rounds, now = Date.now()) {
+  if (!recent(rounds, now).length) return 'none';
+  const acc = accuracy(rounds, now);
+  if (acc != null && acc < 0.8) return 'help';
+  if (daysPlayed(rounds, now) >= 3 && acc >= 0.9) return 'flying';
+  return 'ok';
+}
+
 // ---------- minimum rounds each time they play ----------
 // settings.minRounds = the class minimum (0 or missing = off); settings.minFor = { studentId: n } for a different
 // number for one child (0 = no minimum for them). Children can't change class settings, only teachers can.
