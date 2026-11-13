@@ -81,6 +81,9 @@ describe('login screens (demo mode)', () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
     $('sUser').value = 'someone.else'; $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(60);
     expect($('changeClass').textContent).toMatch(/Change username/);
+    expect($('userChangeSchool')).toBeNull(); expect($('pinChangeSchool').hidden).toBe(true); // no Change school until 2 wrong tries
+    for (const c of ['0000', '0000']) { for (const d of c) $('loginPad').querySelector(`[data-d="${d}"]`).dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true })); await settle(250); }
+    expect($('pinChangeSchool').hidden).toBe(false);
     $('changeClass').click(); await settle(); expect($('userStep').hidden).toBe(false);
   });
   it('an unknown username gets the same answer as a wrong code', async () => {

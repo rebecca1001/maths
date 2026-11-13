@@ -31,12 +31,12 @@
       </div>
       <form class="pickstep emailform" id="userStep" hidden autocomplete="on">
         <h1>Log in</h1>
-        <p class="muted userschool"><b id="userSchool"></b> · <button class="linkbtn" id="userChangeSchool" type="button">Change school</button></p>
+        <p class="muted userschool"><b id="userSchool"></b></p>
         <div class="tmode whotabs" role="tablist" aria-label="Who is logging in">
           <button type="button" role="tab" class="on" aria-selected="true">Student</button>
           <button type="button" role="tab" id="userTeacher" aria-selected="false">Teacher or principal</button>
         </div>
-        <label class="flabel">Username<input id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="surname.firstname" maxlength="120"></label>
+        <label class="flabel">Username<input id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="like smith.emma" maxlength="120"></label>
         <div class="fb no" id="userFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="sGo">Next</button>
         <p class="muted small">Your username and 4-digit code are on the login card from your teacher.</p>
@@ -71,6 +71,7 @@
         <div class="fb no" id="loginFb" aria-live="assertive"></div>
         <div class="pad" id="loginPad"></div>
         <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
+        <button class="linkbtn small" id="pinChangeSchool" type="button" hidden>Wrong school? Change it</button>
       </div>
     </div>
     <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>

@@ -310,6 +310,7 @@ function renderLogin(){
   const byUser=L.via==='user'&&L.username;
   $('loginSub').textContent=byUser?`${L.username} · tap your 4-digit code`:`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
   $('changeClass').textContent=byUser?'Not you? Change username':'Not your class? Pick again';
+  $('pinChangeSchool').hidden=!(byUser&&L.fails>=2&&L.school);
   $('dots').querySelectorAll('i').forEach((d,i)=>d.classList.toggle('on',i<L.entry.length));
 }
 function goStep(st){L.step=st;L.entry='';renderLogin();
@@ -346,7 +347,8 @@ $('schoolBack').onclick=()=>goStep('gate');
 $('classTeacher').onclick=()=>openTeacher('teacher');
 $('toParent').onclick=()=>goStep('parent');
 $('parentBack').onclick=()=>goStep(L.school?'user':'school');
-$('userChangeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
+// "Change school" only appears after two wrong tries (Sam, 12 Nov: keep the screen simple)
+$('pinChangeSchool').onclick=()=>{L.school=null;L.username='';setLocal({school:null});goStep('school')};
 $('userStep').addEventListener('submit',async e=>{
   // username first, then the 4-digit code on the picture keypad
   e.preventDefault();if(L.busy)return;const un=$('sUser').value.trim(),fb=$('userFb');
