@@ -11,8 +11,8 @@ describe('screens (demo mode, real page markup)', () => {
     for (const id of ['home', 'play', 'results', 'teach', 'grown', 'school', 'super']) expect(document.getElementById(id).hidden, id).toBe(true);
     expect(err).not.toHaveBeenCalled();
   });
-  it('the login keypad has 12 keys including Delete and Enter', () => {
-    const keys = [...document.querySelectorAll('#loginPad .key')].map(k => k.textContent); expect(keys.length).toBe(12); expect(keys).toEqual(expect.arrayContaining(['Delete', 'Enter', '0', '9']));
+  it('the login keypad has 12 keys including Delete and Enter, with an animal on each number', () => {
+    const keys = [...document.querySelectorAll('#loginPad .key')].map(k => k.dataset.d); expect(keys.length).toBe(12); expect(keys).toEqual(expect.arrayContaining(['del', 'enter', '0', '9'])); expect(document.querySelectorAll('#loginPad .kanimal').length).toBe(10);
   });
   it('the play keypad matches', () => expect(document.querySelectorAll('#pad .key').length).toBe(12));
   it('the teacher address opens the teacher screen', async () => {

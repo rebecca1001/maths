@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { boot } from '../src/game.js';
-import { api, newPasscode } from '../src/api.js';
-import { normUsername, usernameFromName, nameFromUsername, passKey, parseRoster, swapNames } from '../src/usernames.js';
+import { api } from '../src/api.js';
+import { normUsername, usernameFromName, nameFromUsername, parseRoster, swapNames } from '../src/usernames.js';
 
 const settle = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 const $ = (id) => document.getElementById(id);
 const LS = 'mm.local.v1';
 const clearDevice = () => Object.keys(localStorage).filter((k) => k !== 'mm.demo.db.v1').forEach((k) => localStorage.removeItem(k));
 const setDevice = (o) => { sessionStorage.clear(); const k = Object.keys(localStorage).find((x) => x !== 'mm.demo.db.v1') || LS; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) || '{}'), ...o })); };
+// tap a 4-digit code on the login keypad
+const tapCode = async (code) => {
+  for (const d of code) $('loginPad').querySelector(`[data-d="${d}"]`).dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }));
+  await settle(250);
+};
+const foxPin = async () => (await api.listStudents((await api.listClasses())[0].id)).find((x) => x.username === 'fox.comet').pin;
 const pickDemoSchool = async () => {
   $('schoolSearch').value = 'demo'; $('schoolSearch').dispatchEvent(new Event('input')); await settle(320);
   $('schoolList').querySelector('[data-school]').click(); await settle();
@@ -26,8 +32,6 @@ describe('username helpers (same rules as the database)', () => {
   it('real name from surname.firstname; none from a student number', () => {
     expect(nameFromUsername('franklin.joshua')).toBe('Joshua Franklin'); expect(nameFromUsername('12345')).toBeNull();
   });
-  it('passwords match without dashes, spaces or capitals', () => expect(passKey('Tiger 42')).toBe(passKey('tiger42')));
-  it('passwords look like tiger42: one easy word + 2 digits', () => { for (let i = 0; i < 200; i++) expect(newPasscode()).toMatch(/^[a-z]{3,8}\d{2}$/); });
 });
 
 describe('pasted class lists', () => {
@@ -49,7 +53,7 @@ describe('pasted class lists', () => {
 
 describe('login screens (demo mode)', () => {
   beforeEach(() => { history.pushState({}, '', '/'); });
-  it('a new device shows Log in / Register, then asks for the school, then shows Student username + password (TT Rock Stars style)', async () => {
+  it('a new device shows Log in / Register, then asks for the school, then shows Student username (TT Rock Stars style)', async () => {
     const err = vi.spyOn(console, 'error');
     clearDevice(); await api.teacherSignOut();
     await boot(); await settle();
@@ -60,16 +64,30 @@ describe('login screens (demo mode)', () => {
     expect($('userStep').hidden).toBe(false); expect($('userSchool').textContent).toBe('Demo School');
     expect(err).not.toHaveBeenCalled();
   });
-  it('wrong password says so; the right one (typed any way, or the whole email) logs in', async () => {
-    $('sUser').value = 'fox.comet'; $('sPass').value = 'red-fox-11';
+  it('username, then the 4-digit code on a keypad with an animal on each number; wrong code says try again', async () => {
+    const pin = await foxPin();
+    expect($('sPass')).toBeNull(); // no password box
+    $('sUser').value = 'Fox.Comet@sd54.bc.ca';
     $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(80);
-    expect($('userFb').textContent).toMatch(/don't match at Demo School/);
-    $('sUser').value = 'Fox.Comet@sd54.bc.ca'; $('sPass').value = 'Tiger 42';
-    $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(120);
+    expect($('pinStep').hidden).toBe(false); expect($('loginSub').textContent).toMatch(/Fox\.Comet@sd54\.bc\.ca · tap your 4-digit code/);
+    expect($('loginPad').querySelectorAll('.kanimal')).toHaveLength(10);
+    await tapCode(pin === '0000' ? '1111' : '0000');
+    expect($('loginFb').textContent).toMatch(/Not quite/); expect($('login').hidden).toBe(false);
+    await tapCode(pin);
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
   });
-  it('next time this device opens straight on username + password, school remembered', async () => {
+  it('"Not you? Change username" goes back to the username box', async () => {
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
+    $('sUser').value = 'someone.else'; $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(60);
+    expect($('changeClass').textContent).toMatch(/Change username/);
+    $('changeClass').click(); await settle(); expect($('userStep').hidden).toBe(false);
+  });
+  it('an unknown username gets the same answer as a wrong code', async () => {
+    expect((await api.studentLoginUser('demo-school', 'nobody.here', '1234')).error).toBe('wrong_login');
+    expect((await api.studentLoginUser('demo-school', 'fox.comet', 'tiger42')).error).toBe('wrong_login');
+  });
+  it('next time this device opens straight on the username box, school remembered', async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
     expect($('userStep').hidden).toBe(false); expect($('schoolStep').hidden).toBe(true); expect($('userSchool').textContent).toBe('Demo School');
   });
@@ -127,15 +145,17 @@ describe('teachers add students from a pasted list', () => {
     const r = await api.addSchoolStudents(cls.id, rows.map((x) => ({ ...x, name: 'Nova Owl' })), false);
     expect(r.added[0]).toMatchObject({ username: 'smith.ava', real_name: 'Ava Smith', name: 'Nova Owl' });
     expect(r.added[0].pin).toMatch(/^\d{4}$/); // every student keeps a 4-digit code too
-    const log = await api.studentLoginUser('demo-school', 'SMITH.AVA', r.added[0].passcode); expect(log.token).toBeTruthy();
-    const np = await api.setStudentLogin(r.added[0].id, null); expect(np.passcode).toMatch(/^[a-z]+\d{2}$/);
+    expect(r.added[0].passcode).toBeUndefined(); // no passwords
+    const log = await api.studentLoginUser('demo-school', 'SMITH.AVA', r.added[0].pin); expect(log.token).toBeTruthy();
+    expect((await api.setStudentLogin(r.added[0].id, null)).error).toBe('bad_username');
   });
   it('a class-code student can be given a username: same student, code still works', async () => {
     const cls = (await api.listClasses())[0];
     const kid = (await api.listStudents(cls.id)).find((s) => !s.username);
     const r = await api.setStudentLogin(kid.id, 'Berry.Kid@sd54.bc.ca');
-    expect(r).toMatchObject({ ok: true, username: 'berry.kid' });
+    expect(r).toMatchObject({ ok: true, username: 'berry.kid', pin: kid.pin }); // same 4 digits as always
     expect((await api.studentLogin(cls.code, kid.pin)).token).toBeTruthy();
+    expect((await api.studentLoginUser('demo-school', 'berry.kid', kid.pin)).token).toBeTruthy();
     expect((await api.setStudentLogin(kid.id, 'smith.ava')).error).toBe('already_added');
   });
 });

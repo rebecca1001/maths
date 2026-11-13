@@ -17,7 +17,7 @@
   <!-- STUDENT LOGIN -->
   <section class="screen" id="login" hidden>
     <div class="card logincard" style="align-items:center;text-align:center">
-      <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username + password.
+      <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username, then the 4-digit code on the picture keypad.
            The class code + 4-digit code login (Ms Berry's class) is still here: "Use a class code instead". -->
       <!-- Front door on a new device (TT Rock Stars style): Log in or Register. Devices that remember a school skip it. -->
       <div class="pickstep" id="gateStep" hidden>
@@ -36,10 +36,9 @@
           <button type="button" role="tab" id="userTeacher" aria-selected="false">Teacher</button>
         </div>
         <label class="flabel">Username<input id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="surname.firstname" maxlength="120"></label>
-        <label class="flabel">Password<span class="pwrow"><input id="sPass" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" placeholder="e.g. tiger42" maxlength="30"><button type="button" class="linkbtn small" id="sShow">Show</button></span></label>
         <div class="fb no" id="userFb" aria-live="assertive"></div>
-        <button class="go" type="submit" id="sGo">Log in</button>
-        <p class="muted small">Your username and password are on the login card from your teacher.</p>
+        <button class="go" type="submit" id="sGo">Next</button>
+        <p class="muted small">Your username and 4-digit code are on the login card from your teacher.</p>
         <button type="button" class="btn codebtn" id="toCodeLogin">Have a 4-digit code? Use a class code instead</button>
         <button type="button" class="linkbtn small" id="toParent">I'm a parent</button>
       </form>
@@ -47,7 +46,7 @@
       <div class="pickstep" id="parentStep" hidden>
         <h1>Parents</h1>
         <p>Parent accounts are coming soon.</p>
-        <p class="muted">For now, your child logs in with the username and password on their login card, at school or at home. Their teacher can tell you how they're doing.</p>
+        <p class="muted">For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they're doing.</p>
         <button type="button" class="linkbtn small" id="parentBack">← Back</button>
       </div>
       <div class="pickstep" id="schoolStep" hidden>
@@ -82,7 +81,7 @@
       </div>
     </div>
     <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><button class="linkbtn" id="toWho" type="button">Teachers &amp; principals</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
-    <p class="note demo" id="demoHint" hidden>Demo mode: school <b>Demo</b>, username <b>fox.comet</b>, password <b>tiger42</b>. Or use a class code: pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
+    <p class="note demo" id="demoHint" hidden>Demo mode: school <b>Demo</b>, username <b>fox.comet</b>, then its 4-digit code. Or use a class code: pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
   <!-- TEACHER SIGN IN / SIGN UP / SCHOOL SETUP -->
@@ -283,7 +282,7 @@
       <div class="card pcard"><div class="spread"><h2>Class progress</h2><span class="note">Last 10 weeks</span></div><div id="gProgress"></div></div>
       <div class="card addcard">
         <h2>Add students</h2>
-        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Each student gets a username, a password and a space name. You'll check the list before anything is saved.</label>
+        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</label>
         <textarea id="addNames" rows="5" placeholder="franklin.joshua@sd54.bc.ca&#10;Ava Smith&#10;Lee, Noah"></textarea>
         <div class="row"><button class="btn primary" id="addStudent">Check list</button><button class="btn" id="showCards">Print login cards</button></div>
         <div id="addReview" hidden></div>
@@ -423,11 +422,11 @@
     <ol class="helpsteps">
       <li><span class="hnum">1</span><div><b>Find your school</b><small>Only the first time. This device remembers it.</small></div></li>
       <li><span class="hnum">2</span><div><b>Type your username</b><small>It's on your login card, like franklin.joshua. Your whole school email works too.</small></div></li>
-      <li><span class="hnum">3</span><div><b>Type your password</b><small>It's on your login card too, like tiger42.</small></div></li>
+      <li><span class="hnum">3</span><div><b>Tap your 4-digit code</b><small>It's on your login card too. Each number has an animal to help you remember it.</small></div></li>
     </ol>
     <div class="helptips">
       <p><b>Have a 4-digit code?</b> Tap “Use a class code instead”, pick your class, then type your code.</p>
-      <p><b>Forgot?</b> Ask your teacher. They can see your password or code.</p>
+      <p><b>Forgot?</b> Ask your teacher. They can see your username and code.</p>
     </div>
     <button class="go ovbtn" id="helpClose" type="button">Got it</button>
   </div>
