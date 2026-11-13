@@ -113,6 +113,18 @@ describe('login screens (demo mode)', () => {
     $('loginBack').click(); await settle(); $('kTutor').click(); await settle(); expect($('soonTitle').textContent).toBe('Tutors');
     $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
   });
+  it('TEMPORARY: "Log in with a 4-digit code" on the first screen -> find your school -> pick your class -> code (Ms Berry), remembered', async () => {
+    clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
+    $('gateCode').click(); await settle();
+    expect($('schoolStep').hidden).toBe(false);
+    await pickDemoSchool(); await settle(60);
+    expect($('classStep').hidden).toBe(false);
+    $('classList').querySelector('[data-code]').click(); await settle();
+    expect($('pinStep').hidden).toBe(false);
+    await tapCode('1111'); expect($('login').hidden).toBe(true);
+    sessionStorage.clear(); setDevice({ token: null }); await boot(); await settle(60);
+    expect($('classStep').hidden).toBe(false); // this device now opens on the class list
+  });
   it('no class code typing, no footer teacher link, no Switch player', async () => {
     expect($('classForm')).toBeNull(); expect($('toCodeLogin')).toBeNull(); expect($('toWho')).toBeNull(); expect($('notMe')).toBeNull();
   });

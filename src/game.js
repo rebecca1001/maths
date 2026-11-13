@@ -343,6 +343,8 @@ $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code
 $('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
 $('gateLogin').onclick=()=>{L.flow='login';goStep('kind')};
 $('gateRegister').onclick=()=>{L.flow='register';goStep('kind')};
+// TEMPORARY: 4-digit code login for classes without usernames yet (Ms Berry's): find your school -> pick your class -> code. Remove in January.
+$('gateCode').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep('school')};
 $('kSchool').onclick=()=>{if(L.flow==='register')openTeacher('register');else goStep('role')};
 const SOON={family:['Families','Family accounts are coming soon. For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they\'re doing.'],
   tutor:['Tutors','Tutor accounts are coming soon. MathWizz is for schools for now.']};
@@ -357,7 +359,7 @@ function loginBack(){
   if(!L||L.busy)return;const st=L.step;
   if(st==='pin'){L.classCode='';L.className='';goStep(L.school?'class':'school');return}
   if(st==='user'||st==='class'){L.school=null;L.username='';setLocal({school:null});goStep('school');return}
-  if(st==='school'){L.flow='login';goStep('role');return}
+  if(st==='school'){if(L.via==='code'){L.via='user';setLocal({loginWay:null});goStep('gate');return}L.flow='login';goStep('role');return}
   if(st==='role'||st==='soon'){goStep('kind');return}
   if(st==='kind')goStep('gate');
 }
