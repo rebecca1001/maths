@@ -6,6 +6,7 @@ import { seedDemoStudents } from './demo-data.js';
 import { rowsFromPlayers } from './progress.js';
 import { compSummary, PAID_PLANS } from './competitions.js';
 import { demoPilotScore } from './pilot.js';
+import { normUsername, usernameFromName, nameFromUsername, passKey } from './usernames.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -25,7 +26,8 @@ function supabaseApi() {
     mode: 'supabase',
     // students
     studentLogin: (classCode, pin) => rpc('student_login', { p_class_code: classCode, p_pin: pin }),
-    studentLoginEmail: (email, passcode) => rpc('student_login_email', { p_email: email, p_passcode: passcode }),
+    // school + username (or whole school email) + password
+    studentLoginUser: (schoolId, username, passcode) => rpc('student_login_user', { p_school: schoolId, p_username: username, p_passcode: passcode }),
     findSchools: (q) => rpc('find_schools', { p_query: q }),
     schoolClasses: (schoolId) => rpc('school_classes', { p_school: schoolId }),
     studentState: (token) => rpc('student_state', { p_token: token }),
@@ -74,10 +76,10 @@ function supabaseApi() {
     classStats: (classId) => rpc('class_stats', { p_class: classId }),
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
     addStudents: (classId, names, realNames) => q(sb.from('students').insert(names.map((name, i) => ({ class_id: classId, name, real_name: (realNames && realNames[i]) || null }))).select('id,name,real_name,pin,data')),
-    // students who log in with their school email: rows = [{ email, name }] (name = space name)
-    addEmailStudents: (classId, rows) => rpc('add_email_students', { p_class: classId, p_rows: rows }),
-    // give a student email login, or a new password (email null)
-    setStudentLogin: (id, email) => rpc('set_student_login', { p_student: id, p_email: email || null }),
+    // add students from a pasted list: rows = [{ email, first, last, name }] (name = space name); dryRun = the review screen
+    addSchoolStudents: (classId, rows, dryRun) => rpc('add_school_students', { p_class: classId, p_rows: rows, p_dry_run: !!dryRun }),
+    // give a student a username (or email), or a new password (username null)
+    setStudentLogin: (id, username) => rpc('set_student_login', { p_student: id, p_email: username || null }),
     setRealName: (id, realName) => q(sb.from('students').update({ real_name: realName || null }).eq('id', id)),
     async countStudents(schoolId) { const rows = await q(sb.from('students').select('class_id,classes!inner(school_id)').eq('classes.school_id', schoolId)); const n = {}; rows.forEach((r) => { n[r.class_id] = (n[r.class_id] || 0) + 1; }); return n; },
     // school admin
@@ -120,8 +122,6 @@ function supabaseApi() {
 // ---------------------------------------------------------------------------
 const DEMO_KEY = 'mm.demo.db.v1';
 // Same rules as the database: "Franklin.Joshua@SD54.bc.ca" -> "franklin.joshua@sd54"
-export const normStudentEmail = (e) => { const x = String(e || '').replace(/\s/g, '').toLowerCase(); return /^[a-z0-9._'-]{1,64}@[a-z0-9-]{1,40}(\.[a-z0-9-]+)*$/.test(x) ? x.split('@')[0] + '@' + x.split('@')[1].split('.')[0] : null; };
-export const nameFromEmail = (u) => { const l = String(u).split('@')[0], cap = (w) => w.charAt(0).toUpperCase() + w.slice(1); return l.includes('.') ? cap(l.split('.')[1]) + ' ' + cap(l.split('.')[0]) : cap(l); };
 const COLOURS = ['red', 'blue', 'green', 'gold', 'pink', 'purple', 'orange', 'silver', 'teal', 'lime', 'ruby', 'mint', 'coral', 'sky', 'sun', 'moon'];
 const ANIMALS = ['tiger', 'panda', 'otter', 'falcon', 'koala', 'shark', 'eagle', 'fox', 'wolf', 'owl', 'lynx', 'hawk', 'bear', 'frog', 'whale', 'comet', 'rocket', 'dragon', 'zebra', 'llama'];
 const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
@@ -150,7 +150,9 @@ function demoApi() {
   persist();
   // Re-read before every call so several tabs share one demo database
   // older saved demos lack newer lists, so fill them in whenever the saved copy is (re)loaded
-  const fill = () => { if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet@sd54', passcode: 'blue-tiger-42', real_name: db.students[0].real_name || 'Comet Fox' });
+  const fill = () => {
+    if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet', passcode: 'blue-tiger-42', real_name: db.students[0].real_name || 'Comet Fox' });
+    db.students.forEach(s => { if (s.username && s.username.includes('@')) s.username = s.username.split('@')[0]; }); // older demos stored the whole email
     if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
   const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) { db = x; fill(); } } catch (e) { /* keep in-memory copy */ } };
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
@@ -173,10 +175,9 @@ function demoApi() {
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
     },
-    studentLoginEmail(email, passcode) {
-      const u = normStudentEmail(email); if (!u) return ok({ error: 'not_an_email' });
-      const pc = String(passcode || '').replace(/\s/g, '').toLowerCase();
-      const s = db.students.find(x => x.username === u && x.passcode === pc && db.classes.some(c => c.id === x.class_id && !c.archived_at));
+    studentLoginUser(schoolId, username, passcode) {
+      const u = normUsername(username), pc = passKey(passcode);
+      const s = schoolId === 'demo-school' && u && db.students.find(x => x.username === u && passKey(x.passcode) === pc && db.classes.some(c => c.id === x.class_id && !c.archived_at));
       if (!s) return ok({ error: 'wrong_login' });
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
@@ -229,24 +230,37 @@ function demoApi() {
       out.forEach((st, i) => { const s = db.students.find(x => x.id === st.id); s.real_name = st.real_name = (realNames && realNames[i]) || null; });
       persist(); return out;
     },
-    async addEmailStudents(cid, rows) {
-      const added = [], skipped = [];
+    // same rules as add_school_students in the database
+    async addSchoolStudents(cid, rows, dryRun) {
+      const added = [], skipped = [], taken = db.students.map(x => x.username).filter(Boolean);
+      let i = 0;
       for (const r of rows || []) {
-        const u = normStudentEmail(r.email);
-        if (!u) { skipped.push({ email: String(r.email || '').slice(0, 80), why: 'not_an_email' }); continue; }
-        if (db.students.some(x => x.username === u)) { skipped.push({ email: u, why: 'already_added' }); continue; }
+        i++; const f = String(r.first || '').trim(), l = String(r.last || '').trim();
+        let u, real = `${f} ${l}`.trim() || null, renamed = false;
+        if (String(r.email || '').includes('@')) {
+          u = normUsername(r.email);
+          if (!u) { skipped.push({ row: i, why: 'bad_email' }); continue; }
+          if (taken.includes(u)) { skipped.push({ row: i, username: u, why: 'already_added' }); continue; }
+          real = real || nameFromUsername(u);
+        } else {
+          const base = usernameFromName(f, l);
+          if (!base) { skipped.push({ row: i, why: 'no_name' }); continue; }
+          u = base; let k = 1; while (taken.includes(u)) { k++; u = base + k; } renamed = u !== base;
+        }
+        taken.push(u);
+        if (dryRun) { added.push({ row: i, username: u, real_name: real, renamed }); continue; }
         const st = await methods.addStudent(cid, r.name || 'Space Cadet'), s = db.students.find(x => x.id === st.id);
-        Object.assign(s, { username: u, passcode: newPasscode(), real_name: nameFromEmail(u) });
-        added.push({ ...s });
+        Object.assign(s, { username: u, passcode: newPasscode(), real_name: real });
+        added.push({ row: i, ...s });
       }
       persist(); return { added, skipped };
     },
     setStudentLogin(sid, email) {
       const s = db.students.find(x => x.id === sid); if (!s) return ok({ error: 'not_allowed' });
       let u = s.username;
-      if (email) { u = normStudentEmail(email); if (!u) return ok({ error: 'not_an_email' }); if (db.students.some(x => x.username === u && x.id !== sid)) return ok({ error: 'already_added' }); }
-      if (!u) return ok({ error: 'not_an_email' });
-      s.username = u; s.passcode = newPasscode(); persist(); return ok({ ok: true, username: s.username, passcode: s.passcode });
+      if (email) { u = normUsername(email); if (!u) return ok({ error: 'bad_username' }); if (db.students.some(x => x.username === u && x.id !== sid)) return ok({ error: 'already_added' }); s.username = u; s.passcode = s.passcode || newPasscode(); }
+      else { if (!u) return ok({ error: 'bad_username' }); s.passcode = newPasscode(); }
+      persist(); return ok({ ok: true, username: s.username, passcode: s.passcode });
     },
     setRealName(sid, realName) { const s = db.students.find(x => x.id === sid); if (s) { s.real_name = realName || null; persist(); } return ok(null); },
     countStudents() { const n = {}; db.students.forEach(s => { n[s.class_id] = (n[s.class_id] || 0) + 1; }); return ok(n); },
