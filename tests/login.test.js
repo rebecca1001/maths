@@ -26,8 +26,8 @@ describe('username helpers (same rules as the database)', () => {
   it('real name from surname.firstname; none from a student number', () => {
     expect(nameFromUsername('franklin.joshua')).toBe('Joshua Franklin'); expect(nameFromUsername('12345')).toBeNull();
   });
-  it('passwords match without dashes, spaces or capitals', () => expect(passKey('Blue Tiger 42')).toBe(passKey('blue-tiger-42')));
-  it('passwords look like blue-tiger-42', () => { for (let i = 0; i < 200; i++) expect(newPasscode()).toMatch(/^[a-z]{3,8}-[a-z]{3,8}-\d{2}$/); });
+  it('passwords match without dashes, spaces or capitals', () => expect(passKey('Tiger 42')).toBe(passKey('tiger42')));
+  it('passwords look like tiger42: one easy word + 2 digits', () => { for (let i = 0; i < 200; i++) expect(newPasscode()).toMatch(/^[a-z]{3,8}\d{2}$/); });
 });
 
 describe('pasted class lists', () => {
@@ -62,7 +62,7 @@ describe('login screens (demo mode)', () => {
     $('sUser').value = 'fox.comet'; $('sPass').value = 'red-fox-11';
     $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(80);
     expect($('userFb').textContent).toMatch(/don't match at Demo School/);
-    $('sUser').value = 'Fox.Comet@sd54.bc.ca'; $('sPass').value = 'Blue Tiger 42';
+    $('sUser').value = 'Fox.Comet@sd54.bc.ca'; $('sPass').value = 'Tiger 42';
     $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(120);
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
@@ -111,7 +111,7 @@ describe('teachers add students from a pasted list', () => {
     expect(r.added[0]).toMatchObject({ username: 'smith.ava', real_name: 'Ava Smith', name: 'Nova Owl' });
     expect(r.added[0].pin).toMatch(/^\d{4}$/); // every student keeps a 4-digit code too
     const log = await api.studentLoginUser('demo-school', 'SMITH.AVA', r.added[0].passcode); expect(log.token).toBeTruthy();
-    const np = await api.setStudentLogin(r.added[0].id, null); expect(np.passcode).toMatch(/^[a-z]+-[a-z]+-\d{2}$/);
+    const np = await api.setStudentLogin(r.added[0].id, null); expect(np.passcode).toMatch(/^[a-z]+\d{2}$/);
   });
   it('a class-code student can be given a username: same student, code still works', async () => {
     const cls = (await api.listClasses())[0];

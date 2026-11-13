@@ -122,10 +122,10 @@ function supabaseApi() {
 // ---------------------------------------------------------------------------
 const DEMO_KEY = 'mm.demo.db.v1';
 // Same rules as the database: "Franklin.Joshua@SD54.bc.ca" -> "franklin.joshua@sd54"
-const COLOURS = ['red', 'blue', 'green', 'gold', 'pink', 'purple', 'orange', 'silver', 'teal', 'lime', 'ruby', 'mint', 'coral', 'sky', 'sun', 'moon'];
-const ANIMALS = ['tiger', 'panda', 'otter', 'falcon', 'koala', 'shark', 'eagle', 'fox', 'wolf', 'owl', 'lynx', 'hawk', 'bear', 'frog', 'whale', 'comet', 'rocket', 'dragon', 'zebra', 'llama'];
+// same 64 words as new_passcode() in the database: one easy word + 2 digits, like tiger42
+const PASS_WORDS = ['tiger', 'panda', 'otter', 'koala', 'shark', 'eagle', 'fox', 'wolf', 'owl', 'bear', 'frog', 'whale', 'zebra', 'llama', 'lion', 'duck', 'goat', 'horse', 'moose', 'seal', 'crab', 'bee', 'puppy', 'kitten', 'bunny', 'pony', 'robin', 'camel', 'hippo', 'rocket', 'comet', 'star', 'moon', 'sun', 'planet', 'robot', 'ship', 'kite', 'drum', 'cloud', 'train', 'boat', 'apple', 'lemon', 'mango', 'pizza', 'cake', 'cookie', 'muffin', 'taco', 'berry', 'peach', 'melon', 'grape', 'pear', 'acorn', 'maple', 'river', 'snow', 'candy', 'jelly', 'pickle', 'banjo', 'tulip'];
 const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
-export const newPasscode = () => `${pickOne(COLOURS)}-${pickOne(ANIMALS)}-${10 + Math.floor(Math.random() * 90)}`;
+export const newPasscode = () => `${pickOne(PASS_WORDS)}${10 + Math.floor(Math.random() * 90)}`;
 const roundStarsOf = (r) => r.stars ?? Math.round((r.pts ?? r.c * 30) / 10);
 const mondayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
 const weekStars = (s, cut) => ((s.data && s.data.rounds) || []).filter(r => r.d >= cut).reduce((t, r) => t + roundStarsOf(r), 0);
@@ -151,7 +151,7 @@ function demoApi() {
   // Re-read before every call so several tabs share one demo database
   // older saved demos lack newer lists, so fill them in whenever the saved copy is (re)loaded
   const fill = () => {
-    if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet', passcode: 'blue-tiger-42', real_name: db.students[0].real_name || 'Comet Fox' });
+    if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet', passcode: 'tiger42', real_name: db.students[0].real_name || 'Comet Fox' });
     db.students.forEach(s => { if (s.username && s.username.includes('@')) s.username = s.username.split('@')[0]; }); // older demos stored the whole email
     if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
   const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) { db = x; fill(); } } catch (e) { /* keep in-memory copy */ } };

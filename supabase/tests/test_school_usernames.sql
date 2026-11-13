@@ -49,7 +49,7 @@ begin
         '[{"email":"Franklin.Joshua@sd54.bc.ca","name":"Cosmic Fox"},{"first":"Ava","last":"Smith","name":"Nova Owl"},{"email":"franklin.joshua@sd54"}]'::jsonb);
   if json_array_length(r->'added') <> 2 or r->'skipped'->0->>'why' <> 'already_added' then raise exception 'FAIL add %', r; end if;
   a := r->'added'->0;
-  if a->>'username' <> 'franklin.joshua' or a->>'name' <> 'Cosmic Fox' or a->>'pin' !~ '^[0-9]{4}$' or a->>'passcode' !~ '^[a-z]+-[a-z]+-[0-9]{2}$' then raise exception 'FAIL added row %', a; end if;
+  if a->>'username' <> 'franklin.joshua' or a->>'name' <> 'Cosmic Fox' or a->>'pin' !~ '^[0-9]{4}$' or a->>'passcode' !~ '^[a-z]{3,8}[0-9]{2}$' then raise exception 'FAIL added row %', a; end if;
   insert into e values ('pass', a->>'passcode'), ('kid', a->>'id');
   raise notice 'teacher adds students; same email twice is skipped; every student also has a 4-digit code: true';
   -- other schools cannot add here or touch these students
