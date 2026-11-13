@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { MAX_MIN, minFor, hasOwnMin, roundsToday, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
@@ -856,7 +856,7 @@ function renderMinPanel(players,now){
   const own=players.filter(p=>hasOwnMin(cs,p.id)).length;
   $('kpis').innerHTML=`<div class="minpanel">
     <label class="minset" for="minClass"><span class="label">Minimum rounds each time they play</span>
-      <span class="row" style="align-items:center;gap:10px"><select id="minClass" ${viewingOther()?'disabled':''}>${minOpts(m)}</select><span class="muted small">for the whole class${own?` · ${own} student${own>1?'s have':' has'} their own number`:''}</span></span></label>
+      <span class="row" style="align-items:center;gap:10px"><select id="minClass">${minOpts(m)}</select><span class="muted small">for the whole class${own?` · ${own} student${own>1?'s have':' has'} their own number`:''}</span></span></label>
     ${withMin.length?`<div class="mintoday"><span class="label">Today</span><b class="num">${done}<small> of ${withMin.length}</small></b><span class="muted small">played their minimum</span></div>`:''}
     <p class="note" id="minMsg" aria-live="polite" style="background:none;padding:0;margin:0"></p></div>`;
 }
@@ -911,12 +911,15 @@ function renderGrown(){
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
 // whole-class minimum
 $('kpis').addEventListener('change',async e=>{
-  if(e.target.id!=='minClass'||viewingOther())return;const c=curClass();if(!c)return;
-  c.settings=withClassMin(c.settings,e.target.value);await saveMin(c,'minMsg');
+  if(e.target.id!=='minClass')return;const c=curClass();if(!c)return;
+  await saveMin(c,null,e.target.value,'minMsg');
 });
-async function saveMin(c,msgId){
-  try{await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);renderGrown();if($(msgId))$(msgId).textContent='Saved. Students see it the next time they open the game.'}
-  catch(err){if($(msgId))$(msgId).textContent='Could not save: '+err.message}
+// Saved by the server (works for the owner in any school too); only the minimum changes
+async function saveMin(c,studentId,n,msgId){
+  const sel=document.activeElement;if(sel&&sel.tagName==='SELECT')sel.disabled=true;
+  let r;try{r=await api.setClassMinimum(c.id,studentId,n)}catch(err){r={error:err.message}}
+  if(r&&r.settings){c.settings=r.settings;applySettings(c.settings);renderGrown();if($(msgId))$(msgId).textContent='Saved. Students see it the next time they open the game.'}
+  else{renderGrown();if($(msgId))$(msgId).textContent='Could not save: '+((r&&r.error)||'no reply')}
 }
 $('tbl').addEventListener('click',async e=>{
   const nb=e.target.closest('[data-newpin]');
@@ -1403,8 +1406,8 @@ $('addStudent').onclick=async()=>{
   btn.disabled=false;
 };
 $('gdetail').addEventListener('change',async e=>{
-  if(e.target.id!=='gdMin'||viewingOther())return;const c=curClass(),p=S.players[GSel];if(!c||!p)return;
-  c.settings=withStudentMin(c.settings,p.id,e.target.value==='class'?null:e.target.value);await saveMin(c,'gdMsg');
+  if(e.target.id!=='gdMin')return;const c=curClass(),p=S.players[GSel];if(!c||!p)return;
+  await saveMin(c,p.id,e.target.value==='class'?null:e.target.value,'gdMsg');
 });
 $('gdetail').addEventListener('submit',async e=>{
   if(e.target.closest('#gdEmailForm')){e.preventDefault();const p=S.players[GSel];if(!p)return;

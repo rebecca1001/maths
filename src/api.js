@@ -69,6 +69,8 @@ function supabaseApi() {
     listSchools: () => q(sb.from('schools').select('id,name,plan').order('name')),
     createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
+    // minimum rounds: student null = whole class; n null with a student = back to the class number. Works for the owner in any school.
+    setClassMinimum: (classId, studentId, n) => rpc('set_class_minimum', { p_class: classId, p_student: studentId || null, p_n: n == null ? null : +n }),
     listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,username,passcode,data,created_at').eq('class_id', classId).order('created_at')),
     // stars earned (not the spendable balance), stars this week and total rounds, from the server's round log
     classStats: (classId) => rpc('class_stats', { p_class: classId }),
@@ -215,6 +217,13 @@ function demoApi() {
       let code; do { code = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join(''); } while (db.classes.some(c => c.code === code));
       const c = { id: id(), name, code, teacher_id: teacherId || 'me', settings: { maxTable: 10, division: false, sound: true, battles: false }, archived_at: null };
       db.classes.push(c); persist(); return ok(c);
+    },
+    setClassMinimum(cid, sid, n) {
+      const c = db.classes.find(x => x.id === cid); if (!c) return ok({ error: 'not_allowed' });
+      const st = { ...(c.settings || {}) }, cl = (v) => Math.max(0, Math.min(10, Math.round(+v || 0)));
+      if (!sid) st.minRounds = cl(n);
+      else { const m = { ...(st.minFor || {}) }; if (n == null) delete m[sid]; else m[sid] = cl(n); if (Object.keys(m).length) st.minFor = m; else delete st.minFor; }
+      c.settings = st; persist(); return ok({ ok: true, settings: st });
     },
     updateClass(cid, patch) { Object.assign(db.classes.find(c => c.id === cid), patch); persist(); return ok(null); },
     listStudents: (cid) => ok(db.students.filter(s => s.class_id === cid)),

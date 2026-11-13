@@ -822,4 +822,6 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .mincell.part{background:color-mix(in srgb,#E8833A 18%,transparent);color:#C76A22}
 .mincell.none{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--muted)}
 .mincell small{font-size:.7rem;font-weight:700;opacity:.8;margin-left:4px}
-#grown.viewonly #gdMinForm{display:none!important}
+/* the owner can set minimums in any school, so #gdMinForm stays visible in view-only mode */
+#grown.viewonly #gdMinForm{display:flex!important}
+#grown.viewonly #gdMsg{display:block}
