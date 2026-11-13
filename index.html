@@ -19,6 +19,15 @@
     <div class="card logincard" style="align-items:center;text-align:center">
       <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username + password.
            The class code + 4-digit code login (Ms Berry's class) is still here: "Use a class code instead". -->
+      <!-- Front door on a new device (TT Rock Stars style): Log in or Register. Devices that remember a school skip it. -->
+      <div class="pickstep" id="gateStep" hidden>
+        <h1>Welcome to MathWizz</h1>
+        <p class="muted">Times tables for Grades 3–7</p>
+        <div class="whogrid gategrid">
+          <button type="button" class="whobtn2 w-student" id="gateLogin"><b>Log in</b><small>Students and teachers</small></button>
+          <button type="button" class="whobtn2 w-teacher" id="gateRegister"><b>Register</b><small>New teacher or school</small></button>
+        </div>
+      </div>
       <form class="pickstep emailform" id="userStep" hidden autocomplete="on">
         <h1>Log in</h1>
         <p class="muted userschool"><b id="userSchool"></b> · <button class="linkbtn" id="userChangeSchool" type="button">Change school</button></p>
@@ -47,6 +56,7 @@
         <input id="schoolSearch" class="searchinput" autocomplete="off" spellcheck="false" placeholder="Type your school's name" aria-label="School name">
         <div class="picklist" id="schoolList" aria-live="polite"></div>
         <button class="linkbtn small" id="useCode" type="button">Type a class code instead</button>
+        <button class="linkbtn small backlink" id="schoolBack" type="button">← Back</button>
       </div>
       <div class="pickstep" id="classStep" hidden>
         <h1>Pick your class</h1>
@@ -81,6 +91,7 @@
       <form id="tSignIn" class="tform">
         <h1 id="tTitle">Teachers</h1>
         <p class="muted small" id="tRoleNote" hidden>Principals sign in here too. Your account knows you run the school, so you'll see the School page.</p>
+        <p class="muted small" id="tRegNote" hidden>Create your account first. Next you'll set up your school, or join it if a colleague already has.</p>
         <div class="tmode" role="tablist">
           <button type="button" role="tab" data-tmode="create">Create account</button>
           <button type="button" role="tab" data-tmode="signin" class="on">Sign in</button>
@@ -91,7 +102,7 @@
         <button class="linkbtn small" type="button" id="tForgot">Forgot password?</button>
         <div class="fb no" id="tFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="tSubmit">Sign in</button>
-        <div class="loginlinks"><button class="linkbtn" type="button" id="tBack">Back to student login</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+        <div class="loginlinks"><button class="linkbtn" type="button" id="tBack">← Back</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
       </form>
       <form id="tReset" class="tform" hidden>
         <h1>Choose a new password</h1>
@@ -104,7 +115,7 @@
         <h1>Set up your school</h1>
         <label>Your name (as students will see it)<input id="tName" required maxlength="80" placeholder="Ms Smith"></label>
         <fieldset class="tchoice">
-          <label><input type="radio" name="tMode" value="new" checked> My school is new to MathWizz</label>
+          <label><input type="radio" name="tMode" value="new" checked> Set up my school (principals and first teachers start here)</label>
           <label><input type="radio" name="tMode" value="join"> Join my school (I have a school code)</label>
         </fieldset>
         <label id="tSchoolNameRow">School name<input id="tSchoolName" maxlength="120" placeholder="Smithers Elementary"></label>

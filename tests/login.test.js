@@ -49,10 +49,12 @@ describe('pasted class lists', () => {
 
 describe('login screens (demo mode)', () => {
   beforeEach(() => { history.pushState({}, '', '/'); });
-  it('a new device asks for the school first, then shows Student username + password (TT Rock Stars style)', async () => {
+  it('a new device shows Log in / Register, then asks for the school, then shows Student username + password (TT Rock Stars style)', async () => {
     const err = vi.spyOn(console, 'error');
     clearDevice(); await api.teacherSignOut();
     await boot(); await settle();
+    expect($('gateStep').hidden).toBe(false); // front door: Log in or Register
+    $('gateLogin').click(); await settle();
     expect($('schoolStep').hidden).toBe(false); expect($('userStep').hidden).toBe(true);
     await pickDemoSchool();
     expect($('userStep').hidden).toBe(false); expect($('userSchool').textContent).toBe('Demo School');
@@ -87,6 +89,21 @@ describe('login screens (demo mode)', () => {
     sessionStorage.clear(); await boot(); await settle(60);
     expect($('classStep').hidden).toBe(false);
     $('toUserLogin').click(); await settle(); expect($('userStep').hidden).toBe(false);
+  });
+  it('Register opens Create account, then school setup (set up or join)', async () => {
+    clearDevice(); await api.teacherSignOut(); await boot(); await settle();
+    $('gateRegister').click(); await settle(60);
+    expect($('teach').hidden).toBe(false); expect($('tTitle').textContent).toBe('Register');
+    expect($('tRegNote').hidden).toBe(false); expect($('tSubmit').textContent).toBe('Create account');
+    $('tEmail').value = 'new@school.ca'; $('tPass').value = 'longpassword1';
+    $('tSignIn').dispatchEvent(new Event('submit', { cancelable: true })); await settle(120);
+    expect($('tSetup').hidden).toBe(false);
+    expect($('tSetup').textContent).toMatch(/Set up my school/); expect($('tSetup').textContent).toMatch(/Join my school/);
+    $('tSetupOut').click(); await settle(60);
+  });
+  it('a device that remembers its school skips the front door', async () => {
+    clearDevice(); setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
+    expect($('gateStep').hidden).toBe(true); expect($('userStep').hidden).toBe(false);
   });
   it("Ms Berry's class: a device that remembered its school before usernames still goes straight to its class list", async () => {
     clearDevice(); setDevice({ school: { id: 'demo-school', name: 'Demo School' } });

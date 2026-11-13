@@ -289,7 +289,7 @@ function openLogin(keepClass){setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
   const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
   L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
-     step:kc?'pin':!sc?'school':codeDevice?'class':'user'};
+     step:kc?'pin':!sc?(way?'school':'gate'):codeDevice?'class':'user'};
   $('classFb').textContent='';$('loginFb').textContent='';$('userFb').textContent='';$('sPass').value='';$('sPass').type='password';$('sShow').textContent='Show';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
@@ -300,7 +300,7 @@ function openLogin(keepClass){setAddress(false);
 function focusUser(){setTimeout(()=>{try{($('sUser').value?$('sPass'):$('sUser')).focus()}catch(e){}},50)}
 function renderLogin(){
   const st=L.step;
-  $('userStep').hidden=st!=='user';$('parentStep').hidden=st!=='parent';
+  $('gateStep').hidden=st!=='gate';$('userStep').hidden=st!=='user';$('parentStep').hidden=st!=='parent';
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
   $('loginTitle').textContent='Log in';
@@ -336,6 +336,10 @@ $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code
 $('toCodeLogin').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
 $('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
 $('userTeacher').onclick=()=>openTeacher('teacher');
+// front door: Log in -> find your school; Register -> create a teacher account, then set up or join the school
+$('gateLogin').onclick=()=>goStep('school');
+$('gateRegister').onclick=()=>openTeacher('register');
+$('schoolBack').onclick=()=>goStep('gate');
 $('toWho').onclick=()=>openTeacher('teacher');
 $('toParent').onclick=()=>goStep('parent');
 $('parentBack').onclick=()=>goStep(L.school?'user':'school');
@@ -1056,10 +1060,10 @@ $('helpClose').onclick=closeHelp;
 $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()});
 $('tBack').onclick=()=>openLogin();
 async function openTeacher(who){setAddress(true);
-  const pr=who==='principal';$('tTitle').textContent=pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;
+  const pr=who==='principal',reg=who==='register';$('tTitle').textContent=reg?'Register':pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;$('tRegNote').hidden=!reg;
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
-  if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
+  if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;setTMode(reg?'create':'signin');show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
   TEACH={info,classes:[],classId:local().teacherClass||null,super:false};setLocal({teacher:true});
   try{TEACH.super=!!(await api.isSuperAdmin())}catch(e){TEACH.super=false}
