@@ -309,8 +309,7 @@ function renderLogin(){
   $('loginTitle').textContent='Log in';
   const byUser=L.via==='user'&&L.username;
   $('loginSub').textContent=byUser?`${L.username} · tap your 4-digit code`:`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
-  $('changeClass').textContent=byUser?'Not you? Change username':'Not your class? Pick again';
-  $('pinChangeSchool').hidden=!(byUser&&L.fails>=2&&L.school);
+  $('loginBack').hidden=st==='gate';
   $('dots').querySelectorAll('i').forEach((d,i)=>d.classList.toggle('on',i<L.entry.length));
 }
 function goStep(st){L.step=st;L.entry='';renderLogin();
@@ -343,12 +342,18 @@ $('userTeacher').onclick=()=>openTeacher('teacher');
 // front door: Log in -> find your school; Register -> create a teacher account, then set up or join the school
 $('gateLogin').onclick=()=>goStep('school');
 $('gateRegister').onclick=()=>openTeacher('register');
-$('schoolBack').onclick=()=>goStep('gate');
 $('classTeacher').onclick=()=>openTeacher('teacher');
 $('toParent').onclick=()=>goStep('parent');
-$('parentBack').onclick=()=>goStep(L.school?'user':'school');
-// "Change school" only appears after two wrong tries (Sam, 12 Nov: keep the screen simple)
-$('pinChangeSchool').onclick=()=>{L.school=null;L.username='';setLocal({school:null});goStep('school')};
+// Back arrow (top left), TT Rock Stars style: code -> username (or class list) -> find your school -> Log in / Register.
+// Going back from the username or class list forgets the school, so the child can pick it again.
+function loginBack(){
+  if(!L||L.busy)return;const st=L.step;
+  if(st==='pin'){if(L.via==='user'){L.username='';goStep('user')}else{L.classCode='';L.className='';goStep(L.school?'class':'school')}return}
+  if(st==='parent'){goStep(L.school?'user':'school');return}
+  if(st==='user'||st==='class'){L.school=null;L.username='';setLocal({school:null});goStep('school');return}
+  if(st==='school')goStep('gate');
+}
+$('loginBack').onclick=loginBack;
 $('userStep').addEventListener('submit',async e=>{
   // username first, then the 4-digit code on the picture keypad
   e.preventDefault();if(L.busy)return;const un=$('sUser').value.trim(),fb=$('userFb');
@@ -356,9 +361,6 @@ $('userStep').addEventListener('submit',async e=>{
   if(!un){fb.textContent='Type the username from your login card, like franklin.joshua.';$('sUser').focus();return}
   fb.textContent='';L.username=un;L.via='user';L.fails=0;$('loginFb').textContent='';goStep('pin');
 });
-$('changeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
-$('changeClass').onclick=()=>{if(L.via==='user'&&L.username){L.username='';goStep(L.school?'user':'school');return}
-  L.classCode='';L.className='';goStep(L.school?'class':'school')};
 function loginPress(d){
   if(!L||L.busy||L.step!=='pin'||!(L.classCode||(L.via==='user'&&L.username))||d==='enter')return;
   if(d==='del')L.entry=L.entry.slice(0,-1);else if(L.entry.length<4)L.entry+=d;

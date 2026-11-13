@@ -17,6 +17,8 @@
   <!-- STUDENT LOGIN -->
   <section class="screen" id="login" hidden>
     <div class="card logincard" style="align-items:center;text-align:center">
+      <!-- TT Rock Stars style: one back arrow in the top left on every step after the front door -->
+      <button type="button" class="backarrow" id="loginBack" aria-label="Back" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username, then the 4-digit code on the picture keypad.
            Devices that remembered a school before usernames (Ms Berry's class) still open on the class list -> 4-digit code, until her class has usernames (January).
            Typing a class code was removed (Sam, 12 Nov: as simple as possible). -->
@@ -47,18 +49,16 @@
         <h1>Parents</h1>
         <p>Parent accounts are coming soon.</p>
         <p class="muted">For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they're doing.</p>
-        <button type="button" class="linkbtn small" id="parentBack">← Back</button>
       </div>
       <div class="pickstep" id="schoolStep" hidden>
         <h1>Find your school</h1>
         <p class="muted small">This device will remember it.</p>
         <input id="schoolSearch" class="searchinput" autocomplete="off" spellcheck="false" placeholder="Type your school's name" aria-label="School name">
         <div class="picklist" id="schoolList" aria-live="polite"></div>
-        <button class="linkbtn small backlink" id="schoolBack" type="button">← Back</button>
       </div>
       <div class="pickstep" id="classStep" hidden>
         <h1>Pick your class</h1>
-        <p class="muted"><b id="pickedSchool"></b> · <button class="linkbtn" id="changeSchool" type="button">Change school</button></p>
+        <p class="muted"><b id="pickedSchool"></b></p>
         <div class="picklist" id="classList" aria-live="polite"></div>
         <div class="fb no" id="classFb" aria-live="assertive"></div>
         <button class="linkbtn small" id="toUserLogin" type="button">Have a username? Log in with it</button>
@@ -70,8 +70,6 @@
         <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
         <div class="fb no" id="loginFb" aria-live="assertive"></div>
         <div class="pad" id="loginPad"></div>
-        <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
-        <button class="linkbtn small" id="pinChangeSchool" type="button" hidden>Wrong school? Change it</button>
       </div>
     </div>
     <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
@@ -81,6 +79,7 @@
   <!-- TEACHER SIGN IN / SIGN UP / SCHOOL SETUP -->
   <section class="screen" id="teach" hidden>
     <div class="card teachcard">
+      <button type="button" class="backarrow" id="tBack" aria-label="Back"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <form id="tSignIn" class="tform">
         <h1 id="tTitle">Teachers</h1>
         <p class="muted small" id="tRoleNote" hidden>Principals sign in here too. Your account knows you run the school, so you'll see the School page.</p>
@@ -95,7 +94,7 @@
         <button class="linkbtn small" type="button" id="tForgot">Forgot password?</button>
         <div class="fb no" id="tFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="tSubmit">Sign in</button>
-        <div class="loginlinks"><button class="linkbtn" type="button" id="tBack">← Back</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+        <div class="loginlinks"><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
       </form>
       <form id="tReset" class="tform" hidden>
         <h1>Choose a new password</h1>

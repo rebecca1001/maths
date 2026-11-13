@@ -77,14 +77,14 @@ describe('login screens (demo mode)', () => {
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
   });
-  it('"Not you? Change username" goes back to the username box', async () => {
+  it('the back arrow (top left) steps back: code -> username -> find your school -> Log in / Register', async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
     $('sUser').value = 'someone.else'; $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(60);
-    expect($('changeClass').textContent).toMatch(/Change username/);
-    expect($('userChangeSchool')).toBeNull(); expect($('pinChangeSchool').hidden).toBe(true); // no Change school until 2 wrong tries
-    for (const c of ['0000', '0000']) { for (const d of c) $('loginPad').querySelector(`[data-d="${d}"]`).dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true })); await settle(250); }
-    expect($('pinChangeSchool').hidden).toBe(false);
-    $('changeClass').click(); await settle(); expect($('userStep').hidden).toBe(false);
+    expect($('userChangeSchool')).toBeNull(); expect($('changeClass')).toBeNull(); // one back arrow instead of extra links
+    expect($('loginBack').hidden).toBe(false);
+    $('loginBack').click(); await settle(); expect($('userStep').hidden).toBe(false); // code -> username
+    $('loginBack').click(); await settle(); expect($('schoolStep').hidden).toBe(false); // username -> find your school (forgets it)
+    $('loginBack').click(); await settle(); expect($('gateStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(true); // -> Log in / Register
   });
   it('an unknown username gets the same answer as a wrong code', async () => {
     expect((await api.studentLoginUser('demo-school', 'nobody.here', '1234')).error).toBe('wrong_login');
@@ -101,7 +101,7 @@ describe('login screens (demo mode)', () => {
     $('tBack').click(); await settle();
     expect($('userStep').hidden).toBe(false);
     $('toParent').click(); await settle(); expect($('parentStep').textContent).toMatch(/coming soon/);
-    $('parentBack').click(); await settle(); expect($('userStep').hidden).toBe(false);
+    $('loginBack').click(); await settle(); expect($('userStep').hidden).toBe(false);
   });
   it('no class code typing and no footer teacher link: the Teacher or principal tab is the one way in', async () => {
     expect($('classForm')).toBeNull(); expect($('toCodeLogin')).toBeNull(); expect($('toWho')).toBeNull(); expect($('notMe')).toBeNull();
