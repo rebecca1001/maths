@@ -281,9 +281,11 @@ function toLogin(expired,keepClass){
 }
 // The address shows which side you're on, so a refresh comes back to the same place
 function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(location.pathname+location.search!==want||location.hash)history.replaceState(null,'',want)}catch(e){}}
-// Student login, TT Rock Stars style: find your school (remembered on this device), then username + 4-digit code on the picture keypad.
-// The class code login is unchanged: pick your class (or type a class code), then the same 4-digit code.
-// A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list.
+// Login funnel, copied from TT Rock Stars (Sam, 12 Nov):
+//   Log in / Register -> School / Family / Tutor -> (Log in, School) Student / Teacher -> find your school -> username + 4-digit code
+//   Register -> School -> create a teacher account. Family and Tutor: coming soon.
+// A device that remembers its school opens straight on that school's student login (username + picture keypad on one screen).
+// A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list -> code.
 let lastClass=null; // the class just used (class list login)
 function openLogin(keepClass){
   // hidden way back to the class list for Ms Berry's class until they have usernames: mathwizz.co/?classlist
@@ -291,9 +293,9 @@ function openLogin(keepClass){
   setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
   const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
-  L={school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
-     step:kc?'pin':!sc?(way?'school':'gate'):codeDevice?'class':'user'};
-  $('classFb').textContent='';$('loginFb').textContent='';$('userFb').textContent='';$('schoolSearch').value='';$('schoolList').innerHTML='';
+  L={flow:'login',school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
+     step:kc?'pin':!sc?'gate':codeDevice?'class':'user'};
+  $('classFb').textContent='';$('loginFb').textContent='';$('sUser').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
   if(L.step==='class')loadClasses4Login();
@@ -303,16 +305,17 @@ function openLogin(keepClass){
 function focusUser(){setTimeout(()=>{try{$('sUser').focus()}catch(e){}},50)}
 function renderLogin(){
   const st=L.step;
-  $('gateStep').hidden=st!=='gate';$('userStep').hidden=st!=='user';$('parentStep').hidden=st!=='parent';
+  $('gateStep').hidden=st!=='gate';$('kindStep').hidden=st!=='kind';$('roleStep').hidden=st!=='role';$('soonStep').hidden=st!=='soon';$('userStep').hidden=st!=='user';
+  $('kindTitle').textContent=L.flow==='register'?'Register':'Log in';
+  const slot=st==='user'?$('userPadSlot'):$('pinPadSlot');if($('padBox').parentNode!==slot)slot.appendChild($('padBox'));
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('pinStep').hidden=st!=='pin';
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
   $('loginTitle').textContent='Log in';
-  const byUser=L.via==='user'&&L.username;
-  $('loginSub').textContent=byUser?`${L.username} · tap your 4-digit code`:`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
+  $('loginSub').textContent=`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
   $('loginBack').hidden=st==='gate';
   $('dots').querySelectorAll('i').forEach((d,i)=>d.classList.toggle('on',i<L.entry.length));
 }
-function goStep(st){L.step=st;L.entry='';renderLogin();
+function goStep(st){L.step=st;L.entry='';$('loginFb').textContent='';renderLogin();
   if(st==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},30);
   if(st==='user')focusUser();
   if(st==='class')loadClasses4Login();}
@@ -338,31 +341,35 @@ $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
 // switching between the username login and the class code login (remembered on this device)
 $('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
-$('userTeacher').onclick=()=>openTeacher('teacher');
-// front door: Log in -> find your school; Register -> create a teacher account, then set up or join the school
-$('gateLogin').onclick=()=>goStep('school');
-$('gateRegister').onclick=()=>openTeacher('register');
+$('gateLogin').onclick=()=>{L.flow='login';goStep('kind')};
+$('gateRegister').onclick=()=>{L.flow='register';goStep('kind')};
+$('kSchool').onclick=()=>{if(L.flow==='register')openTeacher('register');else goStep('role')};
+const SOON={family:['Families','Family accounts are coming soon. For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they\'re doing.'],
+  tutor:['Tutors','Tutor accounts are coming soon. MathWizz is for schools for now.']};
+function showSoon(k){$('soonTitle').textContent=SOON[k][0];$('soonText').textContent=SOON[k][1];goStep('soon')}
+$('kFamily').onclick=()=>showSoon('family');
+$('kTutor').onclick=()=>showSoon('tutor');
+$('rStudent').onclick=()=>{L.via='user';goStep('school')};
+$('rTeacher').onclick=()=>openTeacher('teacher');
 $('classTeacher').onclick=()=>openTeacher('teacher');
-$('toParent').onclick=()=>goStep('parent');
-// Back arrow (top left), TT Rock Stars style: code -> username (or class list) -> find your school -> Log in / Register.
-// Going back from the username or class list forgets the school, so the child can pick it again.
+// Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
 function loginBack(){
   if(!L||L.busy)return;const st=L.step;
-  if(st==='pin'){if(L.via==='user'){L.username='';goStep('user')}else{L.classCode='';L.className='';goStep(L.school?'class':'school')}return}
-  if(st==='parent'){goStep(L.school?'user':'school');return}
+  if(st==='pin'){L.classCode='';L.className='';goStep(L.school?'class':'school');return}
   if(st==='user'||st==='class'){L.school=null;L.username='';setLocal({school:null});goStep('school');return}
-  if(st==='school')goStep('gate');
+  if(st==='school'){L.flow='login';goStep('role');return}
+  if(st==='role'||st==='soon'){goStep('kind');return}
+  if(st==='kind')goStep('gate');
 }
 $('loginBack').onclick=loginBack;
-$('userStep').addEventListener('submit',async e=>{
-  // username first, then the 4-digit code on the picture keypad
-  e.preventDefault();if(L.busy)return;const un=$('sUser').value.trim(),fb=$('userFb');
-  if(!L.school){goStep('school');return}
-  if(!un){fb.textContent='Type the username from your login card, like franklin.joshua.';$('sUser').focus();return}
-  fb.textContent='';L.username=un;L.via='user';L.fails=0;$('loginFb').textContent='';goStep('pin');
-});
+// Username and keypad on one screen (TT Rock Stars student login): pressing Enter in the username box moves to the keypad
+$('userStep').addEventListener('submit',e=>{e.preventDefault();try{$('sUser').blur()}catch(err){}});
 function loginPress(d){
-  if(!L||L.busy||L.step!=='pin'||!(L.classCode||(L.via==='user'&&L.username))||d==='enter')return;
+  if(!L||L.busy||d==='enter')return;
+  if(L.step==='user'){
+    if(!$('sUser').value.trim()){$('loginFb').textContent='Type your username first, like smith.emma.';$('sUser').focus();return}
+    if(!L.school){goStep('school');return}
+  }else if(L.step!=='pin'||!L.classCode)return;
   if(d==='del')L.entry=L.entry.slice(0,-1);else if(L.entry.length<4)L.entry+=d;
   renderLogin();
   if(L.entry.length===4){L.busy=true;setTimeout(loginSubmit,150)}
@@ -372,7 +379,7 @@ function loginFail(msg){
   const dots=$('dots');dots.classList.remove('shake');void dots.offsetWidth;dots.classList.add('shake');
 }
 async function loginSubmit(){
-  if(L.via==='user'&&L.username)return loginSubmitUser();
+  if(L.step==='user')return loginSubmitUser();
   let r;try{r=await api.studentLogin(L.classCode,L.entry)}catch(e){r={error:'network'}}
   if(r&&r.token){SESSION={token:r.token};lastClass={code:L.classCode,name:L.className};setLocal({token:r.token,loginWay:'code'});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
@@ -384,6 +391,7 @@ async function loginSubmit(){
 }
 // username + 4-digit code: one answer for a wrong username or a wrong code, so nobody can test which usernames exist
 async function loginSubmitUser(){
+  L.username=$('sUser').value.trim();
   let r;try{r=await api.studentLoginUser(L.school.id,L.username,L.entry)}catch(e){r={error:'network'}}
   if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'user'});try{sessionStorage.setItem(TAB,r.token)}catch(e){}
     L.busy=false;L.entry='';$('sUser').value='';const ok=await loadStudent();if(ok)enterPlayer();return}
@@ -755,7 +763,7 @@ $('again').onclick=()=>startRound();
 $('resHome').onclick=()=>{renderHome();show('home')};
 document.addEventListener('keydown',e=>{
   if(!$('helpOv').hidden){if(e.key==='Escape')closeHelp();return}
-  if(screen==='login'&&L){if(L.step!=='pin'||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the class code box works normally
+  if(screen==='login'&&L){if(!['pin','user'].includes(L.step)||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the username box works normally
     if(/^[0-9]$/.test(e.key)){e.preventDefault();loginPress(e.key)}else if(e.key==='Backspace'){e.preventDefault();loginPress('del')}return}
   if(!G||screen!=='play')return;
   if(/^[0-9]$/.test(e.key)){e.preventDefault();press(e.key)}
@@ -1062,8 +1070,10 @@ const closeHelp=()=>{$('helpOv').hidden=true;$('loginHelp').focus()};
 $('loginHelp').onclick=()=>{$('helpOv').hidden=false;$('helpClose').focus()};
 $('helpClose').onclick=closeHelp;
 $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()});
-$('tBack').onclick=()=>openLogin();
-async function openTeacher(who){setAddress(true);
+// back from teacher sign-in: one step back in the funnel (Student / Teacher, or School / Family / Tutor after Register)
+let TFROM='teacher';
+$('tBack').onclick=()=>{openLogin();if(L.step==='class')return;L.flow=TFROM==='register'?'register':'login';goStep(TFROM==='register'?'kind':'role')};
+async function openTeacher(who){setAddress(true);TFROM=who;
   const pr=who==='principal',reg=who==='register';$('tTitle').textContent=reg?'Register':pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;$('tRegNote').hidden=!reg;
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}

@@ -53,38 +53,45 @@ describe('pasted class lists', () => {
 
 describe('login screens (demo mode)', () => {
   beforeEach(() => { history.pushState({}, '', '/'); });
-  it('a new device shows Log in / Register, then asks for the school, then shows Student username (TT Rock Stars style)', async () => {
+  it('TT Rock Stars funnel: Log in / Register -> School / Family / Tutor -> Student / Teacher -> find your school -> student login', async () => {
     const err = vi.spyOn(console, 'error');
     clearDevice(); await api.teacherSignOut();
     await boot(); await settle();
-    expect($('gateStep').hidden).toBe(false); // front door: Log in or Register
+    expect($('gateStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(true);
     $('gateLogin').click(); await settle();
-    expect($('schoolStep').hidden).toBe(false); expect($('userStep').hidden).toBe(true);
+    expect($('kindStep').hidden).toBe(false); expect($('kindTitle').textContent).toBe('Log in');
+    expect([$('kSchool'), $('kFamily'), $('kTutor')].map((b) => b.textContent)).toEqual(['School', 'Family', 'Tutor']);
+    $('kSchool').click(); await settle();
+    expect($('roleStep').hidden).toBe(false);
+    $('rStudent').click(); await settle();
+    expect($('schoolStep').hidden).toBe(false);
     await pickDemoSchool();
     expect($('userStep').hidden).toBe(false); expect($('userSchool').textContent).toBe('Demo School');
+    expect($('userStep').contains($('loginPad'))).toBe(true); // username and keypad on one screen
     expect(err).not.toHaveBeenCalled();
   });
-  it('username, then the 4-digit code on a keypad with an animal on each number; wrong code says try again', async () => {
+  it('username and picture keypad on one screen; no username yet says so; wrong code says try again; right code logs in', async () => {
     const pin = await foxPin();
-    expect($('sPass')).toBeNull(); // no password box
-    $('sUser').value = 'Fox.Comet@sd54.bc.ca';
-    $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(80);
-    expect($('pinStep').hidden).toBe(false); expect($('loginSub').textContent).toMatch(/Fox\.Comet@sd54\.bc\.ca · tap your 4-digit code/);
+    expect($('sPass')).toBeNull(); expect($('sGo')).toBeNull(); // no password box, no Next button
     expect($('loginPad').querySelectorAll('.kanimal')).toHaveLength(10);
+    $('sUser').value = ''; await tapCode('1');
+    expect($('loginFb').textContent).toMatch(/Type your username first/);
+    $('sUser').value = 'Fox.Comet@sd54.bc.ca';
     await tapCode(pin === '0000' ? '1111' : '0000');
     expect($('loginFb').textContent).toMatch(/Not quite/); expect($('login').hidden).toBe(false);
     await tapCode(pin);
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
   });
-  it('the back arrow (top left) steps back: code -> username -> find your school -> Log in / Register', async () => {
+  it('the back arrow goes one step back through the funnel, forgetting the school on the way', async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
-    $('sUser').value = 'someone.else'; $('userStep').dispatchEvent(new Event('submit', { cancelable: true })); await settle(60);
-    expect($('userChangeSchool')).toBeNull(); expect($('changeClass')).toBeNull(); // one back arrow instead of extra links
-    expect($('loginBack').hidden).toBe(false);
-    $('loginBack').click(); await settle(); expect($('userStep').hidden).toBe(false); // code -> username
-    $('loginBack').click(); await settle(); expect($('schoolStep').hidden).toBe(false); // username -> find your school (forgets it)
-    $('loginBack').click(); await settle(); expect($('gateStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(true); // -> Log in / Register
+    expect($('userStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(false);
+    expect($('userChangeSchool')).toBeNull(); expect($('changeClass')).toBeNull(); expect($('userTeacher')).toBeNull(); expect($('toParent')).toBeNull();
+    $('loginBack').click(); await settle(); expect($('schoolStep').hidden).toBe(false);
+    $('loginBack').click(); await settle(); expect($('roleStep').hidden).toBe(false);
+    $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
+    $('loginBack').click(); await settle(); expect($('gateStep').hidden).toBe(false);
+    sessionStorage.clear(); await boot(); await settle(60); expect($('gateStep').hidden).toBe(false); // school forgotten
   });
   it('an unknown username gets the same answer as a wrong code', async () => {
     expect((await api.studentLoginUser('demo-school', 'nobody.here', '1234')).error).toBe('wrong_login');
@@ -94,18 +101,20 @@ describe('login screens (demo mode)', () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
     expect($('userStep').hidden).toBe(false); expect($('schoolStep').hidden).toBe(true); expect($('userSchool').textContent).toBe('Demo School');
   });
-  it('Teacher tab opens the teacher sign-in; Back returns; parent link shows coming soon', async () => {
-    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await api.teacherSignOut(); await boot(); await settle(60);
-    $('userTeacher').click(); await settle(60);
+  it('Teacher goes to the teacher sign-in (no school step); its back arrow returns to Student / Teacher; Family and Tutor say coming soon', async () => {
+    clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
+    $('gateLogin').click(); await settle(); $('kSchool').click(); await settle();
+    expect($('rTeacher').textContent).toMatch(/Teachers and principals/);
+    $('rTeacher').click(); await settle(60);
     expect($('teach').hidden).toBe(false);
-    $('tBack').click(); await settle();
-    expect($('userStep').hidden).toBe(false);
-    $('toParent').click(); await settle(); expect($('parentStep').textContent).toMatch(/coming soon/);
-    $('loginBack').click(); await settle(); expect($('userStep').hidden).toBe(false);
+    $('tBack').click(); await settle(); expect($('roleStep').hidden).toBe(false);
+    $('loginBack').click(); await settle();
+    $('kFamily').click(); await settle(); expect($('soonStep').textContent).toMatch(/coming soon/);
+    $('loginBack').click(); await settle(); $('kTutor').click(); await settle(); expect($('soonTitle').textContent).toBe('Tutors');
+    $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
   });
-  it('no class code typing and no footer teacher link: the Teacher or principal tab is the one way in', async () => {
+  it('no class code typing, no footer teacher link, no Switch player', async () => {
     expect($('classForm')).toBeNull(); expect($('toCodeLogin')).toBeNull(); expect($('toWho')).toBeNull(); expect($('notMe')).toBeNull();
-    expect($('userTeacher').textContent).toBe('Teacher or principal');
   });
   it("Ms Berry's class list device: teacher link and username link work; mathwizz.co/?classlist brings the class list back", async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'code' }); await api.teacherSignOut(); await boot(); await settle(60);
@@ -118,6 +127,8 @@ describe('login screens (demo mode)', () => {
   it('Register opens Create account, then school setup (set up or join)', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle();
     $('gateRegister').click(); await settle(60);
+    expect($('kindTitle').textContent).toBe('Register');
+    $('kSchool').click(); await settle(60);
     expect($('teach').hidden).toBe(false); expect($('tTitle').textContent).toBe('Register');
     expect($('tRegNote').hidden).toBe(false); expect($('tSubmit').textContent).toBe('Create account');
     $('tEmail').value = 'new@school.ca'; $('tPass').value = 'longpassword1';

@@ -839,3 +839,8 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .backarrow{position:absolute;top:12px;left:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:0;background:transparent;color:var(--ink);cursor:pointer;z-index:2}
 .backarrow:hover,.backarrow:focus-visible{background:rgba(255,255,255,.08)}
 .backarrow[hidden]{display:none}
+
+.whogrid.three{grid-template-columns:repeat(3,minmax(0,1fr));max-width:560px}
+@media (max-width:520px){.whogrid.three{grid-template-columns:1fr}}
+.padslot{display:flex;justify-content:center;width:100%}
+.padbox{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}

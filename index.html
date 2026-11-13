@@ -27,28 +27,38 @@
         <h1>Welcome to MathWizz</h1>
         <p class="muted">Times tables for Grades 3–7</p>
         <div class="whogrid gategrid">
-          <button type="button" class="whobtn2 w-student" id="gateLogin"><b>Log in</b><small>Students and teachers</small></button>
-          <button type="button" class="whobtn2 w-teacher" id="gateRegister"><b>Register</b><small>New teacher or school</small></button>
+          <button type="button" class="whobtn2 w-student" id="gateLogin"><b>Log in</b></button>
+          <button type="button" class="whobtn2 w-teacher" id="gateRegister"><b>Register</b></button>
+        </div>
+      </div>
+      <!-- TT Rock Stars funnel: Log in / Register -> School, Family or Tutor -> (Log in, School) Student or Teacher -> find your school -> username + code -->
+      <div class="pickstep" id="kindStep" hidden>
+        <h1 id="kindTitle">Log in</h1>
+        <div class="whogrid three">
+          <button type="button" class="whobtn2 w-student" id="kSchool"><b>School</b></button>
+          <button type="button" class="whobtn2 w-parent" id="kFamily"><b>Family</b></button>
+          <button type="button" class="whobtn2 w-principal" id="kTutor"><b>Tutor</b></button>
+        </div>
+      </div>
+      <div class="pickstep" id="roleStep" hidden>
+        <h1>School log in</h1>
+        <div class="whogrid">
+          <button type="button" class="whobtn2 w-student" id="rStudent"><b>Student</b></button>
+          <button type="button" class="whobtn2 w-teacher" id="rTeacher"><b>Teacher</b><small>Teachers and principals</small></button>
         </div>
       </div>
       <form class="pickstep emailform" id="userStep" hidden autocomplete="on">
         <h1>Log in</h1>
         <p class="muted userschool"><b id="userSchool"></b></p>
-        <div class="tmode whotabs" role="tablist" aria-label="Who is logging in">
-          <button type="button" role="tab" class="on" aria-selected="true">Student</button>
-          <button type="button" role="tab" id="userTeacher" aria-selected="false">Teacher or principal</button>
-        </div>
         <label class="flabel">Username<input id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="like smith.emma" maxlength="120"></label>
-        <div class="fb no" id="userFb" aria-live="assertive"></div>
-        <button class="go" type="submit" id="sGo">Next</button>
+        <span class="flabel">4-digit code</span>
+        <div class="padslot" id="userPadSlot"></div>
         <p class="muted small">Your username and 4-digit code are on the login card from your teacher.</p>
-        <button type="button" class="linkbtn small" id="toParent">I'm a parent</button>
       </form>
-      <!-- 2b) parents (not built yet) -->
-      <div class="pickstep" id="parentStep" hidden>
-        <h1>Parents</h1>
-        <p>Parent accounts are coming soon.</p>
-        <p class="muted">For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they're doing.</p>
+      <!-- Family and Tutor (not built yet) -->
+      <div class="pickstep" id="soonStep" hidden>
+        <h1 id="soonTitle">Families</h1>
+        <p id="soonText"></p>
       </div>
       <div class="pickstep" id="schoolStep" hidden>
         <h1>Find your school</h1>
@@ -67,9 +77,14 @@
       <div id="pinStep" hidden style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%">
         <h1 id="loginTitle">Log in</h1>
         <p class="muted" id="loginSub">Enter your 4-digit code</p>
-        <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
-        <div class="fb no" id="loginFb" aria-live="assertive"></div>
-        <div class="pad" id="loginPad"></div>
+        <div class="padslot" id="pinPadSlot">
+          <!-- one keypad, moved to whichever step is showing (username step or class list step) -->
+          <div class="padbox" id="padBox">
+            <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+            <div class="fb no" id="loginFb" aria-live="assertive"></div>
+            <div class="pad" id="loginPad"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
