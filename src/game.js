@@ -1,9 +1,10 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
+import { parseRoster, swapNames, usernameFromName } from './usernames.js';
 const TIERS=[{name:'Ground',max:Infinity},{name:'Clouds',max:9},{name:'Space',max:7.5},{name:'Orbit',max:6},{name:'Station',max:4.8},{name:'Moon',max:3.8},{name:'Mars',max:3},{name:'Jupiter',max:2.3},{name:'Saturn',max:1.8},{name:'Galaxy',max:1.35}];
 const TIER_COLORS=['#FF6B6F','#FF8559','#FF9A4D','#FFB23C','#FFC93C','#E8DC4F','#C9E86A','#9BE38C','#6FE39A','#4FE3B5'];
 const SKINS=[
@@ -280,27 +281,28 @@ function toLogin(expired,keepClass){
 }
 // The address shows which side you're on, so a refresh comes back to the same place
 function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(location.pathname+location.search!==want||location.hash)history.replaceState(null,'',want)}catch(e){}}
-// Student login: find your school (remembered on this device), pick your class, type your 4-digit code.
-// A class code can still be typed instead (e.g. at home from the login card).
+// Student login, TT Rock Stars style: find your school (remembered on this device), then username + password.
+// The class code login is unchanged: pick your class (or type a class code), then your 4-digit code.
+// A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list.
 let lastClass=null; // the class just used, so "Not you? Switch player" goes straight to the keypad
 function openLogin(keepClass){setAddress(false);
-  const sc=local().school||null,kc=keepClass&&lastClass;
-  // Which door first: a device that already logs in with a class code (Ms Berry's class) goes straight there, as before.
-  // A device that used school email goes to email. A new device asks who is logging in (TT Rock Stars style).
-  const way=local().loginWay,codeDevice=way==='code'||(sc&&way!=='email');
-  L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,step:kc?'pin':codeDevice?(sc?'class':'school'):way==='email'?'email':'who'};
-  $('classFb').textContent='';$('loginFb').textContent='';$('emailFb').textContent='';$('sPass').value='';$('sPass').type='password';$('sShow').textContent='Show';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
+  const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
+  const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
+  L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
+     step:kc?'pin':!sc?'school':codeDevice?'class':'user'};
+  $('classFb').textContent='';$('loginFb').textContent='';$('userFb').textContent='';$('sPass').value='';$('sPass').type='password';$('sShow').textContent='Show';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
   if(L.step==='class')loadClasses4Login();
   if(L.step==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},50);
-  if(L.step==='email')setTimeout(()=>{try{$('sEmail').focus()}catch(e){}},50);
+  if(L.step==='user')focusUser();
 }
+function focusUser(){setTimeout(()=>{try{($('sUser').value?$('sPass'):$('sUser')).focus()}catch(e){}},50)}
 function renderLogin(){
   const st=L.step;
-  $('whoStep').hidden=st!=='who';$('emailStep').hidden=st!=='email';$('parentStep').hidden=st!=='parent';
+  $('userStep').hidden=st!=='user';$('parentStep').hidden=st!=='parent';
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
-  if(L.school)$('pickedSchool').textContent=L.school.name;
+  if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
   $('loginTitle').textContent='Log in';
   $('loginSub').textContent=`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
   $('dots').querySelectorAll('i').forEach((d,i)=>d.classList.toggle('on',i<L.entry.length));
@@ -308,7 +310,7 @@ function renderLogin(){
 function goStep(st){L.step=st;L.entry='';renderLogin();
   if(st==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},30);
   if(st==='code')setTimeout(()=>{try{$('classCode').focus()}catch(e){}},30);
-  if(st==='email')setTimeout(()=>{try{$('sEmail').focus()}catch(e){}},30);
+  if(st==='user')focusUser();
   if(st==='class')loadClasses4Login();}
 let schoolTimer=null;
 $('schoolSearch').addEventListener('input',()=>{clearTimeout(schoolTimer);schoolTimer=setTimeout(searchSchools,250)});
@@ -321,7 +323,7 @@ async function searchSchools(){
   box.innerHTML=r.length?r.map(s=>`<button class="pickbtn" data-school="${esc(s.id)}" data-name="${esc(s.name)}">${esc(s.name)}</button>`).join(''):'<p class="muted small">No school found. Check the spelling, or ask your teacher.</p>';
 }
 $('schoolList').addEventListener('click',e=>{const b=e.target.closest('[data-school]');if(!b)return;
-  L.school={id:b.dataset.school,name:b.dataset.name};setLocal({school:L.school});goStep('class')});
+  L.school={id:b.dataset.school,name:b.dataset.name};setLocal({school:L.school,loginWay:L.via});goStep(L.via==='code'?'class':'user')});
 async function loadClasses4Login(){
   const box=$('classList');box.innerHTML='<p class="muted small">Loading classes…</p>';
   let r;try{r=await api.schoolClasses(L.school.id)}catch(e){r={error:'network'}}
@@ -330,24 +332,26 @@ async function loadClasses4Login(){
 }
 $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
-// who is logging in
-document.querySelector('.whogrid').addEventListener('click',e=>{const b=e.target.closest('[data-who]');if(!b)return;const w=b.dataset.who;
-  if(w==='student')goStep('email');else if(w==='parent')goStep('parent');else openTeacher(w)});
-$('toWho').onclick=()=>goStep('who');
-$('emailBack').onclick=$('parentBack').onclick=()=>goStep('who');
-$('toCodeLogin').onclick=$('whoCode').onclick=()=>{setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
-$('toEmailLogin').onclick=()=>{setLocal({loginWay:null});goStep('who')};
+// switching between the username login and the class code login (remembered on this device)
+$('toCodeLogin').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
+$('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
+$('userTeacher').onclick=()=>openTeacher('teacher');
+$('toWho').onclick=()=>openTeacher('teacher');
+$('toParent').onclick=()=>goStep('parent');
+$('parentBack').onclick=()=>goStep(L.school?'user':'school');
+$('userChangeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
 $('sShow').onclick=()=>{const i=$('sPass'),show=i.type==='password';i.type=show?'text':'password';$('sShow').textContent=show?'Hide':'Show'};
-$('emailStep').addEventListener('submit',async e=>{
-  e.preventDefault();if(L.busy)return;const em=$('sEmail').value.trim(),pw=$('sPass').value.trim(),fb=$('emailFb');
-  if(!em.includes('@')){fb.textContent='Type your whole school email, like surname.firstname@sd54.bc.ca';$('sEmail').focus();return}
+$('userStep').addEventListener('submit',async e=>{
+  e.preventDefault();if(L.busy)return;const un=$('sUser').value.trim(),pw=$('sPass').value.trim(),fb=$('userFb');
+  if(!L.school){goStep('school');return}
+  if(!un){fb.textContent='Type the username from your login card, like franklin.joshua.';$('sUser').focus();return}
   if(!pw){fb.textContent='Type the password from your login card.';$('sPass').focus();return}
   L.busy=true;$('sGo').disabled=true;fb.textContent='';
-  let r;try{r=await api.studentLoginEmail(em,pw)}catch(err){r={error:'network'}}
+  let r;try{r=await api.studentLoginUser(L.school.id,un,pw)}catch(err){r={error:'network'}}
   L.busy=false;$('sGo').disabled=false;
-  if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'email'});try{sessionStorage.setItem(TAB,r.token)}catch(err){}$('sPass').value='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'user'});try{sessionStorage.setItem(TAB,r.token)}catch(err){}$('sPass').value='';$('sUser').value='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const er=r&&r.error;
-  fb.textContent=er==='not_an_email'?'Type your whole school email, like surname.firstname@sd54.bc.ca':er==='too_many_tries'?'Too many tries. Wait 10 minutes, or ask your teacher for your password.':er==='wrong_login'?"That email and password don't match. Check your login card, or ask your teacher.":'Could not connect. Check the internet and try again.';
+  fb.textContent=er==='too_many_tries'?'Too many tries. Wait 10 minutes, or ask your teacher for your password.':er==='wrong_login'?`That username and password don't match at ${L.school.name}. Check your login card, or ask your teacher.`:'Could not connect. Check the internet and try again.';
   $('sPass').value='';$('sPass').focus();
 });
 $('changeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
@@ -837,7 +841,7 @@ function spark(p){
 function focusOf(p){return ALL.map(t=>({t,s:tableScore(p,t)})).filter(x=>x.s!=null&&x.s<3).sort((a,b)=>a.s-b.s).slice(0,3).map(x=>x.t)}
 const LEVELS=['Not tried','Tricky','Getting there','Quick','Instant'];
 function weekAcc(p,wk){const rs=p.rounds.filter(r=>r.d>=wk),n=rs.reduce((s,r)=>s+r.n,0);return n?Math.round(rs.reduce((s,r)=>s+r.c,0)/n*100):null}
-// Email students: school email + password (teacher can always see it). Code students: 4-digit code, as before.
+// Username students: username + password (teacher can always see it). Code students: 4-digit code, as before.
 function loginCell(p){
   if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.passcode)}</b> <button class="linkbtn" data-newpass="${p.id}">New password</button>`;
   return `<b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
@@ -860,6 +864,7 @@ function renderMinPanel(players,now){
     ${withMin.length?`<div class="mintoday"><span class="label">Today</span><b class="num">${done}<small> of ${withMin.length}</small></b><span class="muted small">played their minimum</span></div>`:''}
     <p class="note" id="minMsg" aria-live="polite" style="background:none;padding:0;margin:0"></p></div>`;
 }
+const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="stag s-${g}" title="${STATUS[g][1]}">${STATUS[g][0]}</span>`};
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
   const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
@@ -874,7 +879,7 @@ function renderGrown(){
     (rows.length?rows.map(({p})=>{
       const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
       return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
-        <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td>
+        <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}${statusTag(p,now)}</span></td>
         <td>${todayCell(p,cs,now)}</td>
         <td>${lastPlayed(p)}</td>
         <td class="r">${daysPlayed(p.rounds,now)}</td>
@@ -895,7 +900,7 @@ function renderGrown(){
   $('gdetail').innerHTML=`
     <form class="row realrow" id="gdRealForm"><label for="gdReal">Real name</label><input id="gdReal" maxlength="80" placeholder="Only teachers see this" value="${esc(p.realName||'')}"><button class="btn" type="submit">Save</button></form>
     ${p.username?`<p class="note gdlogin">Logs in with <b>${esc(p.username)}</b> · password <b class="num">${esc(p.passcode)}</b>${p.pin?` · class code login still works (code <b class="num">${esc(p.pin)}</b>)`:''}</p>`
-      :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">School email</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="surname.firstname@sd54.bc.ca"><button class="btn" type="submit">Add email login</button></form>`}
+      :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">Username</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="${esc(suggestUsername(p))}" value="${esc(suggestUsername(p))}"><button class="btn" type="submit">Give a username</button></form><p class="muted small">Same student, so their stars and history stay. Their 4-digit code keeps working too.</p>`}
     ${(()=>{const cs=curClass()&&curClass().settings,cm=+(cs&&cs.minRounds)||0,own=hasOwnMin(cs,p.id),td=roundsToday(p.rounds);
       return `<form class="row realrow" id="gdMinForm"><label for="gdMin">Minimum rounds</label><select id="gdMin">${minOpts(own?String(minFor(cs,p.id)):'class',['class',`Same as class (${cm?cm+' round'+(cm>1?'s':''):'none'})`])}</select><span class="muted small">Today: ${td} round${td===1?'':'s'}</span></form>`})()}
     <div class="row" id="gdActions" style="justify-content:flex-end"><button class="btn" id="gdNewCode">Give a new code</button><button class="btn danger" id="gdRemove">Remove student</button></div>
@@ -1049,7 +1054,7 @@ const closeHelp=()=>{$('helpOv').hidden=true;$('loginHelp').focus()};
 $('loginHelp').onclick=()=>{$('helpOv').hidden=false;$('helpClose').focus()};
 $('helpClose').onclick=closeHelp;
 $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()});
-$('tBack').onclick=()=>{openLogin();goStep('who')};
+$('tBack').onclick=()=>openLogin();
 async function openTeacher(who){setAddress(true);
   const pr=who==='principal';$('tTitle').textContent=pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;
   $('tFb').textContent='';$('tSetupFb').textContent='';
@@ -1138,7 +1143,7 @@ async function loadClasses(){
 }
 function curClass(){return TEACH&&(TEACH.classes||[]).find(c=>c.id===TEACH.classId)}
 const teacherName=id=>{const t=(TEACH.teachers||[]).find(x=>x.id===id);return t?t.name:id===myId()?TEACH.info.teacher.name:'No teacher'};
-async function loadClassStudents(){
+async function loadClassStudents(){REVIEW=null;renderReview();
   const c=curClass();setLocal({teacherClass:c.id});applySettings(c.settings);
   const [list,cs]=await Promise.all([api.listStudents(c.id),api.classStats(c.id).catch(()=>null)]);
   TEACH.stats={};if(cs&&Array.isArray(cs.students))cs.students.forEach(x=>{TEACH.stats[x.id]=x});
@@ -1373,35 +1378,52 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>School email <b>${esc(p.username)}</b></span><span>Password <b class="num">${esc(p.passcode)}</b></span><span class="small muted">mathwizz.co · Student</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>Password <b class="num">${esc(p.passcode)}</b></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
-$('addStudent').onclick=async()=>{
-  const lines=[...new Set($('addNames').value.split(/\r?\n/).map(x=>x.trim().slice(0,80)).filter(Boolean))].slice(0,60);
-  if(!lines.length){$('addMsg').textContent="Paste at least one school email first, one per line.";$('addNames').focus();return}
-  const emails=lines.filter(x=>x.includes('@')),real=lines.filter(x=>!x.includes('@'));
-  const btn=$('addStudent');btn.disabled=true;$('addMsg').textContent=`Adding ${lines.length} student${lines.length>1?'s':''}…`;
-  const used=[],nextName=()=>{let nm;do{nm=spaceName()}while(used.includes(nm));used.push(nm);return nm};
-  const add=st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',passcode:st.passcode||'',realName:st.real_name||''});S.order.push(st.id)};
-  const msgs=[];let n=0;
-  try{
-    if(emails.length){
-      const r=await api.addEmailStudents(TEACH.classId,emails.map(email=>({email,name:nextName()})));
-      if(!r||r.error)throw new Error((r&&r.error)||'no reply');
-      r.added.forEach(add);n+=r.added.length;
-      const bad=r.skipped.filter(x=>x.why==='not_an_email').map(x=>x.email),dup=r.skipped.filter(x=>x.why==='already_added').map(x=>x.email);
-      if(bad.length)msgs.push(`Not school emails, so not added: ${bad.join(', ')}.`);
-      if(dup.length)msgs.push(`Already on MathWizz: ${dup.join(', ')}.`);
-    }
-    if(real.length){
-      const names=real.map(()=>nextName()),list=await api.addStudents(TEACH.classId,names,real);
-      list.forEach((st,i)=>add({...st,real_name:st.real_name||real[i]}));n+=list.length;
-    }
-    sortStudents();renderGrown();if(!$('codecards').hidden)renderCodeCards();
-    $('addMsg').textContent=[n?`Added ${n} student${n>1?'s':''}. Tap Print login cards to hand out their passwords.`:'',...msgs].filter(Boolean).join(' ');
-    $('addNames').value='';
-  }catch(e){$('addMsg').textContent='Could not add students: '+e.message}
+// Add students, TT Rock Stars style: paste a list -> review (usernames, clashes, skipped lines) -> add -> print login cards
+let REVIEW=null; // { rows, res } while the teacher checks the list
+function suggestUsername(p){const w=String(p.realName||'').trim().split(/\s+/).filter(Boolean);return w.length>1?usernameFromName(w.slice(0,-1).join(' '),w.at(-1)):''}
+const SKIP_WHY={already_added:'already has a login at your school, so skipped',no_name:'no name found, so skipped',bad_email:"not an email we can use, so skipped"};
+function renderReview(){
+  const box=$('addReview');if(!REVIEW){box.hidden=true;box.innerHTML='';$('addStudent').textContent='Check list';return}
+  const {rows,res}=REVIEW,byRow={};res.added.forEach(a=>byRow[a.row]={ok:true,...a});res.skipped.forEach(x=>byRow[x.row]={ok:false,...x});
+  const n=res.added.length,anyNames=rows.some(r=>!r.email);
+  box.hidden=false;
+  box.innerHTML=`<p><b>${n} student${n===1?'':'s'} ready to add.</b> Check the names and usernames${res.skipped.length?`; ${res.skipped.length} line${res.skipped.length>1?'s':''} will be skipped`:''}.</p>
+    <div class="tbl-wrap"><table class="tbl plain"><thead><tr><th>Real name</th><th>Username</th><th></th></tr></thead><tbody>${rows.map((r,k)=>{const x=byRow[k+1]||{};
+      return `<tr${x.ok?'':' class="muted"'}><td>${esc(x.real_name||[r.first,r.last].filter(Boolean).join(' ')||r.line)}</td><td><b>${esc(x.username||'')}</b></td><td class="small">${x.ok?(x.renamed?'same name as another student, so a number was added':''):esc(SKIP_WHY[x.why]||'skipped')}</td></tr>`}).join('')}</tbody></table></div>
+    <p class="muted small">Passwords are made when you add them, and go on the login cards.</p>
+    <div class="row">${n?`<button class="btn primary" id="addConfirm">Add ${n} student${n===1?'':'s'}</button>`:''}${anyNames?'<button class="btn" id="addSwap">Swap first and last names</button>':''}<button class="btn" id="addEdit">Edit list</button></div>`;
+  $('addStudent').textContent='Check again';
+}
+async function checkList(rows){
+  const btn=$('addStudent');btn.disabled=true;$('addMsg').textContent='Checking…';
+  let res;try{res=await api.addSchoolStudents(TEACH.classId,rows.map(({email,first,last})=>({email,first,last})),true)}catch(e){res={error:e.message}}
   btn.disabled=false;
+  if(!res||res.error){$('addMsg').textContent='Could not check the list: '+((res&&res.error)||'no reply');return}
+  $('addMsg').textContent='';REVIEW={rows,res};renderReview();
+}
+$('addStudent').onclick=()=>{
+  const rows=parseRoster($('addNames').value);
+  if(!rows.length){$('addMsg').textContent='Paste at least one student first, one per line.';$('addNames').focus();return}
+  checkList(rows);
 };
+$('addReview').addEventListener('click',async e=>{
+  if(!REVIEW)return;
+  if(e.target.closest('#addEdit')){REVIEW=null;renderReview();$('addNames').focus();return}
+  if(e.target.closest('#addSwap')){checkList(swapNames(REVIEW.rows).map((r,k)=>REVIEW.rows[k].email?REVIEW.rows[k]:r));return}
+  if(!e.target.closest('#addConfirm'))return;
+  const btn=$('addConfirm');btn.disabled=true;$('addMsg').textContent='Adding…';
+  const used=[],nextName=()=>{let nm;do{nm=spaceName()}while(used.includes(nm));used.push(nm);return nm};
+  try{
+    const r=await api.addSchoolStudents(TEACH.classId,REVIEW.rows.map(({email,first,last})=>({email,first,last,name:nextName()})),false);
+    if(!r||r.error)throw new Error((r&&r.error)||'no reply');
+    r.added.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',passcode:st.passcode||'',realName:st.real_name||''});S.order.push(st.id)});
+    sortStudents();REVIEW=null;renderReview();renderGrown();if(!$('codecards').hidden)renderCodeCards();
+    $('addNames').value='';
+    $('addMsg').textContent=`Added ${r.added.length} student${r.added.length===1?'':'s'}. Next: tap Print login cards and hand them out.`+(r.skipped.length?` ${r.skipped.length} skipped.`:'');
+  }catch(err){$('addMsg').textContent='Could not add students: '+err.message;btn.disabled=false}
+});
 $('gdetail').addEventListener('change',async e=>{
   if(e.target.id!=='gdMin'||viewingOther())return;const c=curClass(),p=S.players[GSel];if(!c||!p)return;
   c.settings=withStudentMin(c.settings,p.id,e.target.value==='class'?null:e.target.value);await saveMin(c,'gdMsg');
@@ -1410,7 +1432,7 @@ $('gdetail').addEventListener('submit',async e=>{
   if(e.target.closest('#gdEmailForm')){e.preventDefault();const p=S.players[GSel];if(!p)return;
     const r=await api.setStudentLogin(p.id,$('gdEmail').value);
     if(r&&r.ok){p.username=r.username;p.passcode=r.passcode;renderGrown();$('gdMsg').textContent=`${p.realName||p.name} can now log in with ${r.username} and password ${r.passcode}. Their 4-digit code still works too.`}
-    else $('gdMsg').textContent=r&&r.error==='already_added'?'That email is already on MathWizz.':r&&r.error==='not_an_email'?'Type the whole school email, like surname.firstname@sd54.bc.ca.':'Could not save: '+((r&&r.error)||'no reply');
+    else $('gdMsg').textContent=r&&r.error==='already_added'?'Another student at your school already has that username. Try adding a number, like smith.ava2.':r&&r.error==='bad_username'?'Type a username like surname.firstname, or their school email.':'Could not save: '+((r&&r.error)||'no reply');
     return}
   if(!e.target.closest('#gdRealForm'))return;e.preventDefault();
   const p=S.players[GSel];if(!p)return;const v=$('gdReal').value.trim().slice(0,80);
