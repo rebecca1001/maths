@@ -100,11 +100,15 @@ describe('login screens (demo mode)', () => {
     $('toParent').click(); await settle(); expect($('parentStep').textContent).toMatch(/coming soon/);
     $('parentBack').click(); await settle(); expect($('userStep').hidden).toBe(false);
   });
-  it('"Use a class code instead" opens the class list and 4-digit keypad, and the device remembers it', async () => {
-    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
-    $('toCodeLogin').click(); await settle(60);
+  it('no class code typing and no footer teacher link: the Teacher or principal tab is the one way in', async () => {
+    expect($('classForm')).toBeNull(); expect($('toCodeLogin')).toBeNull(); expect($('toWho')).toBeNull(); expect($('notMe')).toBeNull();
+    expect($('userTeacher').textContent).toBe('Teacher or principal');
+  });
+  it("Ms Berry's class list device: teacher link and username link work; mathwizz.co/?classlist brings the class list back", async () => {
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'code' }); await api.teacherSignOut(); await boot(); await settle(60);
     expect($('classStep').hidden).toBe(false);
-    sessionStorage.clear(); await boot(); await settle(60);
+    $('classTeacher').click(); await settle(60); expect($('teach').hidden).toBe(false);
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); history.pushState({}, '', '/?classlist'); await boot(); await settle(60);
     expect($('classStep').hidden).toBe(false);
     $('toUserLogin').click(); await settle(); expect($('userStep').hidden).toBe(false);
   });

@@ -284,13 +284,16 @@ function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(locatio
 // Student login, TT Rock Stars style: find your school (remembered on this device), then username + 4-digit code on the picture keypad.
 // The class code login is unchanged: pick your class (or type a class code), then the same 4-digit code.
 // A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list.
-let lastClass=null; // the class just used, so "Not you? Switch player" goes straight to the keypad
-function openLogin(keepClass){setAddress(false);
+let lastClass=null; // the class just used (class list login)
+function openLogin(keepClass){
+  // hidden way back to the class list for Ms Berry's class until they have usernames: mathwizz.co/?classlist
+  if(/[?&]classlist\b/.test(location.search))setLocal({loginWay:'code'});
+  setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
   const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
   L={school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
      step:kc?'pin':!sc?(way?'school':'gate'):codeDevice?'class':'user'};
-  $('classFb').textContent='';$('loginFb').textContent='';$('userFb').textContent='';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
+  $('classFb').textContent='';$('loginFb').textContent='';$('userFb').textContent='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
   if(L.step==='class')loadClasses4Login();
@@ -301,7 +304,7 @@ function focusUser(){setTimeout(()=>{try{$('sUser').focus()}catch(e){}},50)}
 function renderLogin(){
   const st=L.step;
   $('gateStep').hidden=st!=='gate';$('userStep').hidden=st!=='user';$('parentStep').hidden=st!=='parent';
-  $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
+  $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('pinStep').hidden=st!=='pin';
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
   $('loginTitle').textContent='Log in';
   const byUser=L.via==='user'&&L.username;
@@ -311,7 +314,6 @@ function renderLogin(){
 }
 function goStep(st){L.step=st;L.entry='';renderLogin();
   if(st==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},30);
-  if(st==='code')setTimeout(()=>{try{$('classCode').focus()}catch(e){}},30);
   if(st==='user')focusUser();
   if(st==='class')loadClasses4Login();}
 let schoolTimer=null;
@@ -335,14 +337,13 @@ async function loadClasses4Login(){
 $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
 // switching between the username login and the class code login (remembered on this device)
-$('toCodeLogin').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
 $('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
 $('userTeacher').onclick=()=>openTeacher('teacher');
 // front door: Log in -> find your school; Register -> create a teacher account, then set up or join the school
 $('gateLogin').onclick=()=>goStep('school');
 $('gateRegister').onclick=()=>openTeacher('register');
 $('schoolBack').onclick=()=>goStep('gate');
-$('toWho').onclick=()=>openTeacher('teacher');
+$('classTeacher').onclick=()=>openTeacher('teacher');
 $('toParent').onclick=()=>goStep('parent');
 $('parentBack').onclick=()=>goStep(L.school?'user':'school');
 $('userChangeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
@@ -354,13 +355,6 @@ $('userStep').addEventListener('submit',async e=>{
   fb.textContent='';L.username=un;L.via='user';L.fails=0;$('loginFb').textContent='';goStep('pin');
 });
 $('changeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
-$('useCode').onclick=()=>goStep('code');
-$('backToSchool').onclick=()=>goStep(L.school?'class':'school');
-$('classForm').addEventListener('submit',e=>{
-  e.preventDefault();const v=$('classCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(v.length<4){$('classFb').textContent='Class codes are 6 letters and numbers. Ask your teacher.';return}
-  L.classCode=v;L.className='';goStep('pin');
-});
 $('changeClass').onclick=()=>{if(L.via==='user'&&L.username){L.username='';goStep(L.school?'user':'school');return}
   L.classCode='';L.className='';goStep(L.school?'class':'school')};
 function loginPress(d){
@@ -379,7 +373,7 @@ async function loginSubmit(){
   if(r&&r.token){SESSION={token:r.token};lastClass={code:L.classCode,name:L.className};setLocal({token:r.token,loginWay:'code'});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
   if(e&&!['wrong_code','no_class','too_many_tries'].includes(e))console.error('Student login failed:',e);
-  if(e==='no_class'){L.classCode='';L.busy=false;goStep(L.school?'class':'code');$('classFb').textContent="We couldn't find that class. Check it with your teacher.";return}
+  if(e==='no_class'){L.classCode='';L.busy=false;goStep(L.school?'class':'school');$('classFb').textContent="We couldn't find that class. Check it with your teacher.";return}
   if(e==='too_many_tries')return loginFail('Too many tries. Wait a few minutes, then try again.');
   if(e==='network'||(e&&e!=='wrong_code'))return loginFail('Could not connect. Check the internet and try again.');
   loginFail(L.fails>=3?'Not quite. Ask your teacher to check your code.':'Not quite. Try again!');
@@ -406,7 +400,6 @@ function enterPlayer(){
   else{tab='play';renderHome();show('home')}
 }
 $('introGo').onclick=()=>startCheck();
-$('notMe').onclick=()=>toLogin(false,true); // shared iPads: the next child switches to their own login
 $('introSkip').onclick=()=>{P().placed=true;save();renderHome();show('home')};
 
 // ---------- home ----------
