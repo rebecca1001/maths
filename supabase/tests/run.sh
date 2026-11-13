@@ -17,3 +17,4 @@ psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_pilots.sql 2>&1
 psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_boards.sql 2>&1
 psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_owner_view.sql 2>&1
 psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_school_usernames.sql 2>&1
+psql -q -d mmtest -v ON_ERROR_STOP=1 -f tests/test_pin_login.sql 2>&1

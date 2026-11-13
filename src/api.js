@@ -6,7 +6,7 @@ import { seedDemoStudents } from './demo-data.js';
 import { rowsFromPlayers } from './progress.js';
 import { compSummary, PAID_PLANS } from './competitions.js';
 import { demoPilotScore } from './pilot.js';
-import { normUsername, usernameFromName, nameFromUsername, passKey } from './usernames.js';
+import { normUsername, usernameFromName, nameFromUsername } from './usernames.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -27,7 +27,7 @@ function supabaseApi() {
     // students
     studentLogin: (classCode, pin) => rpc('student_login', { p_class_code: classCode, p_pin: pin }),
     // school + username (or whole school email) + password
-    studentLoginUser: (schoolId, username, passcode) => rpc('student_login_user', { p_school: schoolId, p_username: username, p_passcode: passcode }),
+    studentLoginUser: (schoolId, username, code) => rpc('student_login_user', { p_school: schoolId, p_username: username, p_passcode: code }), // p_passcode is the 4-digit code
     findSchools: (q) => rpc('find_schools', { p_query: q }),
     schoolClasses: (schoolId) => rpc('school_classes', { p_school: schoolId }),
     studentState: (token) => rpc('student_state', { p_token: token }),
@@ -71,7 +71,7 @@ function supabaseApi() {
     listSchools: () => q(sb.from('schools').select('id,name,plan').order('name')),
     createClass: async (name, teacherId) => (await q(sb.from('classes').insert(teacherId ? { name, teacher_id: teacherId } : { name }).select('id,name,code,settings,teacher_id,archived_at').single())),
     updateClass: (id, patch) => q(sb.from('classes').update(patch).eq('id', id)),
-    listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,username,passcode,data,created_at').eq('class_id', classId).order('created_at')),
+    listStudents: (classId) => q(sb.from('students').select('id,name,real_name,pin,username,data,created_at').eq('class_id', classId).order('created_at')),
     // stars earned (not the spendable balance), stars this week and total rounds, from the server's round log
     classStats: (classId) => rpc('class_stats', { p_class: classId }),
     addStudent: async (classId, name) => (await q(sb.from('students').insert({ class_id: classId, name }).select('id,name,pin,data').single())),
@@ -122,10 +122,6 @@ function supabaseApi() {
 // ---------------------------------------------------------------------------
 const DEMO_KEY = 'mm.demo.db.v1';
 // Same rules as the database: "Franklin.Joshua@SD54.bc.ca" -> "franklin.joshua@sd54"
-const COLOURS = ['red', 'blue', 'green', 'gold', 'pink', 'purple', 'orange', 'silver', 'teal', 'lime', 'ruby', 'mint', 'coral', 'sky', 'sun', 'moon'];
-const ANIMALS = ['tiger', 'panda', 'otter', 'falcon', 'koala', 'shark', 'eagle', 'fox', 'wolf', 'owl', 'lynx', 'hawk', 'bear', 'frog', 'whale', 'comet', 'rocket', 'dragon', 'zebra', 'llama'];
-const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
-export const newPasscode = () => `${pickOne(COLOURS)}-${pickOne(ANIMALS)}-${10 + Math.floor(Math.random() * 90)}`;
 const roundStarsOf = (r) => r.stars ?? Math.round((r.pts ?? r.c * 30) / 10);
 const mondayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
 const weekStars = (s, cut) => ((s.data && s.data.rounds) || []).filter(r => r.d >= cut).reduce((t, r) => t + roundStarsOf(r), 0);
@@ -151,7 +147,7 @@ function demoApi() {
   // Re-read before every call so several tabs share one demo database
   // older saved demos lack newer lists, so fill them in whenever the saved copy is (re)loaded
   const fill = () => {
-    if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet', passcode: 'blue-tiger-42', real_name: db.students[0].real_name || 'Comet Fox' });
+    if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet', real_name: db.students[0].real_name || 'Comet Fox' });
     db.students.forEach(s => { if (s.username && s.username.includes('@')) s.username = s.username.split('@')[0]; }); // older demos stored the whole email
     if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
   const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) { db = x; fill(); } } catch (e) { /* keep in-memory copy */ } };
@@ -175,9 +171,10 @@ function demoApi() {
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
     },
-    studentLoginUser(schoolId, username, passcode) {
-      const u = normUsername(username), pc = passKey(passcode);
-      const s = schoolId === 'demo-school' && u && db.students.find(x => x.username === u && passKey(x.passcode) === pc && db.classes.some(c => c.id === x.class_id && !c.archived_at));
+    // same rules as student_login_user in the database: username + the student's 4-digit code
+    studentLoginUser(schoolId, username, code) {
+      const u = normUsername(username), pin = String(code || '').replace(/[^0-9]/g, '');
+      const s = schoolId === 'demo-school' && u && /^[0-9]{4}$/.test(pin) && db.students.find(x => x.username === u && x.pin === pin && db.classes.some(c => c.id === x.class_id && !c.archived_at));
       if (!s) return ok({ error: 'wrong_login' });
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
@@ -250,17 +247,17 @@ function demoApi() {
         taken.push(u);
         if (dryRun) { added.push({ row: i, username: u, real_name: real, renamed }); continue; }
         const st = await methods.addStudent(cid, r.name || 'Space Cadet'), s = db.students.find(x => x.id === st.id);
-        Object.assign(s, { username: u, passcode: newPasscode(), real_name: real });
+        Object.assign(s, { username: u, real_name: real });
         added.push({ row: i, ...s });
       }
       persist(); return { added, skipped };
     },
     setStudentLogin(sid, email) {
       const s = db.students.find(x => x.id === sid); if (!s) return ok({ error: 'not_allowed' });
-      let u = s.username;
-      if (email) { u = normUsername(email); if (!u) return ok({ error: 'bad_username' }); if (db.students.some(x => x.username === u && x.id !== sid)) return ok({ error: 'already_added' }); s.username = u; s.passcode = s.passcode || newPasscode(); }
-      else { if (!u) return ok({ error: 'bad_username' }); s.passcode = newPasscode(); }
-      persist(); return ok({ ok: true, username: s.username, passcode: s.passcode });
+      const u = normUsername(email);
+      if (!u) return ok({ error: 'bad_username' });
+      if (db.students.some(x => x.username === u && x.id !== sid)) return ok({ error: 'already_added' });
+      s.username = u; persist(); return ok({ ok: true, username: s.username, pin: s.pin });
     },
     setRealName(sid, realName) { const s = db.students.find(x => x.id === sid); if (s) { s.real_name = realName || null; persist(); } return ok(null); },
     countStudents() { const n = {}; db.students.forEach(s => { n[s.class_id] = (n[s.class_id] || 0) + 1; }); return ok(n); },

@@ -8,7 +8,10 @@
 
 -- ---------- students.school_id (kept in step with the class, so usernames can be unique per school) ----------
 alter table public.students add column if not exists school_id uuid references public.schools (id) on delete cascade;
+-- backfill without the write trigger, so existing students' updated_at is left alone
+alter table public.students disable trigger students_before_write;
 update public.students s set school_id = c.school_id from public.classes c where c.id = s.class_id and s.school_id is distinct from c.school_id;
+alter table public.students enable trigger students_before_write;
 create or replace function public._student_school() returns trigger
 language plpgsql set search_path = public, extensions as $$
 begin

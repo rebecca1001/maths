@@ -281,35 +281,42 @@ function toLogin(expired,keepClass){
 }
 // The address shows which side you're on, so a refresh comes back to the same place
 function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(location.pathname+location.search!==want||location.hash)history.replaceState(null,'',want)}catch(e){}}
-// Student login, TT Rock Stars style: find your school (remembered on this device), then username + password.
-// The class code login is unchanged: pick your class (or type a class code), then your 4-digit code.
-// A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list.
-let lastClass=null; // the class just used, so "Not you? Switch player" goes straight to the keypad
-function openLogin(keepClass){setAddress(false);
+// Login funnel, copied from TT Rock Stars (Sam, 12 Nov):
+//   Log in / Register -> School / Family / Tutor -> (Log in, School) Student / Teacher -> find your school -> username + 4-digit code
+//   Register -> School -> create a teacher account. Family and Tutor: coming soon.
+// A device that remembers its school opens straight on that school's student login (username + picture keypad on one screen).
+// A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list -> code.
+let lastClass=null; // the class just used (class list login)
+function openLogin(keepClass){
+  // hidden way back to the class list for Ms Berry's class until they have usernames: mathwizz.co/?classlist
+  if(/[?&]classlist\b/.test(location.search))setLocal({loginWay:'code'});
+  setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
   const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
-  L={school:sc,classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
-     step:kc?'pin':!sc?'school':codeDevice?'class':'user'};
-  $('classFb').textContent='';$('loginFb').textContent='';$('userFb').textContent='';$('sPass').value='';$('sPass').type='password';$('sShow').textContent='Show';$('classCode').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
+  L={flow:'login',school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
+     step:kc?'pin':!sc?'gate':codeDevice?'class':'user'};
+  $('classFb').textContent='';$('loginFb').textContent='';$('sUser').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
   if(L.step==='class')loadClasses4Login();
   if(L.step==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},50);
   if(L.step==='user')focusUser();
 }
-function focusUser(){setTimeout(()=>{try{($('sUser').value?$('sPass'):$('sUser')).focus()}catch(e){}},50)}
+function focusUser(){setTimeout(()=>{try{$('sUser').focus()}catch(e){}},50)}
 function renderLogin(){
   const st=L.step;
-  $('userStep').hidden=st!=='user';$('parentStep').hidden=st!=='parent';
-  $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('classForm').hidden=st!=='code';$('pinStep').hidden=st!=='pin';
+  $('gateStep').hidden=st!=='gate';$('kindStep').hidden=st!=='kind';$('roleStep').hidden=st!=='role';$('soonStep').hidden=st!=='soon';$('userStep').hidden=st!=='user';
+  $('kindTitle').textContent=L.flow==='register'?'Register':'Log in';
+  const slot=st==='user'?$('userPadSlot'):$('pinPadSlot');if($('padBox').parentNode!==slot)slot.appendChild($('padBox'));
+  $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('pinStep').hidden=st!=='pin';
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
   $('loginTitle').textContent='Log in';
   $('loginSub').textContent=`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
+  $('loginBack').hidden=st==='gate';
   $('dots').querySelectorAll('i').forEach((d,i)=>d.classList.toggle('on',i<L.entry.length));
 }
-function goStep(st){L.step=st;L.entry='';renderLogin();
+function goStep(st){L.step=st;L.entry='';$('loginFb').textContent='';renderLogin();
   if(st==='school')setTimeout(()=>{try{$('schoolSearch').focus()}catch(e){}},30);
-  if(st==='code')setTimeout(()=>{try{$('classCode').focus()}catch(e){}},30);
   if(st==='user')focusUser();
   if(st==='class')loadClasses4Login();}
 let schoolTimer=null;
@@ -333,38 +340,38 @@ async function loadClasses4Login(){
 $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
 // switching between the username login and the class code login (remembered on this device)
-$('toCodeLogin').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
 $('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
-$('userTeacher').onclick=()=>openTeacher('teacher');
-$('toWho').onclick=()=>openTeacher('teacher');
-$('toParent').onclick=()=>goStep('parent');
-$('parentBack').onclick=()=>goStep(L.school?'user':'school');
-$('userChangeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
-$('sShow').onclick=()=>{const i=$('sPass'),show=i.type==='password';i.type=show?'text':'password';$('sShow').textContent=show?'Hide':'Show'};
-$('userStep').addEventListener('submit',async e=>{
-  e.preventDefault();if(L.busy)return;const un=$('sUser').value.trim(),pw=$('sPass').value.trim(),fb=$('userFb');
-  if(!L.school){goStep('school');return}
-  if(!un){fb.textContent='Type the username from your login card, like franklin.joshua.';$('sUser').focus();return}
-  if(!pw){fb.textContent='Type the password from your login card.';$('sPass').focus();return}
-  L.busy=true;$('sGo').disabled=true;fb.textContent='';
-  let r;try{r=await api.studentLoginUser(L.school.id,un,pw)}catch(err){r={error:'network'}}
-  L.busy=false;$('sGo').disabled=false;
-  if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'user'});try{sessionStorage.setItem(TAB,r.token)}catch(err){}$('sPass').value='';$('sUser').value='';const ok=await loadStudent();if(ok)enterPlayer();return}
-  const er=r&&r.error;
-  fb.textContent=er==='too_many_tries'?'Too many tries. Wait 10 minutes, or ask your teacher for your password.':er==='wrong_login'?`That username and password don't match at ${L.school.name}. Check your login card, or ask your teacher.`:'Could not connect. Check the internet and try again.';
-  $('sPass').value='';$('sPass').focus();
-});
-$('changeSchool').onclick=()=>{L.school=null;setLocal({school:null});goStep('school')};
-$('useCode').onclick=()=>goStep('code');
-$('backToSchool').onclick=()=>goStep(L.school?'class':'school');
-$('classForm').addEventListener('submit',e=>{
-  e.preventDefault();const v=$('classCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(v.length<4){$('classFb').textContent='Class codes are 6 letters and numbers. Ask your teacher.';return}
-  L.classCode=v;L.className='';goStep('pin');
-});
-$('changeClass').onclick=()=>{L.classCode='';L.className='';goStep(L.school?'class':'school')};
+$('gateLogin').onclick=()=>{L.flow='login';goStep('kind')};
+$('gateRegister').onclick=()=>{L.flow='register';goStep('kind')};
+// TEMPORARY: 4-digit code login for classes without usernames yet (Ms Berry's): find your school -> pick your class -> code. Remove in January.
+$('gateCode').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep('school')};
+$('kSchool').onclick=()=>{if(L.flow==='register')openTeacher('register');else goStep('role')};
+const SOON={family:['Families','Family accounts are coming soon. For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they\'re doing.'],
+  tutor:['Tutors','Tutor accounts are coming soon. MathWizz is for schools for now.']};
+function showSoon(k){$('soonTitle').textContent=SOON[k][0];$('soonText').textContent=SOON[k][1];goStep('soon')}
+$('kFamily').onclick=()=>showSoon('family');
+$('kTutor').onclick=()=>showSoon('tutor');
+$('rStudent').onclick=()=>{L.via='user';goStep('school')};
+$('rTeacher').onclick=()=>openTeacher('teacher');
+$('classTeacher').onclick=()=>openTeacher('teacher');
+// Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
+function loginBack(){
+  if(!L||L.busy)return;const st=L.step;
+  if(st==='pin'){L.classCode='';L.className='';goStep(L.school?'class':'school');return}
+  if(st==='user'||st==='class'){L.school=null;L.username='';setLocal({school:null});goStep('school');return}
+  if(st==='school'){if(L.via==='code'){L.via='user';setLocal({loginWay:null});goStep('gate');return}L.flow='login';goStep('role');return}
+  if(st==='role'||st==='soon'){goStep('kind');return}
+  if(st==='kind')goStep('gate');
+}
+$('loginBack').onclick=loginBack;
+// Username and keypad on one screen (TT Rock Stars student login): pressing Enter in the username box moves to the keypad
+$('userStep').addEventListener('submit',e=>{e.preventDefault();try{$('sUser').blur()}catch(err){}});
 function loginPress(d){
-  if(!L||L.busy||L.step!=='pin'||!L.classCode||d==='enter')return;
+  if(!L||L.busy||d==='enter')return;
+  if(L.step==='user'){
+    if(!$('sUser').value.trim()){$('loginFb').textContent='Type your username first, like smith.emma.';$('sUser').focus();return}
+    if(!L.school){goStep('school');return}
+  }else if(L.step!=='pin'||!L.classCode)return;
   if(d==='del')L.entry=L.entry.slice(0,-1);else if(L.entry.length<4)L.entry+=d;
   renderLogin();
   if(L.entry.length===4){L.busy=true;setTimeout(loginSubmit,150)}
@@ -374,14 +381,26 @@ function loginFail(msg){
   const dots=$('dots');dots.classList.remove('shake');void dots.offsetWidth;dots.classList.add('shake');
 }
 async function loginSubmit(){
+  if(L.step==='user')return loginSubmitUser();
   let r;try{r=await api.studentLogin(L.classCode,L.entry)}catch(e){r={error:'network'}}
   if(r&&r.token){SESSION={token:r.token};lastClass={code:L.classCode,name:L.className};setLocal({token:r.token,loginWay:'code'});try{sessionStorage.setItem(TAB,r.token)}catch(e){}L.busy=false;L.entry='';const ok=await loadStudent();if(ok)enterPlayer();return}
   const e=r&&r.error;
   if(e&&!['wrong_code','no_class','too_many_tries'].includes(e))console.error('Student login failed:',e);
-  if(e==='no_class'){L.classCode='';L.busy=false;goStep(L.school?'class':'code');$('classFb').textContent="We couldn't find that class. Check it with your teacher.";return}
+  if(e==='no_class'){L.classCode='';L.busy=false;goStep(L.school?'class':'school');$('classFb').textContent="We couldn't find that class. Check it with your teacher.";return}
   if(e==='too_many_tries')return loginFail('Too many tries. Wait a few minutes, then try again.');
   if(e==='network'||(e&&e!=='wrong_code'))return loginFail('Could not connect. Check the internet and try again.');
   loginFail(L.fails>=3?'Not quite. Ask your teacher to check your code.':'Not quite. Try again!');
+}
+// username + 4-digit code: one answer for a wrong username or a wrong code, so nobody can test which usernames exist
+async function loginSubmitUser(){
+  L.username=$('sUser').value.trim();
+  let r;try{r=await api.studentLoginUser(L.school.id,L.username,L.entry)}catch(e){r={error:'network'}}
+  if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'user'});try{sessionStorage.setItem(TAB,r.token)}catch(e){}
+    L.busy=false;L.entry='';$('sUser').value='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  const e=r&&r.error;
+  if(e==='too_many_tries')return loginFail('Too many tries. Wait 10 minutes, or ask your teacher.');
+  if(e!=='wrong_login')return loginFail('Could not connect. Check the internet and try again.');
+  loginFail(L.fails>=2?`Not quite. Check your username (${L.username}) and code on your login card, or ask your teacher.`:'Not quite. Try again!');
 }
 async function loadStudent(){
   let st;try{st=await api.studentState(SESSION.token)}catch(e){st={error:'network'}}
@@ -395,7 +414,6 @@ function enterPlayer(){
   else{tab='play';renderHome();show('home')}
 }
 $('introGo').onclick=()=>startCheck();
-$('notMe').onclick=()=>toLogin(false,true); // shared iPads: the next child switches to their own login
 $('introSkip').onclick=()=>{P().placed=true;save();renderHome();show('home')};
 
 // ---------- home ----------
@@ -616,7 +634,10 @@ function afterAnswer(ok){
 // ---------- play engine ----------
 const keys=['7','8','9','4','5','6','1','2','3','del','0','enter'];
 const padHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':k}</button>`).join('');
-$('pad').innerHTML=padHTML;$('loginPad').innerHTML=padHTML;
+// login keypad: an animal on each number so younger kids can remember their code ("dog, cat, fox, bear")
+const ANIMALS={'1':'🐶','2':'🐱','3':'🐰','4':'🦊','5':'🐻','6':'🐼','7':'🐨','8':'🐯','9':'🦁','0':'🐸'};
+const loginPadHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':`<span class="kanimal" aria-hidden="true">${ANIMALS[k]}</span>${k}`}</button>`).join('');
+$('pad').innerHTML=padHTML;$('loginPad').innerHTML=loginPadHTML;
 $('pad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key');if(k&&k.dataset.d){e.preventDefault();press(k.dataset.d)}});
 $('loginPad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key');if(k&&k.dataset.d){e.preventDefault();loginPress(k.dataset.d)}});
 
@@ -744,7 +765,7 @@ $('again').onclick=()=>startRound();
 $('resHome').onclick=()=>{renderHome();show('home')};
 document.addEventListener('keydown',e=>{
   if(!$('helpOv').hidden){if(e.key==='Escape')closeHelp();return}
-  if(screen==='login'&&L){if(L.step!=='pin'||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the class code box works normally
+  if(screen==='login'&&L){if(!['pin','user'].includes(L.step)||/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return; // typing in the username box works normally
     if(/^[0-9]$/.test(e.key)){e.preventDefault();loginPress(e.key)}else if(e.key==='Backspace'){e.preventDefault();loginPress('del')}return}
   if(!G||screen!=='play')return;
   if(/^[0-9]$/.test(e.key)){e.preventDefault();press(e.key)}
@@ -841,9 +862,9 @@ function spark(p){
 function focusOf(p){return ALL.map(t=>({t,s:tableScore(p,t)})).filter(x=>x.s!=null&&x.s<3).sort((a,b)=>a.s-b.s).slice(0,3).map(x=>x.t)}
 const LEVELS=['Not tried','Tricky','Getting there','Quick','Instant'];
 function weekAcc(p,wk){const rs=p.rounds.filter(r=>r.d>=wk),n=rs.reduce((s,r)=>s+r.n,0);return n?Math.round(rs.reduce((s,r)=>s+r.c,0)/n*100):null}
-// Username students: username + password (teacher can always see it). Code students: 4-digit code, as before.
+// Username students: username + 4-digit code. Code students: 4-digit code, as before. Teachers always see both.
 function loginCell(p){
-  if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.passcode)}</b> <button class="linkbtn" data-newpass="${p.id}">New password</button>`;
+  if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
   return `<b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
 }
 const minOpts=(sel,first)=>(first?[first]:[]).concat(Array.from({length:MAX_MIN+1},(_,i)=>[String(i),i?`${i} round${i>1?'s':''}`:'No minimum'])).map(([v,l])=>`<option value="${v}" ${String(sel)===v?'selected':''}>${l}</option>`).join('');
@@ -868,6 +889,7 @@ const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="sta
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 function renderGrown(){
   const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
+  updateGiveAll();
   renderMinPanel(players,now);
 
   $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
@@ -899,7 +921,7 @@ function renderGrown(){
   const recent=p.rounds.slice(-6).reverse();
   $('gdetail').innerHTML=`
     <form class="row realrow" id="gdRealForm"><label for="gdReal">Real name</label><input id="gdReal" maxlength="80" placeholder="Only teachers see this" value="${esc(p.realName||'')}"><button class="btn" type="submit">Save</button></form>
-    ${p.username?`<p class="note gdlogin">Logs in with <b>${esc(p.username)}</b> · password <b class="num">${esc(p.passcode)}</b>${p.pin?` · class code login still works (code <b class="num">${esc(p.pin)}</b>)`:''}</p>`
+    ${p.username?`<p class="note gdlogin">Logs in with <b>${esc(p.username)}</b> · code <b class="num">${esc(p.pin||'')}</b> (the same code works with the class code login)</p>`
       :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">Username</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="${esc(suggestUsername(p))}" value="${esc(suggestUsername(p))}"><button class="btn" type="submit">Give a username</button></form><p class="muted small">Same student, so their stars and history stay. Their 4-digit code keeps working too.</p>`}
     ${(()=>{const cs=curClass()&&curClass().settings,cm=+(cs&&cs.minRounds)||0,own=hasOwnMin(cs,p.id),td=roundsToday(p.rounds);
       return `<form class="row realrow" id="gdMinForm"><label for="gdMin">Minimum rounds</label><select id="gdMin">${minOpts(own?String(minFor(cs,p.id)):'class',['class',`Same as class (${cm?cm+' round'+(cm>1?'s':''):'none'})`])}</select><span class="muted small">Today: ${td} round${td===1?'':'s'}</span></form>`})()}
@@ -925,9 +947,6 @@ async function saveMin(c,msgId){
 }
 $('tbl').addEventListener('click',async e=>{
   const nb=e.target.closest('[data-newpin]');
-  const np=e.target.closest('[data-newpass]');
-  if(np){const p=S.players[np.dataset.newpass];np.disabled=true;const r=await api.setStudentLogin(p.id,null);
-    if(r&&r.passcode){p.passcode=r.passcode;renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New password for ${p.realName||p.name}: ${p.passcode}`}else{np.disabled=false;alert('Could not make a new password: '+((r&&r.error)||'no reply'))}return}
   if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
   const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
 $('tbl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-id]');if(tr){e.preventDefault();selectStudent(tr)}}});
@@ -1054,12 +1073,14 @@ const closeHelp=()=>{$('helpOv').hidden=true;$('loginHelp').focus()};
 $('loginHelp').onclick=()=>{$('helpOv').hidden=false;$('helpClose').focus()};
 $('helpClose').onclick=closeHelp;
 $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()});
-$('tBack').onclick=()=>openLogin();
-async function openTeacher(who){setAddress(true);
-  const pr=who==='principal';$('tTitle').textContent=pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;
+// back from teacher sign-in: one step back in the funnel (Student / Teacher, or School / Family / Tutor after Register)
+let TFROM='teacher';
+$('tBack').onclick=()=>{openLogin();if(L.step==='class')return;L.flow=TFROM==='register'?'register':'login';goStep(TFROM==='register'?'kind':'role')};
+async function openTeacher(who){setAddress(true);TFROM=who;
+  const pr=who==='principal',reg=who==='register';$('tTitle').textContent=reg?'Register':pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;$('tRegNote').hidden=!reg;
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
-  if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;show('teach');return}
+  if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;setTMode(reg?'create':'signin');show('teach');return}
   if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
   TEACH={info,classes:[],classId:local().teacherClass||null,super:false};setLocal({teacher:true});
   try{TEACH.super=!!(await api.isSuperAdmin())}catch(e){TEACH.super=false}
@@ -1148,7 +1169,7 @@ async function loadClassStudents(){REVIEW=null;renderReview();
   const [list,cs]=await Promise.all([api.listStudents(c.id),api.classStats(c.id).catch(()=>null)]);
   TEACH.stats={};if(cs&&Array.isArray(cs.students))cs.students.forEach(x=>{TEACH.stats[x.id]=x});
   S={players:{},order:[],current:null,showBoard:true,muted:true,goal:S.goal};
-  list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',passcode:st.passcode||'',realName:st.real_name||''});S.order.push(st.id)});
+  list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',realName:st.real_name||''});S.order.push(st.id)});
   sortStudents();GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
 function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
@@ -1378,7 +1399,7 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>Password <b class="num">${esc(p.passcode)}</b></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>My code <b class="num">${esc(p.pin)}</b> <span class="cardanimals" aria-hidden="true">${String(p.pin||'').split('').map(d=>ANIMALS[d]||'').join(' ')}</span></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 // Add students, TT Rock Stars style: paste a list -> review (usernames, clashes, skipped lines) -> add -> print login cards
 let REVIEW=null; // { rows, res } while the teacher checks the list
@@ -1392,7 +1413,7 @@ function renderReview(){
   box.innerHTML=`<p><b>${n} student${n===1?'':'s'} ready to add.</b> Check the names and usernames${res.skipped.length?`; ${res.skipped.length} line${res.skipped.length>1?'s':''} will be skipped`:''}.</p>
     <div class="tbl-wrap"><table class="tbl plain"><thead><tr><th>Real name</th><th>Username</th><th></th></tr></thead><tbody>${rows.map((r,k)=>{const x=byRow[k+1]||{};
       return `<tr${x.ok?'':' class="muted"'}><td>${esc(x.real_name||[r.first,r.last].filter(Boolean).join(' ')||r.line)}</td><td><b>${esc(x.username||'')}</b></td><td class="small">${x.ok?(x.renamed?'same name as another student, so a number was added':''):esc(SKIP_WHY[x.why]||'skipped')}</td></tr>`}).join('')}</tbody></table></div>
-    <p class="muted small">Passwords are made when you add them, and go on the login cards.</p>
+    <p class="muted small">Each student gets a 4-digit code when you add them. Usernames and codes go on the login cards.</p>
     <div class="row">${n?`<button class="btn primary" id="addConfirm">Add ${n} student${n===1?'':'s'}</button>`:''}${anyNames?'<button class="btn" id="addSwap">Swap first and last names</button>':''}<button class="btn" id="addEdit">Edit list</button></div>`;
   $('addStudent').textContent='Check again';
 }
@@ -1418,7 +1439,7 @@ $('addReview').addEventListener('click',async e=>{
   try{
     const r=await api.addSchoolStudents(TEACH.classId,REVIEW.rows.map(({email,first,last})=>({email,first,last,name:nextName()})),false);
     if(!r||r.error)throw new Error((r&&r.error)||'no reply');
-    r.added.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',passcode:st.passcode||'',realName:st.real_name||''});S.order.push(st.id)});
+    r.added.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',realName:st.real_name||''});S.order.push(st.id)});
     sortStudents();REVIEW=null;renderReview();renderGrown();if(!$('codecards').hidden)renderCodeCards();
     $('addNames').value='';
     $('addMsg').textContent=`Added ${r.added.length} student${r.added.length===1?'':'s'}. Next: tap Print login cards and hand them out.`+(r.skipped.length?` ${r.skipped.length} skipped.`:'');
@@ -1431,13 +1452,53 @@ $('gdetail').addEventListener('change',async e=>{
 $('gdetail').addEventListener('submit',async e=>{
   if(e.target.closest('#gdEmailForm')){e.preventDefault();const p=S.players[GSel];if(!p)return;
     const r=await api.setStudentLogin(p.id,$('gdEmail').value);
-    if(r&&r.ok){p.username=r.username;p.passcode=r.passcode;renderGrown();$('gdMsg').textContent=`${p.realName||p.name} can now log in with ${r.username} and password ${r.passcode}. Their 4-digit code still works too.`}
+    if(r&&r.ok){p.username=r.username;renderGrown();$('gdMsg').textContent=`${p.realName||p.name} can now log in with ${r.username} and their same 4-digit code (${p.pin}).`}
     else $('gdMsg').textContent=r&&r.error==='already_added'?'Another student at your school already has that username. Try adding a number, like smith.ava2.':r&&r.error==='bad_username'?'Type a username like surname.firstname, or their school email.':'Could not save: '+((r&&r.error)||'no reply');
     return}
   if(!e.target.closest('#gdRealForm'))return;e.preventDefault();
   const p=S.players[GSel];if(!p)return;const v=$('gdReal').value.trim().slice(0,80);
   try{await api.setRealName(p.id,v);p.realName=v;sortStudents();renderGrown();$('gdMsg').textContent=v?`Saved: ${p.name} is ${v}.`:'Real name removed.'}
   catch(err){$('gdMsg').textContent='Could not save: '+err.message}
+});
+// Give everyone a username: for a class from before usernames (Ms Berry's). Same students, same 4-digit codes.
+// Usernames come from each student's real name (surname.firstname); the teacher checks the list, then one tap saves them all.
+let UREVIEW=null; // [{p, u}] while the teacher checks the list
+function updateGiveAll(){
+  const n=S.order.filter(id=>!S.players[id].username).length,b=$('giveAll');if(!b)return;
+  b.hidden=!n||viewingOther();b.textContent=`Give everyone a username (${n})`;
+}
+function planUsernames(){
+  const taken=new Set(S.order.map(id=>S.players[id].username).filter(Boolean));
+  return S.order.map(id=>S.players[id]).filter(p=>!p.username).map(p=>{
+    const base=suggestUsername(p);if(!base)return {p,u:''};
+    let u=base,k=1;while(taken.has(u)){k++;u=base+k}taken.add(u);return {p,u};
+  });
+}
+function renderUReview(){
+  const box=$('unameReview');if(!UREVIEW){box.hidden=true;box.innerHTML='';return}
+  const ok=UREVIEW.filter(x=>x.u),miss=UREVIEW.length-ok.length;
+  box.hidden=false;
+  box.innerHTML=`<p><b>${ok.length} username${ok.length===1?'':'s'} ready.</b> Each student keeps their 4-digit code, stars and history.${miss?` ${miss} student${miss>1?'s need':' needs'} a first and last name first, so skipped: tap them in the table, add it under Real name, then come back here.`:''}</p>
+    <div class="tbl-wrap"><table class="tbl plain"><thead><tr><th>Real name</th><th>Username</th><th>Code</th></tr></thead><tbody>${UREVIEW.map(({p,u})=>`<tr${u?'':' class="muted"'}><td>${esc(p.realName||p.name)}</td><td><b>${esc(u||'needs first + last name')}</b></td><td class="num">${esc(p.pin||'')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="row">${ok.length?`<button class="btn primary" id="uConfirm">Give ${ok.length} username${ok.length===1?'':'s'}</button>`:''}<button class="btn" id="uCancel">Cancel</button></div>`;
+}
+$('giveAll').onclick=()=>{if(viewingOther())return;UREVIEW=planUsernames();renderUReview();$('unameReview').scrollIntoView({behavior:'smooth',block:'nearest'})};
+$('unameReview').addEventListener('click',async e=>{
+  if(!UREVIEW)return;
+  if(e.target.closest('#uCancel')){UREVIEW=null;renderUReview();return}
+  if(!e.target.closest('#uConfirm'))return;
+  const btn=$('uConfirm');btn.disabled=true;let done=0,failed=0;
+  for(const {p,u} of UREVIEW.filter(x=>x.u)){
+    $('addMsg').textContent=`Giving usernames… ${done+failed+1} of ${UREVIEW.filter(x=>x.u).length}`;
+    let r=null,name=u;
+    for(let k=2;k<12;k++){ // a clash with another class at the school: add a number
+      try{r=await api.setStudentLogin(p.id,name)}catch(err){r={error:err.message}}
+      if(!(r&&r.error==='already_added'))break;name=u.replace(/\d+$/,'')+k;
+    }
+    if(r&&r.ok){p.username=r.username;done++}else failed++;
+  }
+  UREVIEW=null;renderUReview();renderGrown();if(!$('codecards').hidden)renderCodeCards();
+  $('addMsg').textContent=`Done: ${done} student${done===1?'':'s'} now ${done===1?'has a username':'have usernames'}, with the same 4-digit codes.`+(failed?` ${failed} could not be saved: try again or give them one from the table.`:'')+' Next: tap Print login cards.';
 });
 $('showCards').onclick=()=>{renderCodeCards();$('codecards').hidden=false;setTimeout(()=>window.print(),300)};
 $('gdetail').addEventListener('click',async e=>{

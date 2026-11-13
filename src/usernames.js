@@ -23,8 +23,6 @@ export function nameFromUsername(u) {
   return /^[a-z'-]+\.[a-z'-]+$/.test(u || '') ? cap(u.split('.')[1]) + ' ' + cap(u.split('.')[0]) : null;
 }
 
-// Passwords are compared without dashes, spaces or capitals: "Blue Tiger 42" = "blue-tiger-42"
-export const passKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const EMAIL = /[^\s,;<>"]+@[^\s,;<>"]+/;
 

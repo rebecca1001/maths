@@ -110,6 +110,31 @@ describe('screens (demo mode)', () => {
     expect(err).not.toHaveBeenCalled();
     history.pushState({}, '', '/');
   });
+  it('Give everyone a username: check list (from real names, clashes numbered, no real name skipped), then one tap; codes unchanged', async () => {
+    await api.teacherSignIn('t@demo.ca', 'password123');
+    history.pushState({}, '', '/?teacher=1'); await boot(); await new Promise((res) => setTimeout(res, 60));
+    const cls = (await api.listClasses())[0];
+    const kids = (await api.listStudents(cls.id)).filter((s) => !s.username);
+    await api.setRealName(kids[0].id, 'Emma Smith'); await api.setRealName(kids[1].id, 'Emma Smith'); await api.setRealName(kids[2].id, '');
+    for (const k of kids.slice(3)) await api.setRealName(k.id, `Kid ${k.id.slice(0, 4)} Test${k.id.slice(-3)}`);
+    history.pushState({}, '', '/?teacher=1'); await boot(); await new Promise((res) => setTimeout(res, 60));
+    const btn = document.getElementById('giveAll');
+    expect(btn.hidden).toBe(false); expect(btn.textContent).toMatch(new RegExp(`\\(${kids.length}\\)`));
+    btn.click(); await new Promise((res) => setTimeout(res, 20));
+    const review = document.getElementById('unameReview');
+    expect(review.textContent).toMatch(/smith\.emma/); expect(review.textContent).toMatch(/smith\.emma2/);
+    expect(review.textContent).toMatch(/1 student needs a first and last name/);
+    expect((await api.listStudents(cls.id)).filter((s) => s.username).length).toBe(1); // nothing saved yet (fox.comet only)
+    document.getElementById('uConfirm').click(); await new Promise((res) => setTimeout(res, 200));
+    const after = await api.listStudents(cls.id);
+    expect(after.find((s) => s.id === kids[0].id).username).toBe('smith.emma');
+    expect(after.find((s) => s.id === kids[1].id).username).toBe('smith.emma2');
+    expect(after.find((s) => s.id === kids[2].id).username).toBeFalsy();
+    expect(after.find((s) => s.id === kids[0].id).pin).toBe(kids[0].pin); // same code
+    expect(document.getElementById('addMsg').textContent).toMatch(/Done: \d+ students now have usernames/);
+    expect(document.getElementById('giveAll').textContent).toMatch(/\(1\)/); // only the one without a real name left
+    history.pushState({}, '', '/');
+  });
   it("kid's Play screen shows today's minimum, or nothing when there is none", () => {
     const now = Date.now(), p = { id: 'k1', rounds: [{ d: now - 60e3 }] };
     g.applySettings({ minRounds: 3 }); g.renderMinBox(p);

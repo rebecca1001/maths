@@ -17,70 +17,90 @@
   <!-- STUDENT LOGIN -->
   <section class="screen" id="login" hidden>
     <div class="card logincard" style="align-items:center;text-align:center">
-      <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username + password.
-           The class code + 4-digit code login (Ms Berry's class) is still here: "Use a class code instead". -->
+      <!-- TT Rock Stars style: one back arrow in the top left on every step after the front door -->
+      <button type="button" class="backarrow" id="loginBack" aria-label="Back" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username, then the 4-digit code on the picture keypad.
+           Devices that remembered a school before usernames (Ms Berry's class) still open on the class list -> 4-digit code, until her class has usernames (January).
+           Typing a class code was removed (Sam, 12 Nov: as simple as possible). -->
+      <!-- Front door on a new device (TT Rock Stars style): Log in or Register. Devices that remember a school skip it. -->
+      <div class="pickstep" id="gateStep" hidden>
+        <h1>Welcome to MathWizz</h1>
+        <p class="muted">Times tables for Grades 3–7</p>
+        <div class="whogrid gategrid">
+          <button type="button" class="whobtn2 w-student" id="gateLogin"><b>Log in</b></button>
+          <button type="button" class="whobtn2 w-teacher" id="gateRegister"><b>Register</b></button>
+        </div>
+        <!-- TEMPORARY (Sam, 12 Nov): for Ms Berry's class until they have usernames. Remove after the January switch. -->
+        <button type="button" class="btn codebtn" id="gateCode">Log in with a 4-digit code</button>
+      </div>
+      <!-- TT Rock Stars funnel: Log in / Register -> School, Family or Tutor -> (Log in, School) Student or Teacher -> find your school -> username + code -->
+      <div class="pickstep" id="kindStep" hidden>
+        <h1 id="kindTitle">Log in</h1>
+        <div class="whogrid three">
+          <button type="button" class="whobtn2 w-student" id="kSchool"><b>School</b></button>
+          <button type="button" class="whobtn2 w-parent" id="kFamily"><b>Family</b></button>
+          <button type="button" class="whobtn2 w-principal" id="kTutor"><b>Tutor</b></button>
+        </div>
+      </div>
+      <div class="pickstep" id="roleStep" hidden>
+        <h1>School log in</h1>
+        <div class="whogrid">
+          <button type="button" class="whobtn2 w-student" id="rStudent"><b>Student</b></button>
+          <button type="button" class="whobtn2 w-teacher" id="rTeacher"><b>Teacher</b><small>Teachers and principals</small></button>
+        </div>
+      </div>
       <form class="pickstep emailform" id="userStep" hidden autocomplete="on">
         <h1>Log in</h1>
-        <p class="muted userschool"><b id="userSchool"></b> · <button class="linkbtn" id="userChangeSchool" type="button">Change school</button></p>
-        <div class="tmode whotabs" role="tablist" aria-label="Who is logging in">
-          <button type="button" role="tab" class="on" aria-selected="true">Student</button>
-          <button type="button" role="tab" id="userTeacher" aria-selected="false">Teacher</button>
-        </div>
-        <label class="flabel">Username<input id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="surname.firstname" maxlength="120"></label>
-        <label class="flabel">Password<span class="pwrow"><input id="sPass" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" placeholder="e.g. blue-tiger-42" maxlength="30"><button type="button" class="linkbtn small" id="sShow">Show</button></span></label>
-        <div class="fb no" id="userFb" aria-live="assertive"></div>
-        <button class="go" type="submit" id="sGo">Log in</button>
-        <p class="muted small">Your username and password are on the login card from your teacher.</p>
-        <button type="button" class="btn codebtn" id="toCodeLogin">Have a 4-digit code? Use a class code instead</button>
-        <button type="button" class="linkbtn small" id="toParent">I'm a parent</button>
+        <p class="muted userschool"><b id="userSchool"></b></p>
+        <label class="flabel">Username<input id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="like smith.emma" maxlength="120"></label>
+        <span class="flabel">4-digit code</span>
+        <div class="padslot" id="userPadSlot"></div>
+        <p class="muted small">Your username and 4-digit code are on the login card from your teacher.</p>
       </form>
-      <!-- 2b) parents (not built yet) -->
-      <div class="pickstep" id="parentStep" hidden>
-        <h1>Parents</h1>
-        <p>Parent accounts are coming soon.</p>
-        <p class="muted">For now, your child logs in with the username and password on their login card, at school or at home. Their teacher can tell you how they're doing.</p>
-        <button type="button" class="linkbtn small" id="parentBack">← Back</button>
+      <!-- Family and Tutor (not built yet) -->
+      <div class="pickstep" id="soonStep" hidden>
+        <h1 id="soonTitle">Families</h1>
+        <p id="soonText"></p>
       </div>
       <div class="pickstep" id="schoolStep" hidden>
         <h1>Find your school</h1>
         <p class="muted small">This device will remember it.</p>
         <input id="schoolSearch" class="searchinput" autocomplete="off" spellcheck="false" placeholder="Type your school's name" aria-label="School name">
         <div class="picklist" id="schoolList" aria-live="polite"></div>
-        <button class="linkbtn small" id="useCode" type="button">Type a class code instead</button>
       </div>
       <div class="pickstep" id="classStep" hidden>
         <h1>Pick your class</h1>
-        <p class="muted"><b id="pickedSchool"></b> · <button class="linkbtn" id="changeSchool" type="button">Change school</button></p>
+        <p class="muted"><b id="pickedSchool"></b></p>
         <div class="picklist" id="classList" aria-live="polite"></div>
-        <button class="linkbtn small" id="toUserLogin" type="button">Have a username? Log in with it</button>
-      </div>
-      <form class="classform" id="classForm" hidden>
-        <h1>Log in</h1>
-        <p class="muted">Type your class code</p>
-        <input id="classCode" class="codeinput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" aria-label="Class code" placeholder="ABC123">
         <div class="fb no" id="classFb" aria-live="assertive"></div>
-        <button class="go" type="submit">Next</button>
-        <button class="linkbtn small" id="backToSchool" type="button">Find your school instead</button>
-      </form>
+        <button class="linkbtn small" id="toUserLogin" type="button">Have a username? Log in with it</button>
+        <button class="linkbtn small" id="classTeacher" type="button">Teacher or principal? Sign in</button>
+      </div>
       <div id="pinStep" hidden style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%">
         <h1 id="loginTitle">Log in</h1>
         <p class="muted" id="loginSub">Enter your 4-digit code</p>
-        <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
-        <div class="fb no" id="loginFb" aria-live="assertive"></div>
-        <div class="pad" id="loginPad"></div>
-        <button class="linkbtn" id="changeClass">Not your class? Pick again</button>
+        <div class="padslot" id="pinPadSlot">
+          <!-- one keypad, moved to whichever step is showing (username step or class list step) -->
+          <div class="padbox" id="padBox">
+            <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+            <div class="fb no" id="loginFb" aria-live="assertive"></div>
+            <div class="pad" id="loginPad"></div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><button class="linkbtn" id="toWho" type="button">Teachers &amp; principals</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
-    <p class="note demo" id="demoHint" hidden>Demo mode: school <b>Demo</b>, username <b>fox.comet</b>, password <b>blue-tiger-42</b>. Or use a class code: pick Demo class, then 1111, 2222, 3333 or 4444. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
+    <div class="loginlinks"><button class="linkbtn" id="loginHelp" type="button">Help</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+    <p class="note demo" id="demoHint" hidden>Demo mode: school <b>Demo</b>, username <b>fox.comet</b>, then its 4-digit code. <button class="linkbtn" id="resetDemo">Reset demo</button></p>
   </section>
 
   <!-- TEACHER SIGN IN / SIGN UP / SCHOOL SETUP -->
   <section class="screen" id="teach" hidden>
     <div class="card teachcard">
+      <button type="button" class="backarrow" id="tBack" aria-label="Back"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <form id="tSignIn" class="tform">
         <h1 id="tTitle">Teachers</h1>
         <p class="muted small" id="tRoleNote" hidden>Principals sign in here too. Your account knows you run the school, so you'll see the School page.</p>
+        <p class="muted small" id="tRegNote" hidden>Create your account first. Next you'll set up your school, or join it if a colleague already has.</p>
         <div class="tmode" role="tablist">
           <button type="button" role="tab" data-tmode="create">Create account</button>
           <button type="button" role="tab" data-tmode="signin" class="on">Sign in</button>
@@ -91,7 +111,7 @@
         <button class="linkbtn small" type="button" id="tForgot">Forgot password?</button>
         <div class="fb no" id="tFb" aria-live="assertive"></div>
         <button class="go" type="submit" id="tSubmit">Sign in</button>
-        <div class="loginlinks"><button class="linkbtn" type="button" id="tBack">Back to student login</button><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
+        <div class="loginlinks"><a class="linkbtn" href="/privacy" target="_blank" rel="noopener">Privacy</a></div>
       </form>
       <form id="tReset" class="tform" hidden>
         <h1>Choose a new password</h1>
@@ -104,7 +124,7 @@
         <h1>Set up your school</h1>
         <label>Your name (as students will see it)<input id="tName" required maxlength="80" placeholder="Ms Smith"></label>
         <fieldset class="tchoice">
-          <label><input type="radio" name="tMode" value="new" checked> My school is new to MathWizz</label>
+          <label><input type="radio" name="tMode" value="new" checked> Set up my school (principals and first teachers start here)</label>
           <label><input type="radio" name="tMode" value="join"> Join my school (I have a school code)</label>
         </fieldset>
         <label id="tSchoolNameRow">School name<input id="tSchoolName" maxlength="120" placeholder="Smithers Elementary"></label>
@@ -147,7 +167,6 @@
             <div class="card playcard">
               <div id="heroAvatar"></div>
               <h1 id="playTitle"></h1>
-              <button class="linkbtn small notme" id="notMe" type="button">Not you? Switch player</button>
               <p class="jmsg" id="journeyMsg"></p>
               <div class="streak" id="streakBox"></div>
               <div class="ptsline" id="playPts"></div>
@@ -272,10 +291,11 @@
       <div class="card pcard"><div class="spread"><h2>Class progress</h2><span class="note">Last 10 weeks</span></div><div id="gProgress"></div></div>
       <div class="card addcard">
         <h2>Add students</h2>
-        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Each student gets a username, a password and a space name. You'll check the list before anything is saved.</label>
+        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</label>
         <textarea id="addNames" rows="5" placeholder="franklin.joshua@sd54.bc.ca&#10;Ava Smith&#10;Lee, Noah"></textarea>
-        <div class="row"><button class="btn primary" id="addStudent">Check list</button><button class="btn" id="showCards">Print login cards</button></div>
+        <div class="row"><button class="btn primary" id="addStudent">Check list</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Give everyone a username</button></div>
         <div id="addReview" hidden></div>
+        <div id="unameReview" hidden></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
         <div class="codecards" id="codecards" hidden></div>
@@ -412,11 +432,10 @@
     <ol class="helpsteps">
       <li><span class="hnum">1</span><div><b>Find your school</b><small>Only the first time. This device remembers it.</small></div></li>
       <li><span class="hnum">2</span><div><b>Type your username</b><small>It's on your login card, like franklin.joshua. Your whole school email works too.</small></div></li>
-      <li><span class="hnum">3</span><div><b>Type your password</b><small>It's on your login card too, like blue-tiger-42.</small></div></li>
+      <li><span class="hnum">3</span><div><b>Tap your 4-digit code</b><small>It's on your login card too. Each number has an animal to help you remember it.</small></div></li>
     </ol>
     <div class="helptips">
-      <p><b>Have a 4-digit code?</b> Tap “Use a class code instead”, pick your class, then type your code.</p>
-      <p><b>Forgot?</b> Ask your teacher. They can see your password or code.</p>
+      <p><b>Forgot?</b> Ask your teacher. They can see your username and code.</p>
     </div>
     <button class="go ovbtn" id="helpClose" type="button">Got it</button>
   </div>
