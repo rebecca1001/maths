@@ -217,3 +217,26 @@ describe('week boxes use the full played-days history', () => {
     expect(div.querySelectorAll('.sday.done').length).toBe(3); // Mon, Thu, Fri
   });
 });
+
+describe('buying back a lost streak', () => {
+  const at = (m, d, h = 12) => new Date(2026, m - 1, d, h).getTime();
+  const lostPlayer = (coins) => ({ rounds: [], coins, daily: { count: 6, lastT: g.dayStart(at(11, 3)), best: 6 } }); // last played Tue 3 Nov
+  it('a dead streak shows Streak lost and a buy button that needs 400 stars', () => {
+    const div = document.createElement('div'); div.innerHTML = g.streakHTML(lostPlayer(100), at(11, 12));
+    expect(div.textContent).toMatch(/Streak lost! Your 6-day streak ended/);
+    expect(div.querySelector('[data-restore]').disabled).toBe(true);
+    div.innerHTML = g.streakHTML(lostPlayer(500), at(11, 12));
+    expect(div.querySelector('[data-restore]').disabled).toBe(false);
+  });
+  it('buying it back costs 400 stars, keeps the old count alive, and today\'s round makes it 7', () => {
+    const p = lostPlayer(450); expect(g.restoreStreak(p, at(11, 12))).toBe(true);
+    expect(p.coins).toBe(50);
+    expect(g.streakInfo(p, at(11, 12)).count).toBe(6);
+    expect(g.streakInfo(p, at(11, 12)).lost).toBe(0);
+  });
+  it('cannot buy back without enough stars, or when the streak is not lost', () => {
+    const poor = lostPlayer(399); expect(g.restoreStreak(poor, at(11, 12))).toBe(false); expect(poor.coins).toBe(399);
+    const alive = { rounds: [], coins: 900, daily: { count: 3, lastT: g.dayStart(at(11, 12)), best: 3 } };
+    expect(g.restoreStreak(alive, at(11, 12))).toBe(false); expect(alive.coins).toBe(900);
+  });
+});
