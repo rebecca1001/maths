@@ -70,10 +70,10 @@ describe('login screens (demo mode)', () => {
     expect($('userStep').contains($('loginPad'))).toBe(true); // username and keypad on one screen
     expect(err).not.toHaveBeenCalled();
   });
-  it('username and picture keypad on one screen; no username yet says so; wrong code says try again; right code logs in', async () => {
+  it('username and keypad on one screen; no username yet says so; wrong code says try again; right code logs in', async () => {
     const pin = await foxPin();
     expect($('sPass')).toBeNull(); expect($('sGo')).toBeNull(); // no password box, no Next button
-    expect($('loginPad').querySelectorAll('.kanimal')).toHaveLength(10);
+    expect($('loginPad').querySelectorAll('.kanimal')).toHaveLength(0); // plain numbers, no animals
     $('sUser').value = ''; await tapCode('1');
     expect($('loginFb').textContent).toMatch(/Type your username first/);
     $('sUser').value = 'Fox.Comet@sd54.bc.ca';

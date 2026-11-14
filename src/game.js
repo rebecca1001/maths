@@ -284,7 +284,7 @@ function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(locatio
 // Login funnel, copied from TT Rock Stars (Sam, 12 Nov):
 //   Log in / Register -> School / Family / Tutor -> (Log in, School) Student / Teacher -> find your school -> username + 4-digit code
 //   Register -> School -> create a teacher account. Family and Tutor: coming soon.
-// A device that remembers its school opens straight on that school's student login (username + picture keypad on one screen).
+// A device that remembers its school opens straight on that school's student login (username + keypad on one screen).
 // A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list -> code.
 let lastClass=null; // the class just used (class list login)
 function openLogin(keepClass){
@@ -632,9 +632,8 @@ function afterAnswer(ok){
 // ---------- play engine ----------
 const keys=['7','8','9','4','5','6','1','2','3','del','0','enter'];
 const padHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':k}</button>`).join('');
-// login keypad: an animal on each number so younger kids can remember their code ("dog, cat, fox, bear")
-const ANIMALS={'1':'🐶','2':'🐱','3':'🐰','4':'🦊','5':'🐻','6':'🐼','7':'🐨','8':'🐯','9':'🦁','0':'🐸'};
-const loginPadHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':`<span class="kanimal" aria-hidden="true">${ANIMALS[k]}</span>${k}`}</button>`).join('');
+// login keypad: plain numbers (animals removed, Sam 13 Nov)
+const loginPadHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':k}</button>`).join('');
 $('pad').innerHTML=padHTML;$('loginPad').innerHTML=loginPadHTML;
 $('pad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key');if(k&&k.dataset.d){e.preventDefault();press(k.dataset.d)}});
 $('loginPad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key');if(k&&k.dataset.d){e.preventDefault();loginPress(k.dataset.d)}});
@@ -1397,7 +1396,7 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>My code <b class="num">${esc(p.pin)}</b> <span class="cardanimals" aria-hidden="true">${String(p.pin||'').split('').map(d=>ANIMALS[d]||'').join(' ')}</span></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 // Add students, TT Rock Stars style: paste a list -> review (usernames, clashes, skipped lines) -> add -> print login cards
 let REVIEW=null; // { rows, res } while the teacher checks the list
