@@ -55,7 +55,7 @@ let saveTimer=null,saving=Promise.resolve();
 function save(){if(TEACH||!SESSION)return;clearTimeout(saveTimer);saveTimer=setTimeout(flushSave,700)}
 function flushSave(){
   clearTimeout(saveTimer);const p=P();if(!p||!SESSION)return saving;
-  const {id,name,pin,totBase,totBaseAt,...data}=p,token=SESSION.token;
+  const {id,name,pin,totBase,totBaseAt,playedDays,...data}=p,token=SESSION.token;
   saving=saving.then(()=>api.studentSave(token,data)).then(r=>{if(r&&r.error==='signed_out'&&SESSION&&SESSION.token===token)toLogin(true);else if(COMPS.some(c=>c.status!=='ended'))refreshComps()}).catch(()=>setTimeout(save,4000));
   return saving;
 }
@@ -72,6 +72,7 @@ function applyState(st,keepMe){
   CLASS=st.class;applySettings(CLASS.settings);
   const me=keepMe&&P()&&P().id===st.me.id?P():fixPlayer({...newPlayerData(),...st.me.data,id:st.me.id,name:st.me.name});
   if(st.me_total_stars!=null){me.totBase=st.me_total_stars;me.totBaseAt=Date.now()}
+  if(Array.isArray(st.played_days))me.playedDays=st.played_days;
   const players={[me.id]:me},order=[me.id];
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
   S.players=players;S.order=order;S.current=me.id;
@@ -436,6 +437,7 @@ function nextSchoolDay(now){let t=dayStart(now)+864e5*1.5;for(let i=0;i<120&&!is
 function streakHTML(p,now){
   now=now||Date.now();const st=streakInfo(p,now),best=(p.daily&&p.daily.best)||0,mon=weekStart(now);
   const played=new Set(p.rounds.map(r=>ymd(r.d)));
+  (p.playedDays||[]).forEach(k=>played.add(k));
   if(p.daily&&p.daily.lastT)played.add(ymd(p.daily.lastT));
   const days=['M','T','W','T','F'].map((l,i)=>{const t=mon+i*864e5+36e5,k=ymd(t),today=k===ymd(now),off=!isSchoolDay(t),done=played.has(k);
     return `<span class="sday ${done?'done':''} ${today?'today':''} ${off&&!done?'off':''}" title="${off?'No school':''}"><i>${done?'✓':off?'–':''}</i><small>${l}</small></span>`}).join('');
@@ -645,7 +647,7 @@ $('loginPad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key'
 
 function beginPlay(){
   recent=[];locked=false;$('pcoins').textContent='0';
-  $('combo').hidden=true;$('race').hidden=true;$('boss').hidden=true;$('boss').classList.remove('won');
+  $('combo').hidden=true;$('race').hidden=true;
   $('mark').style.top='50%';$('mark').innerHTML=rocketSVG(P().rocket);$('gl').textContent='Go!';$('score').textContent='0';
   buildTrack();setRing(1,G.mode==='round'?String(G.len/1000):'1/'+G.queue.length);G.nextQ=null;
   const round=G.mode==='round';
@@ -654,7 +656,7 @@ function beginPlay(){
   if(round)tick=setInterval(()=>{
     const left=Math.max(0,1-(performance.now()-G.start)/G.len);
     setRing(left,String(Math.ceil(left*G.len/1000)));$('ring').classList.toggle('low',left<.17);
-    bossTick();renderGhost();
+    renderGhost();
     if(left<=0&&!locked)finishRound(true);
   },100);
 }
@@ -666,7 +668,7 @@ function startRound(){
   let n=3;const step=()=>{
     if(n>0){el.innerHTML=`<b>${n}</b>`;n--;setTimeout(step,800);return}
     el.remove();counting=false;
-    G={mode:'round',start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[],bossAt:Math.random()<.6?5+Math.floor(Math.random()*5):null,boss:null,bossPrize:0};beginPlay();raceMyBest();
+    G={mode:'round',start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[]};beginPlay();raceMyBest();
   };step();
 }
 // Normal rounds: race the ghost of your own best round
@@ -682,7 +684,6 @@ function startCheck(){
 }
 function next(){
   if(!G)return;
-  maybeStartBoss();
   const p=P();
   if(G.mode==='round'){if(performance.now()-G.start>=G.len){finishRound(true);return}q=G.nextQ||pick(p);G.nextQ=pick(p);$('nextq').textContent='Next: '+G.nextQ.text}
   else{if(G.idx>=G.queue.length){finishCheck();return}const [a,b]=G.queue[G.idx++];q={a,b,text:`${a} × ${b}`,ans:a*b};
@@ -724,7 +725,7 @@ function check(){
   record(ok,ms);G.n++;if(G.mode==='round')afterAnswer(ok);G.speeds.push(ok?ms:Math.max(6000,Math.min(ms*1.5,10000)));updateGauge();
   if(ok&&G.trace)G.trace.push(performance.now()-G.start);
   if(ok){G.c++;G.ms+=ms;G.streak=(G.streak||0)+1;G.best=Math.max(G.best||0,G.streak);
-    G.coins++;flyStars(1);if(G.boss)bossHit();
+    G.coins++;flyStars(1);
     SFX.right(G.streak);if(G.mode==='round'&&(G.streak===5||G.streak===10))SFX.combo();
     const cb=$('combo');cb.hidden=!(G.mode==='round'&&G.streak>=3);cb.textContent=`${G.streak} in a row`;cb.classList.toggle('hot',G.streak>=10);
     $('pcoins').textContent=liveStars();$('score').textContent=G.c;if(G.opp)renderRace();$('ans').className='ans ok';$('fb').className='fb goal';
@@ -732,19 +733,19 @@ function check(){
   else{G.streak=0;$('combo').hidden=true;SFX.wrong();$('ans').className='ans no';$('fb').className='fb no';$('fb').textContent=(G.mode==='check'?'Good try! ':'')+`${q.text} = ${q.ans}`;locked=true;setTimeout(()=>{locked=false;next()},1300)}
 }
 function rankReward(t){return 10+t*5}
-function liveStars(){return G.mode==='round'?gameStars(G.c,G.n,G.c?G.ms/G.c:0)+(G.bossPrize||0):G.coins}
+function liveStars(){return G.mode==='round'?gameStars(G.c,G.n,G.c?G.ms/G.c:0):G.coins}
 function finishRound(keep){
   clearInterval(tick);const g=G;G=null;if(!g)return;
   const p=P();
   if(!keep||g.n===0){save();renderHome();show('home');return}
   const before=tierIndex(statusSecs(p)),prevBest=pb(p);
-  const r={d:Date.now(),c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):0,len:60,best:g.best||0,boss:!!(g.boss&&g.boss.state==='won'),pts:0};
+  const r={d:Date.now(),c:g.c,n:g.n,ms:g.c?Math.round(g.ms/g.c):0,len:60,best:g.best||0,pts:0};
   const sc=scoreRound(r.c,r.n,r.ms);r.pts=sc.total;
-  const base=Math.round(sc.total/10),bp=g.bossPrize||0;let rankStars=0;
+  const base=Math.round(sc.total/10);let rankStars=0;
   {const now=tierIndex(statusSecs({rounds:[...p.rounds,r]}));if(p.rankPaid==null)p.rankPaid=before;
    for(let t=p.rankPaid+1;t<=now;t++){if(t>=0)rankStars+=rankReward(t)}
    if(now>p.rankPaid)p.rankPaid=now}
-  r.stars=base+bp+rankStars;
+  r.stars=base+rankStars;
   if(g.trace&&g.c>((p.bestTrace||[]).length)&&g.c>=Math.max(0,...p.rounds.map(x=>x.c||0)))p.bestTrace=g.trace.slice(0,150).map(Math.round);
   p.rounds.push(r);if(p.rounds.length>60)p.rounds.shift();
   const stk=bumpStreak(p);
@@ -864,6 +865,8 @@ function confettiBurst(){
 let GSel=null;
 // Teachers see the real name (if added) with the space name underneath
 function whoHTML(p){return p.realName?`<span class="who"><b>${esc(p.realName)}</b><small>${esc(p.name)}</small></span>`:`<span class="who"><b>${esc(p.name)}</b></span>`}
+// Days played in the last 7 days: from the database's full history when we have it (the device keeps only the last 60 rounds)
+function daysIn7(p,st,now){if(!Array.isArray(st.days))return daysPlayed(p.rounds,now);const from=ymd(now-6*864e5);return new Set(st.days.filter(k=>k>=from)).size}
 function lastPlayed(p){return lastPlayedLabel(p.rounds)}
 function spark(p){
   const rs=p.rounds.slice(-8).map(rate);if(rs.length<2)return '<span class="muted">—</span>';
@@ -916,7 +919,7 @@ function renderGrown(){
         <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}${statusTag(p,now)}</span></td>
         <td>${todayCell(p,cs,now)}</td>
         <td>${lastPlayed(p)}</td>
-        <td class="r">${daysPlayed(p.rounds,now)}</td>
+        <td class="r">${daysIn7(p,st,now)}</td>
         <td class="r">${st.rounds_total!=null?st.rounds_total:p.rounds.length}</td>
         <td class="r">${a==null?'—':Math.round(a*100)+'%'}</td>
         <td class="r">${cpm==null?'—':cpm.toFixed(0)}</td>
@@ -1004,7 +1007,6 @@ const BADGES=[
   {id:'century',name:'Century',      desc:'100 right answers in total',    mark:'100',test:p=>totalRight(p)>=100},
   {id:'shop1',  name:'Shopper',      desc:'Buy something in the shop',     mark:'1',  test:p=>shopCount(p)>=1},
   {id:'moonland',name:'Moon landing',desc:'Reach the Moon rank',           mark:'☾',  test:p=>tierIndex(statusSecs(p))>=5},
-  {id:'boss',   name:'Boss beater',  desc:'Defeat an alien boss',          mark:'!',  test:p=>p.rounds.some(r=>r.boss)},
   {id:'streak5',name:'Streak star',   desc:'Play 5 days in a row',          mark:'5',  test:p=>((p.daily&&p.daily.best)||0)>=5},
   {id:'master', name:'Times tables master',desc:'Know every times table quickly',mark:'12×',test:p=>ALL.every(t=>knowsTable(p,t))}
 ];
@@ -1024,7 +1026,6 @@ const BSTYLE={
   day7:    {c:['#FF6FB5','#C2207A'],shape:'burst', icon:'sun'},
   shop1:   {c:['#7CE38B','#22A04A'],shape:'circle',icon:'bag'},
   shop10:  {c:['#6FE3FF','#2563EB'],shape:'hex',   icon:'gem'},
-  boss:    {c:['#9BF26B','#3E9E1E'],shape:'shield',icon:'alien'},
   century: {c:['#FFD15C','#C27A00'],shape:'burst', icon:'text'},
   moonland:{c:['#C9D6FF','#5B6BC9'],shape:'circle',icon:'moon'},
   master:  {c:['#FFE45C','#C27A00'],shape:'star',  icon:'text'},
@@ -1817,34 +1818,6 @@ function flyStars(n){
     setTimeout(()=>{st.style.transform=`translate(${dx}px,${dy}px) scale(.55) rotate(200deg)`;st.style.opacity='.9'},20+i*90);
     setTimeout(()=>{st.remove();const c=$('pcoins');c.parentElement.classList.remove('bump');void c.offsetWidth;c.parentElement.classList.add('bump')},640+i*90);
   }
-}
-
-// ---------- boss battles ----------
-const BOSSES=[{name:'Zorg the Zapper',body:'#8A5FD0'},{name:'Blorbo',body:'#3ACB7E'},{name:'Captain Cosmo-Crab',body:'#FF6B6F'},{name:'Glitch Bot',body:'#5EC2FF'}];
-function bossSVG(b){const k=OUT,o=`stroke="${k}" stroke-width="2.4" stroke-linejoin="round"`;
-  return `<svg viewBox="0 0 60 56" width="58" height="54" aria-hidden="true"><path d="M14 14 L10 2 L20 10Z M46 14 L50 2 L40 10Z" fill="#FFD447" ${o}/><path d="M6 50 Q2 20 30 10 Q58 20 54 50 Q30 56 6 50Z" fill="${b.body}" ${o}/><circle cx="30" cy="28" r="10" fill="#FFFFFF" ${o}/><circle cx="31" cy="29" r="4.5" fill="${k}"/><circle cx="32.5" cy="27.5" r="1.4" fill="#fff"/><path d="M22 42 Q30 37 38 42" stroke="${k}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M24 42 v3M29 40.5 v3.5M34 41 v3" stroke="#FFFFFF" stroke-width="2"/></svg>`}
-function maybeStartBoss(){
-  if(!G||G.mode!=='round'||G.boss||G.bossAt==null||G.n!==G.bossAt)return;
-  if(G.len-(performance.now()-G.start)<24000)return; // not enough time left
-  const b=BOSSES[Math.floor(Math.random()*BOSSES.length)];
-  G.boss={...b,hp:8,max:8,until:performance.now()+22000,state:'on'};
-  $('bossArt').innerHTML=bossSVG(b);$('bossName').textContent=`${b.name} appeared!`;renderBoss();$('boss').hidden=false;
-  SFX.wrong();setTimeout(()=>SFX.combo(),200);
-}
-function renderBoss(){
-  const B=G&&G.boss;if(!B)return;
-  $('bossHp').style.width=(B.hp/B.max*100)+'%';
-  $('bossInfo').textContent=B.state==='on'?`Hit it ${B.hp} more time${B.hp===1?'':'s'} · ${Math.max(0,Math.ceil((B.until-performance.now())/1000))} s`:B.state==='won'?'Boss defeated! +25 stars':'The boss got away…';
-}
-function bossHit(){
-  const B=G&&G.boss;if(!B||B.state!=='on')return;
-  B.hp--;const a=$('bossArt');a.classList.remove('hit');void a.offsetWidth;a.classList.add('hit');tone(140,.12,'square',.08);
-  if(B.hp<=0){B.state='won';G.coins+=25;G.bossPrize=25;$('pcoins').textContent=liveStars();flyStars(5);SFX.end();$('boss').classList.add('won');setTimeout(()=>{if(G&&G.boss===B)$('boss').hidden=true},2200)}
-  renderBoss();
-}
-function bossTick(){
-  const B=G&&G.boss;if(!B||B.state!=='on')return;
-  if(performance.now()>B.until){B.state='lost';renderBoss();setTimeout(()=>{if(G&&G.boss===B)$('boss').hidden=true},2000)}else renderBoss();
 }
 
 // ---------- race track: in every round you race the ghost of your own best round ----------
