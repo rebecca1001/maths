@@ -208,3 +208,12 @@ describe('last played label', () => {
     expect(lastPlayedLabel(at(11, 9), now)).toBe('3 days ago');
   });
 });
+
+describe('week boxes use the full played-days history', () => {
+  const at = (m, d, h = 12) => new Date(2026, m - 1, d, h).getTime();
+  it('days missing from the last 60 saved rounds still tick when the server says they were played', () => {
+    const p = { rounds: [{ d: at(11, 13) }], playedDays: ['2026-11-09', '2026-11-12', '2026-11-13'], daily: { count: 5, lastT: g.dayStart(at(11, 14)), best: 5 } };
+    const div = document.createElement('div'); div.innerHTML = g.streakHTML(p, at(11, 14, 12));
+    expect(div.querySelectorAll('.sday.done').length).toBe(3); // Mon, Thu, Fri
+  });
+});

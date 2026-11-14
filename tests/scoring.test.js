@@ -23,7 +23,7 @@ describe('scoreRound: out of 1000, half speed, half accuracy', () => {
 
 describe('stars', () => {
   it('gameStars is score / 10, max 100', () => { expect(g.gameStars(10, 10, 1500)).toBe(100); expect(g.gameStars(9, 10, 3000)).toBe(77); expect(g.gameStars(0, 5, 100)).toBe(0); });
-  it('roundStars prefers a stored stars value (boss prize etc.)', () => { expect(g.roundStars({ stars: 55, c: 10, n: 10, ms: 1500 })).toBe(55); expect(g.roundStars({ stars: 0, c: 10, n: 10, ms: 1500 })).toBe(0); expect(g.roundStars({ c: 10, n: 10, ms: 1500 })).toBe(100); });
+  it('roundStars prefers a stored stars value', () => { expect(g.roundStars({ stars: 55, c: 10, n: 10, ms: 1500 })).toBe(55); expect(g.roundStars({ stars: 0, c: 10, n: 10, ms: 1500 })).toBe(0); expect(g.roundStars({ c: 10, n: 10, ms: 1500 })).toBe(100); });
   it('boardStars: all-time total, never reset; server total + rounds played since, else all saved rounds', () => {
     expect(g.boardStars({ totStars: 22, rounds: [] })).toBe(22);
     expect(g.boardStars({ totStars: 0, rounds: [{ d: 5, stars: 9 }] })).toBe(0);

@@ -49,7 +49,7 @@ describe('long-run simulation of a learner', () => {
 describe('stored data size', () => {
   it('worst-case student record is far below the 400KB database limit', () => {
     const facts = {}; for (let a = 1; a <= 12; a++) for (let b = 1; b <= 12; b++) facts[a + ',' + b] = { r: [1, 0, 1, 1, 0, 1, 1, 1], t: [12345, 23456, 3456, 4567, 5678], last: 1789000000000 };
-    const rounds = Array.from({ length: 60 }, (_, i) => ({ d: 1789000000000 + i, c: 30, n: 33, ms: 1800, len: 60, best: 12, boss: true, pts: 900, stars: 120 }));
+    const rounds = Array.from({ length: 60 }, (_, i) => ({ d: 1789000000000 + i, c: 30, n: 33, ms: 1800, len: 60, best: 12, pts: 900, stars: 120 }));
     const data = { facts, rounds, badges: g.BADGES.map(b => b.id), owned: Array(40).fill('skin-name'), rockets: Array(20).fill('rocket-name'), bestTrace: Array(150).fill(123), coins: 99999, maxCoins: 99999, daily: { count: 50, lastT: 1, best: 50, freezeWeek: 1 } };
     const bytes = JSON.stringify(data).length; expect(bytes).toBeLessThan(60000); expect(bytes).toBeLessThan(400000 / 5);
   });
