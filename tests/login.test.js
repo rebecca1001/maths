@@ -70,10 +70,10 @@ describe('login screens (demo mode)', () => {
     expect($('userStep').contains($('loginPad'))).toBe(true); // username and keypad on one screen
     expect(err).not.toHaveBeenCalled();
   });
-  it('username and picture keypad on one screen; no username yet says so; wrong code says try again; right code logs in', async () => {
+  it('username and keypad on one screen; no username yet says so; wrong code says try again; right code logs in', async () => {
     const pin = await foxPin();
     expect($('sPass')).toBeNull(); expect($('sGo')).toBeNull(); // no password box, no Next button
-    expect($('loginPad').querySelectorAll('.kanimal')).toHaveLength(10);
+    expect($('loginPad').querySelectorAll('.kanimal')).toHaveLength(0); // plain numbers, no animals
     $('sUser').value = ''; await tapCode('1');
     expect($('loginFb').textContent).toMatch(/Type your username first/);
     $('sUser').value = 'Fox.Comet@sd54.bc.ca';
@@ -82,6 +82,13 @@ describe('login screens (demo mode)', () => {
     await tapCode(pin);
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
+  });
+  it('Log out goes back to the start (Log in / Register); the school is still remembered, so Student goes straight to it', async () => {
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); // what the device remembers after logging in
+    document.querySelector('[data-tab="logout"]').click(); await settle(80);
+    expect($('login').hidden).toBe(false); expect($('gateStep').hidden).toBe(false);
+    $('gateLogin').click(); await settle(); $('kSchool').click(); await settle(); $('rStudent').click(); await settle();
+    expect($('userStep').hidden).toBe(false); expect($('schoolStep').hidden).toBe(true);
   });
   it('the back arrow goes one step back through the funnel, forgetting the school on the way', async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
@@ -128,13 +135,12 @@ describe('login screens (demo mode)', () => {
   it('no class code typing, no footer teacher link, no Switch player', async () => {
     expect($('classForm')).toBeNull(); expect($('toCodeLogin')).toBeNull(); expect($('toWho')).toBeNull(); expect($('notMe')).toBeNull();
   });
-  it("Ms Berry's class list device: teacher link and username link work; mathwizz.co/?classlist brings the class list back", async () => {
+  it("Ms Berry's class list device: just the class list (no links under it); mathwizz.co/?classlist brings it back", async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'code' }); await api.teacherSignOut(); await boot(); await settle(60);
     expect($('classStep').hidden).toBe(false);
-    $('classTeacher').click(); await settle(60); expect($('teach').hidden).toBe(false);
+    expect($('toUserLogin')).toBeNull(); expect($('classTeacher')).toBeNull();
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); history.pushState({}, '', '/?classlist'); await boot(); await settle(60);
     expect($('classStep').hidden).toBe(false);
-    $('toUserLogin').click(); await settle(); expect($('userStep').hidden).toBe(false);
   });
   it('Register opens Create account, then school setup (set up or join)', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle();

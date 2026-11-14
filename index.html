@@ -19,7 +19,7 @@
     <div class="card logincard" style="align-items:center;text-align:center">
       <!-- TT Rock Stars style: one back arrow in the top left on every step after the front door -->
       <button type="button" class="backarrow" id="loginBack" aria-label="Back" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username, then the 4-digit code on the picture keypad.
+      <!-- Student login, TT Rock Stars style: 1) find your school (remembered on this device), 2) username, then the 4-digit code on the keypad.
            Devices that remembered a school before usernames (Ms Berry's class) still open on the class list -> 4-digit code, until her class has usernames (January).
            Typing a class code was removed (Sam, 12 Nov: as simple as possible). -->
       <!-- Front door on a new device (TT Rock Stars style): Log in or Register. Devices that remember a school skip it. -->
@@ -73,8 +73,6 @@
         <p class="muted"><b id="pickedSchool"></b></p>
         <div class="picklist" id="classList" aria-live="polite"></div>
         <div class="fb no" id="classFb" aria-live="assertive"></div>
-        <button class="linkbtn small" id="toUserLogin" type="button">Have a username? Log in with it</button>
-        <button class="linkbtn small" id="classTeacher" type="button">Teacher or principal? Sign in</button>
       </div>
       <div id="pinStep" hidden style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%">
         <h1 id="loginTitle">Log in</h1>
@@ -432,7 +430,7 @@
     <ol class="helpsteps">
       <li><span class="hnum">1</span><div><b>Find your school</b><small>Only the first time. This device remembers it.</small></div></li>
       <li><span class="hnum">2</span><div><b>Type your username</b><small>It's on your login card, like franklin.joshua. Your whole school email works too.</small></div></li>
-      <li><span class="hnum">3</span><div><b>Tap your 4-digit code</b><small>It's on your login card too. Each number has an animal to help you remember it.</small></div></li>
+      <li><span class="hnum">3</span><div><b>Tap your 4-digit code</b><small>It's on your login card too.</small></div></li>
     </ol>
     <div class="helptips">
       <p><b>Forgot?</b> Ask your teacher. They can see your username and code.</p>

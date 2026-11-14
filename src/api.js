@@ -186,7 +186,7 @@ function demoApi() {
       return ok({
         school_board: paid() ? db.students.map(s => ({ id: s.id, name: s.name, skin: (s.data && s.data.skin) || 'blob', class: (db.classes.find(x => x.id === s.class_id) || {}).name || '', stars: weekStars(s, cut) }))
           .filter(x => x.stars > 0).sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name)).slice(0, 10) : null,
-        me: { id: m.id, name: m.name, data: m.data },
+        me: { id: m.id, name: m.name, data: m.data }, me_week_stars: weekStars(m, cut),
         class: { id: c.id, name: c.name, settings: c.settings },
         competitions: paid() ? demoComps(x => (!x.class_id || x.class_id === m.class_id) && new Date(x.starts_at) - Date.now() < 7 * 864e5 && Date.now() - new Date(x.ended_at || x.ends_at) < 7 * 864e5, m.id, false) : [],
         classmates: db.students.filter(s => s.class_id === m.class_id && s.id !== m.id).map(s => {

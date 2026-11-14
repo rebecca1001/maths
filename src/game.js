@@ -55,7 +55,7 @@ let saveTimer=null,saving=Promise.resolve();
 function save(){if(TEACH||!SESSION)return;clearTimeout(saveTimer);saveTimer=setTimeout(flushSave,700)}
 function flushSave(){
   clearTimeout(saveTimer);const p=P();if(!p||!SESSION)return saving;
-  const {id,name,pin,...data}=p,token=SESSION.token;
+  const {id,name,pin,wkBase,wkBaseAt,...data}=p,token=SESSION.token;
   saving=saving.then(()=>api.studentSave(token,data)).then(r=>{if(r&&r.error==='signed_out'&&SESSION&&SESSION.token===token)toLogin(true);else if(COMPS.some(c=>c.status!=='ended'))refreshComps()}).catch(()=>setTimeout(save,4000));
   return saving;
 }
@@ -71,6 +71,7 @@ function applySettings(st){
 function applyState(st,keepMe){
   CLASS=st.class;applySettings(CLASS.settings);
   const me=keepMe&&P()&&P().id===st.me.id?P():fixPlayer({...newPlayerData(),...st.me.data,id:st.me.id,name:st.me.name});
+  if(st.me_week_stars!=null){me.wkBase=st.me_week_stars;me.wkBaseAt=Date.now()}
   const players={[me.id]:me},order=[me.id];
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
   S.players=players;S.order=order;S.current=me.id;
@@ -272,11 +273,11 @@ const NAME_A=['Cosmic','Lunar','Solar','Stellar','Rocket','Nova','Astro','Galact
 const NAME_B=['Fox','Falcon','Otter','Panda','Tiger','Owl','Rider','Pilot','Ranger','Explorer','Dragon','Wolf','Koala','Shark','Racer','Voyager','Penguin','Lynx','Hawk','Dolphin'];
 function spaceName(){const used=new Set(Object.values(S.players).map(p=>p.name));let n,i=0;do{n=NAME_A[Math.floor(Math.random()*NAME_A.length)]+' '+NAME_B[Math.floor(Math.random()*NAME_B.length)];if(++i>60)n+=' '+(2+Math.floor(Math.random()*98))}while(used.has(n));return n}
 let L=null;
-function toLogin(expired,keepClass){
+function toLogin(expired,keepClass,toStart){
   if(SESSION){flushSave();if(!expired)api.studentLogout(SESSION.token);}
   SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,showBoard:true,muted:false};
   try{const mine=sessionStorage.getItem(TAB);sessionStorage.removeItem(TAB);if(!mine||local().token===mine)setLocal({token:null})}catch(e){setLocal({token:null})}
-  applyWorld();openLogin(keepClass);
+  applyWorld();openLogin(keepClass,toStart);
   if(expired)$('loginFb').textContent='Please log in again.';
 }
 // The address shows which side you're on, so a refresh comes back to the same place
@@ -284,17 +285,17 @@ function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(locatio
 // Login funnel, copied from TT Rock Stars (Sam, 12 Nov):
 //   Log in / Register -> School / Family / Tutor -> (Log in, School) Student / Teacher -> find your school -> username + 4-digit code
 //   Register -> School -> create a teacher account. Family and Tutor: coming soon.
-// A device that remembers its school opens straight on that school's student login (username + picture keypad on one screen).
+// A device that remembers its school opens straight on that school's student login (username + keypad on one screen).
 // A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list -> code.
 let lastClass=null; // the class just used (class list login)
-function openLogin(keepClass){
+function openLogin(keepClass,toStart){
   // hidden way back to the class list for Ms Berry's class until they have usernames: mathwizz.co/?classlist
   if(/[?&]classlist\b/.test(location.search))setLocal({loginWay:'code'});
   setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
   const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
   L={flow:'login',school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
-     step:kc?'pin':!sc?'gate':codeDevice?'class':'user'};
+     step:toStart||!sc?'gate':kc?'pin':codeDevice?'class':'user'};
   $('classFb').textContent='';$('loginFb').textContent='';$('sUser').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
@@ -340,20 +341,18 @@ async function loadClasses4Login(){
 $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
 // switching between the username login and the class code login (remembered on this device)
-$('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
 $('gateLogin').onclick=()=>{L.flow='login';goStep('kind')};
 $('gateRegister').onclick=()=>{L.flow='register';goStep('kind')};
 // TEMPORARY: 4-digit code login for classes without usernames yet (Ms Berry's): find your school -> pick your class -> code. Remove in January.
-$('gateCode').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep('school')};
+$('gateCode').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
 $('kSchool').onclick=()=>{if(L.flow==='register')openTeacher('register');else goStep('role')};
 const SOON={family:['Families','Family accounts are coming soon. For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they\'re doing.'],
   tutor:['Tutors','Tutor accounts are coming soon. MathWizz is for schools for now.']};
 function showSoon(k){$('soonTitle').textContent=SOON[k][0];$('soonText').textContent=SOON[k][1];goStep('soon')}
 $('kFamily').onclick=()=>showSoon('family');
 $('kTutor').onclick=()=>showSoon('tutor');
-$('rStudent').onclick=()=>{L.via='user';goStep('school')};
+$('rStudent').onclick=()=>{L.via='user';if(L.school)setLocal({loginWay:'user'});goStep(L.school?'user':'school')}; // a remembered school skips the search
 $('rTeacher').onclick=()=>openTeacher('teacher');
-$('classTeacher').onclick=()=>openTeacher('teacher');
 // Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
 function loginBack(){
   if(!L||L.busy)return;const st=L.step;
@@ -489,7 +488,9 @@ function scoreRound(c,n,msPer){
 }
 const gameStars=(c,n,ms)=>Math.round(scoreRound(c,n,ms).total/10);       // up to 100 per game
 const roundStars=r=>r.stars!=null?r.stars:gameStars(r.c,r.n,r.ms);
-const ptsSince=(p,t)=>p.wkStars!=null?p.wkStars:p.rounds.filter(r=>r.d>=t).reduce((s,r)=>s+roundStars(r),0);
+// Stars this week. Classmates: from the server (round log). Me: the server's count when the state loaded (every round,
+// not just the last 60 kept on the student) plus rounds played since; otherwise counted from my saved rounds.
+const ptsSince=(p,t)=>p.wkStars!=null?p.wkStars:p.wkBase!=null&&p.wkBaseAt>=t?p.wkBase+p.rounds.filter(r=>r.d>p.wkBaseAt).reduce((s,r)=>s+roundStars(r),0):p.rounds.filter(r=>r.d>=t).reduce((s,r)=>s+roundStars(r),0);
 function migrateStars(p){if(p.starsV2)return;p.maxCoins=Math.max(p.maxCoins||0,p.coins||0);p.coins=Math.max(p.coins||0,p.rounds.reduce((s,r)=>s+roundStars(r),0));p.starsV2=true}
 const fmtN=n=>n.toLocaleString();
 let SCHOOLBOARD=null,boardScope='class'; // school Top 10 (School and School Plus plans), and which board the Top 10 tab shows
@@ -536,7 +537,7 @@ function renderBoard(p){
 $('boardScope').addEventListener('click',e=>{const b=e.target.closest('[data-scope]');if(!b)return;boardScope=b.dataset.scope;renderBoard(P())});
 $('start').onclick=()=>startRound();
 let tab='play';
-function logout(){toLogin()}
+function logout(){toLogin(false,false,true)} // back to the start: Log in / Register (Sam, 13 Nov)
 function setTab(t){
   if(t==='logout'){logout();return}
   tab=t;renderHome();window.scrollTo(0,0);
@@ -634,9 +635,8 @@ function afterAnswer(ok){
 // ---------- play engine ----------
 const keys=['7','8','9','4','5','6','1','2','3','del','0','enter'];
 const padHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':k}</button>`).join('');
-// login keypad: an animal on each number so younger kids can remember their code ("dog, cat, fox, bear")
-const ANIMALS={'1':'🐶','2':'🐱','3':'🐰','4':'🦊','5':'🐻','6':'🐼','7':'🐨','8':'🐯','9':'🦁','0':'🐸'};
-const loginPadHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':`<span class="kanimal" aria-hidden="true">${ANIMALS[k]}</span>${k}`}</button>`).join('');
+// login keypad: plain numbers (animals removed, Sam 13 Nov)
+const loginPadHTML=keys.map(k=>`<button class="key${k==='del'?' del':k==='enter'?' enter':''}" data-d="${k}">${k==='del'?'Delete':k==='enter'?'Enter':k}</button>`).join('');
 $('pad').innerHTML=padHTML;$('loginPad').innerHTML=loginPadHTML;
 $('pad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key');if(k&&k.dataset.d){e.preventDefault();press(k.dataset.d)}});
 $('loginPad').addEventListener('pointerdown',e=>{const k=e.target.closest('.key');if(k&&k.dataset.d){e.preventDefault();loginPress(k.dataset.d)}});
@@ -1399,7 +1399,7 @@ $('gArchive').onclick=async()=>{
 // ----- students: add many at once, login cards -----
 function renderCodeCards(){
   const code=TEACH?curClass().code:'';
-  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>My code <b class="num">${esc(p.pin)}</b> <span class="cardanimals" aria-hidden="true">${String(p.pin||'').split('').map(d=>ANIMALS[d]||'').join(' ')}</span></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
+  $('codecards').innerHTML=S.order.map(id=>{const p=S.players[id];return `<div class="codecard">${avatar(p.skin,44)}<div>${p.realName?`<span class="cfor">${esc(p.realName)}</span>`:''}<b>${esc(p.name)}</b><span>School <b>${esc(((TEACH&&TEACH.info.teacher&&TEACH.info.teacher.school)||{}).name||'')}</b></span><span>Class <b>${esc(TEACH?curClass().name:'')}</b></span>${p.username?`<span>Username <b>${esc(p.username)}</b></span><span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">mathwizz.co → find your school → log in</span>`:`<span>My code <b class="num">${esc(p.pin)}</b></span><span class="small muted">Class code ${esc(code)}</span>`}</div></div>`}).join('')||'<p class="muted">No students yet.</p>';
 }
 // Add students, TT Rock Stars style: paste a list -> review (usernames, clashes, skipped lines) -> add -> print login cards
 let REVIEW=null; // { rows, res } while the teacher checks the list
