@@ -94,7 +94,7 @@ select 'classmate facts hidden: ' || not exists (
   select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e where (e -> 'data')::jsonb ? 'facts');
 select 'classmates get only skin + week totals: ' || not exists (
   select 1 from json_array_elements(public.student_state((select v from t where k='tok_nova')) -> 'classmates') e
-  where exists (select 1 from jsonb_object_keys((e -> 'data')::jsonb) k where k not in ('skin','wkStars','wkMins')));
+  where exists (select 1 from jsonb_object_keys((e -> 'data')::jsonb) k where k not in ('skin','totStars','wkMins')));
 select 'real name never sent to students: ' || (position('Ava' in public.student_state((select v from t where k='tok_fox'))::text) = 0
   and position('Ava' in public.student_state((select v from t where k='tok_nova'))::text) = 0);
 select 'my own data still complete: ' || ((public.student_state((select v from t where k='tok_fox')) -> 'me' -> 'data') ->> 'coins' = '42');

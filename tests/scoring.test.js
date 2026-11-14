@@ -24,11 +24,12 @@ describe('scoreRound: out of 1000, half speed, half accuracy', () => {
 describe('stars', () => {
   it('gameStars is score / 10, max 100', () => { expect(g.gameStars(10, 10, 1500)).toBe(100); expect(g.gameStars(9, 10, 3000)).toBe(77); expect(g.gameStars(0, 5, 100)).toBe(0); });
   it('roundStars prefers a stored stars value (boss prize etc.)', () => { expect(g.roundStars({ stars: 55, c: 10, n: 10, ms: 1500 })).toBe(55); expect(g.roundStars({ stars: 0, c: 10, n: 10, ms: 1500 })).toBe(0); expect(g.roundStars({ c: 10, n: 10, ms: 1500 })).toBe(100); });
-  it('ptsSince uses the server weekly total when present, else sums recent rounds', () => {
-    expect(g.ptsSince({ wkStars: 22, rounds: [] }, 0)).toBe(22);
-    expect(g.ptsSince({ wkStars: 0, rounds: [{ d: 5, stars: 9 }] }, 0)).toBe(0);
+  it('boardStars: all-time total, never reset; server total + rounds played since, else all saved rounds', () => {
+    expect(g.boardStars({ totStars: 22, rounds: [] })).toBe(22);
+    expect(g.boardStars({ totStars: 0, rounds: [{ d: 5, stars: 9 }] })).toBe(0);
     const p = { rounds: [{ d: 1, stars: 10 }, { d: 100, stars: 20 }, { d: 200, stars: 30 }] };
-    expect(g.ptsSince(p, 100)).toBe(50); expect(g.ptsSince(p, 201)).toBe(0); expect(g.ptsSince(p, 0)).toBe(60);
+    expect(g.boardStars(p)).toBe(60); // includes old rounds: nothing resets on Monday
+    expect(g.boardStars({ ...p, totBase: 5000, totBaseAt: 150 })).toBe(5030); // server total when loaded + the round played after
   });
   it('migrateStars converts old coin totals once and is idempotent', () => {
     const p = { coins: 0, rounds: [{ c: 10, n: 10, ms: 1500 }, { stars: 40 }] };

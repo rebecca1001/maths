@@ -132,7 +132,7 @@ Teachers see a **Class progress** curve on the Students tab. School admins see a
 
 ## Walkthrough script (finds bugs and clutter)
 
-`scripts/walkthrough.py` clicks through the whole login (all four doors, email and class code, wrong and right passwords) and the teacher side (groups, adding students by email, details, passwords, goal, needs help, settings, school page, all schools) at desktop and phone widths, in demo mode.
+`scripts/walkthrough.py` clicks through every login path in demo mode, at desktop and phone widths: the TT Rock Stars funnel (Log in / Register, School / Family / Tutor, Student / Teacher, find your school, username + 4-digit code, typed or tapped), wrong usernames and codes, back arrows, refresh, log out, the temporary 4-digit code login (class list, `?classlist`), Register a new school, teacher sign-in, and the teacher adding students, giving usernames and printing cards, then a newly added student logging in. It flags JavaScript errors, screens landing in the wrong place, overlaps, sideways scrolling, unlabelled buttons and clutter.
 
 ```
 npm run build && npx vite preview --port 4173 &
