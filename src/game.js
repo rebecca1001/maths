@@ -446,12 +446,14 @@ function streakHTML(p,now){
   else if(st.count&&!isSchoolDay(now))msg=`No school today, so your ${st.count}-day streak is safe. Playing still earns stars!`;
   else if(st.count&&st.needsFreeze)msg=`You missed a day, but your streak freeze will save it. Play today!`;
   else if(st.count)msg=`Play a round today to keep your ${st.count}-day streak going!`;
+  else if(st.lost)msg=`Streak lost! Your ${st.lost}-day streak ended.`;
   else msg=best?`Play a round to start a new streak. Your best is ${best} days.`:'Play a round today to start a streak!';
   const lit=st.count>0&&st.playedToday;
   return `<div class="streakbox ${lit?'lit':st.count?'risk':'cold'}">
     <div class="shead"><span class="sflame">${FLAME}</span><b class="num">${st.count}</b><span class="slabel">day streak</span>${st.freeLeft&&st.count?`<span class="sfreeze" title="One missed school day each week is forgiven">${ICE} 1 freeze</span>`:''}</div>
     <div class="sweek">${days}</div>
-    <p class="smsg">${msg}${best>st.count&&st.count?` <span class="muted">Best: ${best}</span>`:''}</p></div>`;
+    <p class="smsg">${msg}${best>st.count&&st.count?` <span class="muted">Best: ${best}</span>`:''}</p>
+    ${st.lost?`<button class="btn primary srestore" data-restore ${(p.coins||0)<STREAK_PRICE?'disabled':''}>Buy it back for ${STREAK_PRICE} stars</button>${(p.coins||0)<STREAK_PRICE?`<span class="muted small">You have ${p.coins||0} stars. Keep playing to earn ${STREAK_PRICE}.</span>`:''}`:''}</div>`;
 }
 // Players saved before the streak existed: work it out from the rounds they have, with the same rules as bumpStreak
 function streakFromRounds(rounds){
@@ -460,13 +462,22 @@ function streakFromRounds(rounds){
     if(st.alive){d.count++;if(st.needsFreeze)d.freezeWeek=weekKey(t)}else d.count=1;d.lastT=t;d.best=Math.max(d.best,d.count)}
   return d;
 }
+document.addEventListener('click',e=>{if(!e.target.closest('[data-restore]'))return;const p=P();if(p&&restoreStreak(p)){SFX.buy();renderHome()}});
 function renderStreak(p){const b=$('streakBox');if(b)b.innerHTML=streakHTML(p)}
 function streakInfo(p,now){
   const d=p.daily,today=dayStart(now||Date.now());
-  if(!d||!d.lastT||!d.count)return {count:0,alive:false,playedToday:false,freeLeft:true};
+  if(!d||!d.lastT||!d.count)return {count:0,alive:false,playedToday:false,freeLeft:true,lost:0};
   const played=d.lastT===today,missed=played?0:missedSchoolDays(d.lastT,today),freeLeft=d.freezeWeek!==weekKey(today);
   const alive=played||missed===0||(missed===1&&freeLeft);
-  return {count:alive?d.count:0,alive,playedToday:played,needsFreeze:!played&&missed===1,freeLeft};
+  return {count:alive?d.count:0,alive,playedToday:played,needsFreeze:!played&&missed===1,freeLeft,lost:alive?0:d.count};
+}
+// A lost streak can be bought back with stars until the child plays their next round (that round starts a new streak at 1).
+const STREAK_PRICE=400;
+function prevSchoolDay(now){let t=dayStart(now)-864e5*.5;for(let i=0;i<400&&!isSchoolDay(t);i++)t-=864e5;return dayStart(t)}
+function restoreStreak(p,now){
+  now=now||Date.now();const st=streakInfo(p,now);
+  if(!st.lost||(p.coins||0)<STREAK_PRICE)return false;
+  p.coins-=STREAK_PRICE;p.daily.lastT=prevSchoolDay(now);delete p.daily.freezeWeek;save();return true;
 }
 function bumpStreak(p){ // call once per finished round; returns {count, grew, usedFreeze}
   const today=dayStart(Date.now()),d=p.daily||(p.daily={count:0,lastT:0,best:0});
@@ -1917,7 +1928,7 @@ export async function boot(){
 // Test-only access to the game's pure logic and state. Not used by the app itself.
 export const __test = {
   level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
-  streakInfo, bumpStreak, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
+  streakInfo, bumpStreak, restoreStreak, STREAK_PRICE, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
   renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
