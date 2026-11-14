@@ -658,7 +658,17 @@ function beginPlay(){
     if(left<=0&&!locked)finishRound(true);
   },100);
 }
-function startRound(){G={mode:'round',start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[],bossAt:Math.random()<.6?5+Math.floor(Math.random()*5):null,boss:null,bossPrize:0};beginPlay();raceMyBest()}
+// 3, 2, 1 before each round; the 60 seconds only start at "Go!"
+let counting=false;
+function startRound(){
+  if(counting)return;counting=true;
+  const el=document.createElement('div');el.className='countdown';el.setAttribute('role','status');el.setAttribute('aria-live','assertive');document.body.appendChild(el);
+  let n=3;const step=()=>{
+    if(n>0){el.innerHTML=`<b>${n}</b>`;n--;setTimeout(step,800);return}
+    el.remove();counting=false;
+    G={mode:'round',start:performance.now(),len:60000,c:0,n:0,ms:0,log:[],coins:0,speeds:[],trace:[],bossAt:Math.random()<.6?5+Math.floor(Math.random()*5):null,boss:null,bossPrize:0};beginPlay();raceMyBest();
+  };step();
+}
 // Normal rounds: race the ghost of your own best round
 function raceMyBest(){
   const p=P();let tr=p.bestTrace;
