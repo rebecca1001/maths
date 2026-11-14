@@ -83,6 +83,13 @@ describe('login screens (demo mode)', () => {
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
   });
+  it('Log out goes back to the start (Log in / Register); the school is still remembered, so Student goes straight to it', async () => {
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); // what the device remembers after logging in
+    document.querySelector('[data-tab="logout"]').click(); await settle(80);
+    expect($('login').hidden).toBe(false); expect($('gateStep').hidden).toBe(false);
+    $('gateLogin').click(); await settle(); $('kSchool').click(); await settle(); $('rStudent').click(); await settle();
+    expect($('userStep').hidden).toBe(false); expect($('schoolStep').hidden).toBe(true);
+  });
   it('the back arrow goes one step back through the funnel, forgetting the school on the way', async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
     expect($('userStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(false);
