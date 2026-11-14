@@ -464,12 +464,20 @@ function streakFromRounds(rounds){
 }
 document.addEventListener('click',e=>{if(!e.target.closest('[data-restore]'))return;const p=P();if(p&&restoreStreak(p)){SFX.buy();renderHome()}});
 function renderStreak(p){const b=$('streakBox');if(b)b.innerHTML=streakHTML(p)}
+// The day a streak ended (the first day it could no longer be covered by the weekly freeze); a lost streak can be bought back for 7 days after that
+const STREAK_BUYBACK_DAYS=7;
+function streakBreakAge(d,now){
+  now=now||Date.now();const today=dayStart(now);
+  for(let i=1;i<=400;i++){const t=dayStart(d.lastT+i*864e5+36e5),free=d.freezeWeek!==weekKey(t);
+    if(missedSchoolDays(d.lastT,t)>(free?1:0))return Math.round((today-t)/864e5)}
+  return 0;
+}
 function streakInfo(p,now){
   const d=p.daily,today=dayStart(now||Date.now());
   if(!d||!d.lastT||!d.count)return {count:0,alive:false,playedToday:false,freeLeft:true,lost:0};
   const played=d.lastT===today,missed=played?0:missedSchoolDays(d.lastT,today),freeLeft=d.freezeWeek!==weekKey(today);
   const alive=played||missed===0||(missed===1&&freeLeft);
-  return {count:alive?d.count:0,alive,playedToday:played,needsFreeze:!played&&missed===1,freeLeft,lost:alive?0:d.count};
+  return {count:alive?d.count:0,alive,playedToday:played,needsFreeze:!played&&missed===1,freeLeft,lost:alive?0:(streakBreakAge(d,now)<=STREAK_BUYBACK_DAYS?d.count:0)};
 }
 // A lost streak can be bought back with stars until the child plays their next round (that round starts a new streak at 1).
 const STREAK_PRICE=400;
@@ -1928,7 +1936,7 @@ export async function boot(){
 // Test-only access to the game's pure logic and state. Not used by the app itself.
 export const __test = {
   level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
-  streakInfo, bumpStreak, restoreStreak, STREAK_PRICE, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
+  streakInfo, bumpStreak, restoreStreak, STREAK_PRICE, STREAK_BUYBACK_DAYS, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
   renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
