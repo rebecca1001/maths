@@ -197,3 +197,14 @@ describe('status label', () => {
     expect(_groupOf([r(0, 10, 10), r(1, 10, 10), r(2, 10, 10)], now)).toBe('flying');
   });
 });
+
+import { lastPlayedLabel } from '../src/dashboard.js';
+describe('last played label', () => {
+  it('Today only for the same calendar day', () => {
+    const now = new Date(2026, 10, 14, 10, 51).getTime(), at = (d, h) => [{ d: new Date(2026, 10, d, h, 0).getTime() }];
+    expect(lastPlayedLabel([], now)).toBe('Never');
+    expect(lastPlayedLabel(at(14, 8), now)).toBe('Today');
+    expect(lastPlayedLabel(at(13, 16), now)).toBe('Yesterday'); // 19h ago, but not today
+    expect(lastPlayedLabel(at(11, 9), now)).toBe('3 days ago');
+  });
+});
