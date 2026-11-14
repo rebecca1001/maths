@@ -72,9 +72,9 @@ declare sb json;
 begin
   sb := public.student_state('tok_spend')->'school_board';
   if json_array_length(sb) <> 2 then raise exception 'FAIL school board length %', sb; end if;
-  if sb->0->>'name' <> 'Spender' or (sb->0->>'stars')::int <> 300 or sb->1->>'name' <> 'Other Class' then raise exception 'FAIL school board order %', sb; end if;
+  if sb->0->>'name' <> 'Spender' or (sb->0->>'stars')::int <> 500 or sb->1->>'name' <> 'Other Class' then raise exception 'FAIL school board order %', sb; end if;
   if sb::text like '%Demo Board%' or sb::text like '%Quiet%' then raise exception 'FAIL demo or zero-star student on board'; end if;
-  raise notice 'paid school Top 10: this week only, ranked, no demo or zero-star kids: true';
+  raise notice 'paid school Top 10: all-time stars (300 this week + 200 last month), ranked, no demo or zero-star kids: true';
 end $$;
 
 reset role;

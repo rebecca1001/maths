@@ -119,7 +119,7 @@ describe('screens (demo mode)', () => {
     for (const k of kids.slice(3)) await api.setRealName(k.id, `Kid ${k.id.slice(0, 4)} Test${k.id.slice(-3)}`);
     history.pushState({}, '', '/?teacher=1'); await boot(); await new Promise((res) => setTimeout(res, 60));
     const btn = document.getElementById('giveAll');
-    expect(btn.hidden).toBe(false); expect(btn.textContent).toMatch(new RegExp(`\\(${kids.length}\\)`));
+    expect(btn.hidden).toBe(false); expect(btn.textContent).toMatch(new RegExp(`\\(${kids.length - 1}\\)`)); // counts only students who can get one (one has no real name)
     btn.click(); await new Promise((res) => setTimeout(res, 20));
     const review = document.getElementById('unameReview');
     expect(review.textContent).toMatch(/smith\.emma/); expect(review.textContent).toMatch(/smith\.emma2/);
@@ -132,7 +132,7 @@ describe('screens (demo mode)', () => {
     expect(after.find((s) => s.id === kids[2].id).username).toBeFalsy();
     expect(after.find((s) => s.id === kids[0].id).pin).toBe(kids[0].pin); // same code
     expect(document.getElementById('addMsg').textContent).toMatch(/Done: \d+ students now have usernames/);
-    expect(document.getElementById('giveAll').textContent).toMatch(/\(1\)/); // only the one without a real name left
+    expect(document.getElementById('giveAll').textContent).toMatch(/1 needs a full name/); // only the one without a real name left
     history.pushState({}, '', '/');
   });
   it("kid's Play screen shows today's minimum, or nothing when there is none", () => {
@@ -158,6 +158,7 @@ describe('student Top 10', () => {
     expect(document.getElementById('boardScope').hidden).toBe(false);
     expect(document.querySelector('#board .lhead').textContent).not.toMatch(/Time/);
     expect(document.getElementById('boardMe').textContent).not.toMatch(/#\d/);
+    expect(document.getElementById('board').textContent + document.getElementById('boardMe').textContent).not.toMatch(/Monday|this week/); // never resets
     g.setBoardScope('school'); g.renderBoard(p);
     expect(document.getElementById('boardTitle').textContent).toBe('Top 10 in your school');
     expect(document.querySelectorAll('#board .lrow').length).toBeLessThanOrEqual(10);

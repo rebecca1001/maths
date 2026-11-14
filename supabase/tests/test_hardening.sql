@@ -42,8 +42,8 @@ begin
     jsonb_build_object('d',(ms::bigint-5000)::text,'c',10,'n',10,'ms',3000,'len',60), jsonb_build_object('d',(ms::bigint-6000)::text,'c',4,'n',4,'ms',2000,'len',60),
     jsonb_build_object('d',((extract(epoch from now())-8*86400)*1000)::bigint::text,'c',10,'n',10,'ms',3000))));
   j := public.student_state(ta);
-  if (j->'classmates'->0->'data'->>'wkStars')::int <> 134 or (j->'classmates'->0->'data'->>'wkMins')::int <> 2 then raise exception 'FAIL weekly maths: %', j; end if;
-  raise notice 'weekly stars=134 mins=2: true';
+  if (j->'classmates'->0->'data'->>'totStars')::int <> 220 or (j->'classmates'->0->'data'->>'wkMins')::int <> 2 then raise exception 'FAIL weekly maths: %', j; end if;
+  raise notice 'Top 10 stars (all time) = 134 this week + 86 from 8 days ago = 220; minutes this week = 2: true';
 
   -- 3) clean errors for bad saves
   if (public.student_save(ta, null)->>'error') <> 'bad_data' then raise exception 'FAIL null data'; end if;

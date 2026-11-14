@@ -7,7 +7,7 @@ describe('loading the server state (applyState)', () => {
   const state = (over = {}) => ({
     class: { id: 'c1', name: 'Ravens', settings: { maxTable: 10, sound: false } },
     me: { id: 'me', name: 'Comet Fox', data: { skin: 'ninja', coins: 12, rounds: [{ c: 10, n: 10, ms: 1500 }], facts: { '2,3': known() } } },
-    classmates: [{ id: 'k1', name: 'Nova Falcon', data: { skin: 'astro', wkStars: 40, wkMins: 3 } }, { id: 'k2', name: 'Lunar Otter', data: { skin: 'dj', wkStars: 0, wkMins: 0 } }],
+    classmates: [{ id: 'k1', name: 'Nova Falcon', data: { skin: 'astro', totStars: 40, wkMins: 3 } }, { id: 'k2', name: 'Lunar Otter', data: { skin: 'dj', totStars: 0, wkMins: 0 } }],
     ...over,
   });
   it('builds me + classmates in order, and applies class settings', () => {
@@ -15,10 +15,10 @@ describe('loading the server state (applyState)', () => {
     expect(g.ALL.at(-1)).toBe(10); expect(g.S.muted).toBe(true); expect(g.S.players.me.skin).toBe('ninja');
   });
   it('classmates only carry safe fields: no facts, no rounds', () => {
-    g.applyState(state()); const k = g.S.players.k1; expect(k.facts).toEqual({}); expect(k.rounds).toEqual([]); expect(k.wkStars).toBe(40); expect(k.name).toBe('Nova Falcon');
+    g.applyState(state()); const k = g.S.players.k1; expect(k.facts).toEqual({}); expect(k.rounds).toEqual([]); expect(k.totStars).toBe(40); expect(k.name).toBe('Nova Falcon');
   });
-  it('the weekly Top 10 uses server totals and hides players with 0 stars', () => {
-    g.applyState(state()); const pts = Object.values(g.S.players).map(p => [p.name, g.ptsSince(p, Date.now() - 7 * 864e5)]);
+  it('the Top 10 uses server all-time totals and hides players with 0 stars', () => {
+    g.applyState(state()); const pts = Object.values(g.S.players).map(p => [p.name, g.boardStars(p)]);
     expect(Object.fromEntries(pts)['Nova Falcon']).toBe(40); expect(Object.fromEntries(pts)['Lunar Otter']).toBe(0);
   });
   it('fills in a brand-new student with an empty record', () => {

@@ -55,7 +55,7 @@ let saveTimer=null,saving=Promise.resolve();
 function save(){if(TEACH||!SESSION)return;clearTimeout(saveTimer);saveTimer=setTimeout(flushSave,700)}
 function flushSave(){
   clearTimeout(saveTimer);const p=P();if(!p||!SESSION)return saving;
-  const {id,name,pin,wkBase,wkBaseAt,...data}=p,token=SESSION.token;
+  const {id,name,pin,totBase,totBaseAt,...data}=p,token=SESSION.token;
   saving=saving.then(()=>api.studentSave(token,data)).then(r=>{if(r&&r.error==='signed_out'&&SESSION&&SESSION.token===token)toLogin(true);else if(COMPS.some(c=>c.status!=='ended'))refreshComps()}).catch(()=>setTimeout(save,4000));
   return saving;
 }
@@ -71,7 +71,7 @@ function applySettings(st){
 function applyState(st,keepMe){
   CLASS=st.class;applySettings(CLASS.settings);
   const me=keepMe&&P()&&P().id===st.me.id?P():fixPlayer({...newPlayerData(),...st.me.data,id:st.me.id,name:st.me.name});
-  if(st.me_week_stars!=null){me.wkBase=st.me_week_stars;me.wkBaseAt=Date.now()}
+  if(st.me_total_stars!=null){me.totBase=st.me_total_stars;me.totBaseAt=Date.now()}
   const players={[me.id]:me},order=[me.id];
   st.classmates.forEach(c=>{players[c.id]=fixPlayer({...newPlayerData(),...c.data,facts:{},id:c.id,name:c.name});order.push(c.id)});
   S.players=players;S.order=order;S.current=me.id;
@@ -290,12 +290,13 @@ function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(locatio
 let lastClass=null; // the class just used (class list login)
 function openLogin(keepClass,toStart){
   // hidden way back to the class list for Ms Berry's class until they have usernames: mathwizz.co/?classlist
-  if(/[?&]classlist\b/.test(location.search))setLocal({loginWay:'code'});
+  const classlist=/[?&]classlist\b/.test(location.search);
+  if(classlist)setLocal({loginWay:'code'});
   setAddress(false);
   const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
   const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
   L={flow:'login',school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
-     step:toStart||!sc?'gate':kc?'pin':codeDevice?'class':'user'};
+     step:toStart?'gate':!sc?(classlist?'school':'gate'):kc?'pin':codeDevice?'class':'user'};
   $('classFb').textContent='';$('loginFb').textContent='';$('sUser').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
@@ -488,21 +489,22 @@ function scoreRound(c,n,msPer){
 }
 const gameStars=(c,n,ms)=>Math.round(scoreRound(c,n,ms).total/10);       // up to 100 per game
 const roundStars=r=>r.stars!=null?r.stars:gameStars(r.c,r.n,r.ms);
-// Stars this week. Classmates: from the server (round log). Me: the server's count when the state loaded (every round,
-// not just the last 60 kept on the student) plus rounds played since; otherwise counted from my saved rounds.
-const ptsSince=(p,t)=>p.wkStars!=null?p.wkStars:p.wkBase!=null&&p.wkBaseAt>=t?p.wkBase+p.rounds.filter(r=>r.d>p.wkBaseAt).reduce((s,r)=>s+roundStars(r),0):p.rounds.filter(r=>r.d>=t).reduce((s,r)=>s+roundStars(r),0);
+// Top 10 stars: every star ever earned, never reset (Sam, 13 Nov). Classmates: from the server (round log).
+// Me: the server's total when the state loaded (every round, not just the last 60 kept on the student) plus rounds played since;
+// otherwise counted from my saved rounds.
+const boardStars=p=>p.totStars!=null?p.totStars:p.totBase!=null?p.totBase+p.rounds.filter(r=>r.d>p.totBaseAt).reduce((s,r)=>s+roundStars(r),0):p.rounds.reduce((s,r)=>s+roundStars(r),0);
 function migrateStars(p){if(p.starsV2)return;p.maxCoins=Math.max(p.maxCoins||0,p.coins||0);p.coins=Math.max(p.coins||0,p.rounds.reduce((s,r)=>s+roundStars(r),0));p.starsV2=true}
 const fmtN=n=>n.toLocaleString();
 let SCHOOLBOARD=null,boardScope='class'; // school Top 10 (School and School Plus plans), and which board the Top 10 tab shows
-function weekBoard(){const wk=weekStart();return S.order.map(id=>S.players[id]).map(q=>({p:q,s:ptsSince(q,wk)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
+function starBoard(){return S.order.map(id=>S.players[id]).map(q=>({p:q,s:boardStars(q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
 function renderHome(){
   const p=P();applyWorld();
   $('heroAvatar').innerHTML=`<div class="herowrap">${avatar(p.skin,110)}</div>`;
   const best=pb(p);
   $('playTitle').textContent=`Ready, ${p.name}?`;
-  {const wb=weekBoard(),pos=wb.findIndex(x=>x.p.id===p.id);
+  {const wb=starBoard(),pos=wb.findIndex(x=>x.p.id===p.id);
    // the rank is only shown inside the Top 10, so nobody sees that they are near the bottom
-   $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(ptsSince(p,weekStart()))}</b> this week${pos>=0&&pos<10?` · <b>#${pos+1}</b>`:''}`;
+   $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(boardStars(p))}</b> stars${pos>=0&&pos<10?` · <b>#${pos+1}</b>`:''}`;
   }
   renderStreak(p);
   {const j=journeyHTML(p);$('journey').innerHTML=j.track;$('journeyMsg').innerHTML=j.msg;}
@@ -523,16 +525,16 @@ function renderMinBox(p){
   box.innerHTML=`<span class="label">Today</span><div class="gline">${done?`<b>Done for today! ✓</b> <span class="muted">${n} round${n>1?'s':''}</span>`:`<b class="num">${n} of ${m}</b> rounds · <span>${m-n} to go</span>`}</div><div class="gbar"><i style="width:${Math.min(100,n/m*100).toFixed(0)}%"></i></div>`;
 }
 function renderBoard(p){
-  const wk=weekStart(),mine=ptsSince(p,wk),school=boardScope==='school'&&SCHOOLBOARD;
+  const mine=boardStars(p),school=boardScope==='school'&&SCHOOLBOARD;
   $('boardTitle').textContent=S.showBoard?(school?'Top 10 in your school':'Top 10 in your class'):'My stars';
   $('boardScope').hidden=!S.showBoard||!SCHOOLBOARD;
   $('boardScope').querySelectorAll('[data-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scope===boardScope)));
-  if(!S.showBoard){$('board').innerHTML='';$('boardMe').textContent=`You have ${fmtN(mine)} stars this week and ${fmtN(p.coins)} in total.`;return}
-  const list=school?SCHOOLBOARD.map(x=>({id:x.id,name:x.name,skin:x.skin,sub:x.class,s:x.stars})):weekBoard().map(x=>({id:x.p.id,name:x.p.name,skin:x.p.skin,s:x.s}));
+  if(!S.showBoard){$('board').innerHTML='';$('boardMe').textContent=`You have earned ${fmtN(mine)} stars.`;return}
+  const list=school?SCHOOLBOARD.map(x=>({id:x.id,name:x.name,skin:x.skin,sub:x.class,s:x.stars})):starBoard().map(x=>({id:x.p.id,name:x.p.name,skin:x.p.skin,s:x.s}));
   const rows=list.slice(0,10),inTop=rows.some(x=>x.id===p.id);
   $('board').classList.add('simple');
-  $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Stars this week</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.skin,40)}<span class="lnm">${esc(x.name)}${x.id===p.id?' <small>(you)</small>':''}${x.sub?`<small class="lsub">${esc(x.sub)}</small>`:''}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet. Be the first!</p>';
-  $('boardMe').textContent=inTop?'The board starts again every Monday.':mine>0?`You have ${fmtN(mine)} stars this week. Keep playing to climb into the Top 10! The board starts again every Monday.`:'Play a round to get on the board.';
+  $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.skin,40)}<span class="lnm">${esc(x.name)}${x.id===p.id?' <small>(you)</small>':''}${x.sub?`<small class="lsub">${esc(x.sub)}</small>`:''}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet. Be the first!</p>';
+  $('boardMe').textContent=inTop?'Every star you earn counts. Keep playing!':mine>0?`You have ${fmtN(mine)} stars. Keep playing to climb into the Top 10!`:'Play a round to get on the board.';
 }
 $('boardScope').addEventListener('click',e=>{const b=e.target.closest('[data-scope]');if(!b)return;boardScope=b.dataset.scope;renderBoard(P())});
 $('start').onclick=()=>startRound();
@@ -1464,8 +1466,9 @@ $('gdetail').addEventListener('submit',async e=>{
 // Usernames come from each student's real name (surname.firstname); the teacher checks the list, then one tap saves them all.
 let UREVIEW=null; // [{p, u}] while the teacher checks the list
 function updateGiveAll(){
-  const n=S.order.filter(id=>!S.players[id].username).length,b=$('giveAll');if(!b)return;
-  b.hidden=!n||viewingOther();b.textContent=`Give everyone a username (${n})`;
+  const left=S.order.map(id=>S.players[id]).filter(p=>!p.username),n=left.length,ready=left.filter(p=>suggestUsername(p)).length,b=$('giveAll');if(!b)return;
+  // count only the students who can get one now; the others need a first and last name first (the review says who)
+  b.hidden=!n||viewingOther();b.textContent=ready?`Give everyone a username (${ready})`:`${n} need${n===1?'s':''} a full name for a username`;
 }
 function planUsernames(){
   const taken=new Set(S.order.map(id=>S.players[id].username).filter(Boolean));
@@ -1479,7 +1482,7 @@ function renderUReview(){
   const ok=UREVIEW.filter(x=>x.u),miss=UREVIEW.length-ok.length;
   box.hidden=false;
   box.innerHTML=`<p><b>${ok.length} username${ok.length===1?'':'s'} ready.</b> Each student keeps their 4-digit code, stars and history.${miss?` ${miss} student${miss>1?'s need':' needs'} a first and last name first, so skipped: tap them in the table, add it under Real name, then come back here.`:''}</p>
-    <div class="tbl-wrap"><table class="tbl plain"><thead><tr><th>Real name</th><th>Username</th><th>Code</th></tr></thead><tbody>${UREVIEW.map(({p,u})=>`<tr${u?'':' class="muted"'}><td>${esc(p.realName||p.name)}</td><td><b>${esc(u||'needs first + last name')}</b></td><td class="num">${esc(p.pin||'')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="tbl-wrap"><table class="tbl plain"><thead><tr><th>Real name</th><th>Username</th><th>Code</th></tr></thead><tbody>${UREVIEW.map(({p,u})=>`<tr${u?'':' class="muted"'}><td>${p.realName?esc(p.realName):`<span class="muted">no real name yet</span> <small class="muted">(${esc(p.name)})</small>`}</td><td><b>${esc(u||'needs first + last name')}</b></td><td class="num">${esc(p.pin||'')}</td></tr>`).join('')}</tbody></table></div>
     <div class="row">${ok.length?`<button class="btn primary" id="uConfirm">Give ${ok.length} username${ok.length===1?'':'s'}</button>`:''}<button class="btn" id="uCancel">Cancel</button></div>`;
 }
 $('giveAll').onclick=()=>{if(viewingOther())return;UREVIEW=planUsernames();renderUReview();$('unameReview').scrollIntoView({behavior:'smooth',block:'nearest'})};
@@ -1931,7 +1934,7 @@ export async function boot(){
 // Test-only access to the game's pure logic and state. Not used by the app itself.
 export const __test = {
   level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
-  streakInfo, bumpStreak, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, ptsSince, migrateStars, fixPlayer, newPlayerData,
+  streakInfo, bumpStreak, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
   renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },

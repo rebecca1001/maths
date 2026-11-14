@@ -21,7 +21,7 @@ describe('demo backend (no keys = browser-only demo)', () => {
   it('state, save, state round-trip; classmates carry only safe fields', async () => {
     const { token } = await api.studentLogin('DEMO', '1111'); let st = await api.studentState(token);
     expect(st.me.name).toBe('Comet Fox'); expect(st.class.name).toBe('Demo class'); expect(st.classmates.length).toBe(3);
-    for (const c of st.classmates) expect(Object.keys(c.data).sort()).toEqual(['skin', 'wkMins', 'wkStars']);
+    for (const c of st.classmates) expect(Object.keys(c.data).sort()).toEqual(['skin', 'totStars', 'wkMins']);
     await api.studentSave(token, { ...st.me.data, coins: 777 }); st = await api.studentState(token); expect(st.me.data.coins).toBe(777);
   });
   it('logout and unknown tokens are rejected', async () => {
