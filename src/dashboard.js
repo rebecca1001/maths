@@ -44,6 +44,14 @@ export function groupOf(rounds, now = Date.now()) {
   return 'ok';
 }
 
+// "Today" only when the last round was on today's calendar date (not just within 24 hours)
+export function lastPlayedLabel(rounds, now = Date.now()) {
+  if (!rounds || !rounds.length) return 'Never';
+  const mid = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const days = Math.round((mid(now) - mid(rounds[rounds.length - 1].d)) / DAY);
+  return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days + ' days ago';
+}
+
 // ---------- minimum rounds each time they play ----------
 // settings.minRounds = the class minimum (0 or missing = off); settings.minFor = { studentId: n } for a different
 // number for one child (0 = no minimum for them). Children can't change class settings, only teachers can.

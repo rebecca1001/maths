@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { lastPlayedLabel, STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 import { parseRoster, swapNames, usernameFromName } from './usernames.js';
@@ -864,7 +864,7 @@ function confettiBurst(){
 let GSel=null;
 // Teachers see the real name (if added) with the space name underneath
 function whoHTML(p){return p.realName?`<span class="who"><b>${esc(p.realName)}</b><small>${esc(p.name)}</small></span>`:`<span class="who"><b>${esc(p.name)}</b></span>`}
-function lastPlayed(p){if(!p.rounds.length)return 'Never';const d=Math.floor((Date.now()-p.rounds[p.rounds.length-1].d)/864e5);return d<=0?'Today':d===1?'Yesterday':d+' days ago'}
+function lastPlayed(p){return lastPlayedLabel(p.rounds)}
 function spark(p){
   const rs=p.rounds.slice(-8).map(rate);if(rs.length<2)return '<span class="muted">—</span>';
   const W=84,H=26,mx=Math.max(...rs),mn=Math.min(...rs),sp=Math.max(1,mx-mn);
