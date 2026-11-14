@@ -340,7 +340,6 @@ async function loadClasses4Login(){
 $('classList').addEventListener('click',e=>{const b=e.target.closest('[data-code]');if(!b)return;
   L.classCode=b.dataset.code;L.className=b.dataset.name;goStep('pin')});
 // switching between the username login and the class code login (remembered on this device)
-$('toUserLogin').onclick=()=>{L.via='user';setLocal({loginWay:'user'});goStep(L.school?'user':'school')};
 $('gateLogin').onclick=()=>{L.flow='login';goStep('kind')};
 $('gateRegister').onclick=()=>{L.flow='register';goStep('kind')};
 // TEMPORARY: 4-digit code login for classes without usernames yet (Ms Berry's): find your school -> pick your class -> code. Remove in January.
@@ -353,7 +352,6 @@ $('kFamily').onclick=()=>showSoon('family');
 $('kTutor').onclick=()=>showSoon('tutor');
 $('rStudent').onclick=()=>{L.via='user';goStep('school')};
 $('rTeacher').onclick=()=>openTeacher('teacher');
-$('classTeacher').onclick=()=>openTeacher('teacher');
 // Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
 function loginBack(){
   if(!L||L.busy)return;const st=L.step;
