@@ -240,3 +240,13 @@ describe('buying back a lost streak', () => {
     expect(g.restoreStreak(alive, at(11, 12))).toBe(false); expect(alive.coins).toBe(900);
   });
 });
+
+describe('streak buy-back window', () => {
+  const at = (m, d, h = 12) => new Date(2026, m - 1, d, h).getTime();
+  const lp = () => ({ rounds: [], coins: 900, daily: { count: 6, lastT: g.dayStart(at(11, 3)), best: 6 } }); // streak ended Fri 6 Nov
+  it('can be bought back for 7 days after it ended, not after', () => {
+    expect(g.streakInfo(lp(), at(11, 13)).lost).toBe(6);  // 7 days after
+    expect(g.streakInfo(lp(), at(11, 14)).lost).toBe(0);  // 8 days after
+    const p = lp(); expect(g.restoreStreak(p, at(11, 20))).toBe(false); expect(p.coins).toBe(900);
+  });
+});
