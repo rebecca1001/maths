@@ -150,7 +150,7 @@ describe('student Top 10', () => {
   it('class board shows stars only; school board appears on paid plans; no rank outside the top 10', async () => {
     const log = await api.studentLogin('DEMO', '1111'); expect(log.token).toBeTruthy();
     const st = await api.studentState(log.token);
-    expect(Array.isArray(st.school_board)).toBe(true); // demo school is on School Plus
+    expect(Array.isArray(st.school_board)).toBe(true); // demo school is on the School plan
     g.applyState(st);
     const p = g.S.players[g.S.current];
     g.setBoardScope('class'); g.renderBoard(p);

@@ -101,7 +101,7 @@ function supabaseApi() {
     superPilots: () => rpc('super_pilots', {}),
     superPilotSave: (p) => rpc('super_pilot_save', { p }),
     superPilotDelete: (id) => rpc('super_pilot_delete', { p_id: id }),
-    // competitions (School and School Plus plans; the database checks the plan and who may do what)
+    // competitions (School plan; the database checks the plan and who may do what)
     competitionsList: () => rpc('competitions_list', {}),
     competitionCreate: (c) => rpc('competition_create', { p: c }),
     competitionEnd: (id, del) => rpc('competition_end', { p_id: id, p_delete: !!del }),
@@ -134,7 +134,7 @@ function demoApi() {
   if (!db || !db.classes) {
     const classId = id();
     db = {
-      school: { name: 'Demo School', join_code: 'DEMO0000', plan: 'school_plus' },
+      school: { name: 'Demo School', join_code: 'DEMO0000', plan: 'school' },
       competitions: [],
       teacher: null,
       classes: [{ id: classId, name: 'Demo class', code: 'DEMO', teacher_id: 'me', settings: { maxTable: 12, division: false, sound: true, battles: false }, archived_at: null }],
@@ -149,7 +149,7 @@ function demoApi() {
   const fill = () => {
     if (db.students.length && !db.students.some(x => x.username)) Object.assign(db.students[0], { username: 'fox.comet', real_name: db.students[0].real_name || 'Comet Fox' });
     db.students.forEach(s => { if (s.username && s.username.includes('@')) s.username = s.username.split('@')[0]; }); // older demos stored the whole email
-    if (!db.school.plan) db.school.plan = 'school_plus'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
+    if (!db.school.plan || db.school.plan === 'school_plus') db.school.plan = 'school'; if (!db.competitions) db.competitions = []; if (!db.pilots) db.pilots = []; };
   const reload = () => { try { const x = JSON.parse(localStorage.getItem(DEMO_KEY)); if (x && x.classes) { db = x; fill(); } } catch (e) { /* keep in-memory copy */ } };
   const me = (token) => db.students.find(s => s.id === db.sessions[token]);
   fill();
@@ -321,7 +321,7 @@ function demoApi() {
       persist(); return ok({ ok: true, id: x.id });
     },
     superPilotDelete(pid) { const n = db.pilots.length; db.pilots = db.pilots.filter(p => p.id !== pid); persist(); return ok({ ok: db.pilots.length < n }); },
-    superSetPlan(_sid, plan) { if (!['free', 'school', 'school_plus'].includes(plan)) return ok({ error: 'bad_plan' }); db.school.plan = plan; persist(); return ok({ ok: true, plan }); },
+    superSetPlan(_sid, plan) { if (!['free', 'school'].includes(plan)) return ok({ error: 'bad_plan' }); db.school.plan = plan; persist(); return ok({ ok: true, plan }); },
     competitionsList() { return ok({ plan: db.school.plan, competitions: demoComps(c => Date.now() - new Date(c.ended_at || c.ends_at) < 90 * 864e5, null, true).sort((a, b) => (a.status === 'ended') - (b.status === 'ended') || new Date(b.starts_at) - new Date(a.starts_at)) }); },
     competitionCreate(p) {
       // the demo teacher is a school admin, so every kind is allowed

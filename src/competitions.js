@@ -1,10 +1,10 @@
-// Competitions (School and School Plus plans). Teachers and schools provide the prizes; the app runs the competition.
+// Competitions (School plan). Teachers and schools provide the prizes; the app runs the competition.
 // The real database scores competitions in SQL (round_log). This module holds:
 //  - the words the screens use
 //  - compSummary(): the same scoring for the browser-only demo
 //  - studentView(): what the student's home screen card shows
-export const PAID_PLANS = ['school', 'school_plus'];
-export const PLAN_NAMES = { free: 'Free', school: 'School', school_plus: 'School Plus' };
+export const PAID_PLANS = ['school'];
+export const PLAN_NAMES = { free: 'Free', school: 'School' };
 export const KINDS = {
   top_player: { label: 'Top player', who: 'Students in one class', blurb: 'The student with the most wins.', scope: 'class', target: false },
   class_target: { label: 'Class goal', who: 'One class together', blurb: 'The class works together to reach a target.', scope: 'class', target: true },
