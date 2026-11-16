@@ -516,7 +516,7 @@ const roundStars=r=>r.stars!=null?r.stars:gameStars(r.c,r.n,r.ms);
 const boardStars=p=>p.totStars!=null?p.totStars:p.totBase!=null?p.totBase+p.rounds.filter(r=>r.d>p.totBaseAt).reduce((s,r)=>s+roundStars(r),0):p.rounds.reduce((s,r)=>s+roundStars(r),0);
 function migrateStars(p){if(p.starsV2)return;p.maxCoins=Math.max(p.maxCoins||0,p.coins||0);p.coins=Math.max(p.coins||0,p.rounds.reduce((s,r)=>s+roundStars(r),0));p.starsV2=true}
 const fmtN=n=>n.toLocaleString();
-let SCHOOLBOARD=null,boardScope='class'; // school Top 10 (School and School Plus plans), and which board the Top 10 tab shows
+let SCHOOLBOARD=null,boardScope='class'; // school Top 10 (School plan), and which board the Top 10 tab shows
 function starBoard(){return S.order.map(id=>S.players[id]).map(q=>({p:q,s:boardStars(q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
 function renderHome(){
   const p=P();applyWorld();
@@ -1287,9 +1287,9 @@ function renderHelp(){
     <div class="card"><h2>Class's trickiest facts</h2><p class="muted small">The facts this class gets wrong most often. Good ones to teach together.</p>
       ${classTricky.length?`<div class="tchips">${classTricky.map(([k,t])=>`<span class="fchip big">${k.replace(',',' × ')} <small>${Math.round(t.miss/t.n*100)}% wrong</small></span>`).join('')}</div>`:'<p class="muted">Not enough answers yet.</p>'}</div>`;
 }
-// ----- competitions (School and School Plus plans) -----
+// ----- competitions (School plan) -----
 // Teachers make class competitions; school admins can also make school-wide ones. Teachers provide the prizes.
-const COMP_ERR={needs_plan:'Competitions come with the School and School Plus plans.',not_your_class:'You can only make competitions for your own classes.',not_admin:'Only school admins can make school-wide competitions.',
+const COMP_ERR={needs_plan:'Competitions come with the School plan.',not_your_class:'You can only make competitions for your own classes.',not_admin:'Only school admins can make school-wide competitions.',
   bad_class:'Pick a class first.',bad_target:'Enter a target number.',no_prize:'Enter the prize.',bad_dates:'Check the dates: the end must be after the start, at most 120 days later, and not in the past.',
   too_many:'Your school has 20 competitions running. End one first.',bad_kind:'Pick a type of competition.',bad_measure:'Pick stars or correct answers.',not_allowed:'Only the teacher who made it, or a school admin, can change it.',not_found:'That competition is gone.'};
 let CMP={list:null,plan:null,draft:null,msg:'',busy:false};
@@ -1338,7 +1338,7 @@ async function renderComp(reload){
     </form></div>`
   :`<div class="card lockcard"><h2>Competitions</h2>
     <p>Run class and school competitions with a prize you provide, for example a gift card for the student with the most stars this month, or a pizza party when the whole school reaches a goal. Students see how close they are on their home screen.</p>
-    <p><b>Competitions come with the School and School Plus plans.</b> Your school is on the ${PLAN_NAMES[CMP.plan]||'Free'} plan. To upgrade, email <a href="mailto:mathwizzapp@gmail.com?subject=MathWizz%20School%20plan">mathwizzapp@gmail.com</a> or reply to Jack.</p>
+    <p><b>Competitions come with the School plan.</b> Your school is on the ${PLAN_NAMES[CMP.plan]||'Free'} plan. To upgrade, email <a href="mailto:mathwizzapp@gmail.com?subject=MathWizz%20School%20plan">mathwizzapp@gmail.com</a> or reply to Jack.</p>
     ${CMP.msg?`<p class="note">${esc(CMP.msg)}</p>`:''}</div>`;
   const list=CMP.list||[],running=list.filter(x=>x.status!=='ended'),done=list.filter(x=>x.status==='ended');
   const listHTML=list.length?`${running.length?`<div class="card"><h2>Running and coming up</h2><div class="clist">${running.map(compItemHTML).join('')}</div></div>`:''}

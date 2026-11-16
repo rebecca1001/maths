@@ -53,11 +53,11 @@ begin
   if r->>'error' is distinct from 'needs_plan' then raise exception 'FAIL free plan allowed: %', r; end if;
   if (public.competitions_list()->>'plan') <> 'free' then raise exception 'FAIL list plan'; end if;
   begin
-    update public.schools set plan = 'school_plus' where id = (select v from a where k='school')::uuid;
+    update public.schools set plan = 'school' where id = (select v from a where k='school')::uuid;
   exception when insufficient_privilege then ok := true; end;
   if not ok then raise exception 'FAIL admin could change own plan'; end if;
   update public.schools set name = 'Comp School' where id = (select v from a where k='school')::uuid; -- renaming still works
-  r := public.super_set_plan((select v from a where k='school')::uuid, 'school_plus');
+  r := public.super_set_plan((select v from a where k='school')::uuid, 'school');
   if r->>'error' is distinct from 'not_allowed' then raise exception 'FAIL admin used super_set_plan: %', r; end if;
   raise notice 'free plan locked, plan only changeable by the owner, rename still works: true';
 
@@ -67,6 +67,7 @@ begin
   if (select plan from public.schools where id = (select v from a where k='school')::uuid) <> 'school' then raise exception 'FAIL plan not saved'; end if;
   if not exists (select 1 from json_array_elements(public.super_overview()->'schools') x where x->>'plan' = 'school') then raise exception 'FAIL overview plan'; end if;
   if public.super_set_plan((select v from a where k='school')::uuid, 'gold')->>'error' <> 'bad_plan' then raise exception 'FAIL bad plan'; end if;
+  if public.super_set_plan((select v from a where k='school')::uuid, 'school_plus')->>'error' <> 'bad_plan' then raise exception 'FAIL school_plus still allowed'; end if;
   raise notice 'owner sets plans: true';
 end $$;
 reset role;
