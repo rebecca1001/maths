@@ -174,7 +174,7 @@ function demoApi() {
     // same rules as student_login_user in the database: username + the student's 4-digit code
     studentLoginUser(schoolId, username, code) {
       const u = normUsername(username), pin = String(code || '').replace(/[^0-9]/g, '');
-      const s = schoolId === 'demo-school' && u && /^[0-9]{4}$/.test(pin) && db.students.find(x => x.username === u && x.pin === pin && db.classes.some(c => c.id === x.class_id && !c.archived_at));
+      const s = schoolId === 'demo-school' && u && /^[0-9]{4}$/.test(pin) && (db.students.find(x => x.username === u && x.pin === pin && db.classes.some(c => c.id === x.class_id && !c.archived_at)) || db.students.find(x => x.username && x.username.replace(/\./g, '') === u.replace(/\./g, '') && x.pin === pin && db.classes.some(c => c.id === x.class_id && !c.archived_at))); // dots optional: smith.ava = smithava
       if (!s) return ok({ error: 'wrong_login' });
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });

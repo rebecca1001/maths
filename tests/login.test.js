@@ -44,6 +44,13 @@ describe('pasted class lists', () => {
       { email: 'chen.mia@sd54.bc.ca', first: 'Mia', last: 'Chen' },
     ]);
   });
+  it('a name typed as a username (test.demo) keeps its dot: surname test, first name demo', () => {
+    const [r] = parseRoster('test.demo');
+    expect(r).toMatchObject({ last: 'test', first: 'demo' });
+    expect(usernameFromName(r.first, r.last)).toBe('test.demo');
+    expect(parseRoster('Demo Test')[0]).toMatchObject({ first: 'Demo', last: 'Test' }); // typed as a name: reversed with a dot -> test.demo
+    expect(usernameFromName('Demo', 'Test')).toBe('test.demo');
+  });
   it('a header row is skipped and sets the column order', () => {
     const rows = parseRoster('Surname\tFirst name\nFranklin\tJoshua');
     expect(rows).toHaveLength(1); expect(rows[0]).toMatchObject({ first: 'Joshua', last: 'Franklin' });
@@ -111,9 +118,12 @@ describe('login screens (demo mode)', () => {
   it('Teacher goes to the teacher sign-in (no school step); its back arrow returns to Student / Teacher; Family and Tutor say coming soon', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
     $('gateLogin').click(); await settle(); $('kSchool').click(); await settle();
-    expect($('rTeacher').textContent).toMatch(/Teachers and principals/);
+    expect($('rTeacher').textContent).toMatch(/Teacher/); expect($('rPrincipal').textContent).toMatch(/Principal/);
     $('rTeacher').click(); await settle(60);
     expect($('teach').hidden).toBe(false);
+    $('tBack').click(); await settle(); expect($('roleStep').hidden).toBe(false);
+    $('rPrincipal').click(); await settle(60);
+    expect($('teach').hidden).toBe(false); expect($('tTitle').textContent).toBe('Principals'); expect($('tRoleNote').hidden).toBe(false);
     $('tBack').click(); await settle(); expect($('roleStep').hidden).toBe(false);
     $('loginBack').click(); await settle();
     $('kFamily').click(); await settle(); expect($('soonStep').textContent).toMatch(/coming soon/);
@@ -183,6 +193,7 @@ describe('teachers add students from a pasted list', () => {
     expect(r.added[0].pin).toMatch(/^\d{4}$/); // every student keeps a 4-digit code too
     expect(r.added[0].passcode).toBeUndefined(); // no passwords
     const log = await api.studentLoginUser('demo-school', 'SMITH.AVA', r.added[0].pin); expect(log.token).toBeTruthy();
+    expect((await api.studentLoginUser('demo-school', 'smithava', r.added[0].pin)).token).toBeTruthy(); // the dot is optional
     expect((await api.setStudentLogin(r.added[0].id, null)).error).toBe('bad_username');
   });
   it('a class-code student can be given a username: same student, code still works', async () => {

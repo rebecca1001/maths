@@ -355,6 +355,7 @@ $('kFamily').onclick=()=>showSoon('family');
 $('kTutor').onclick=()=>showSoon('tutor');
 $('rStudent').onclick=()=>{L.via='user';if(L.school)setLocal({loginWay:'user'});goStep(L.school?'user':'school')}; // a remembered school skips the search
 $('rTeacher').onclick=()=>openTeacher('teacher');
+$('rPrincipal').onclick=()=>openTeacher('principal'); // principals land on the School page
 // Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
 function loginBack(){
   if(!L||L.busy)return;const st=L.step;
@@ -1108,7 +1109,7 @@ $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()})
 // back from teacher sign-in: one step back in the funnel (Student / Teacher, or School / Family / Tutor after Register)
 let TFROM='teacher';
 $('tBack').onclick=()=>{openLogin();if(L.step==='class')return;L.flow=TFROM==='register'?'register':'login';goStep(TFROM==='register'?'kind':'role')};
-async function openTeacher(who){setAddress(true);TFROM=who;
+async function openTeacher(who){setAddress(true);if(who)TFROM=who;who=TFROM; // sign-in and reset call openTeacher() again: keep who they came as
   const pr=who==='principal',reg=who==='register';$('tTitle').textContent=reg?'Register':pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;$('tRegNote').hidden=!reg;
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
@@ -1119,6 +1120,7 @@ async function openTeacher(who){setAddress(true);TFROM=who;
   if(TEACH.super){try{TEACH.schools=await api.listSchools()}catch(e){TEACH.schools=[]}
     const saved=local().ownerSchool;if(saved&&TEACH.schools.some(x=>x.id===saved))TEACH.viewSchool=saved}
   await loadClasses();show('grown');
+  if(pr){TFROM='teacher';if(isAdmin())await openSchool();else{const m=$('addMsg');if(m)m.textContent="Your account isn't a principal (school admin) yet, so you're on the teacher view. Your school's MathWizz admin can make you one on the School page."}}
 }
 // Sign-in messages: green for progress and info, red for problems
 function say(id,text,good){const el=$(id);el.textContent=text;el.className='fb '+(good?'ok':'no')}
@@ -1438,7 +1440,7 @@ let REVIEW=null; // { rows, res } while the teacher checks the list
 function suggestUsername(p){const w=String(p.realName||'').trim().split(/\s+/).filter(Boolean);return w.length>1?usernameFromName(w.slice(0,-1).join(' '),w.at(-1)):''}
 const SKIP_WHY={already_added:'already has a login at your school, so skipped',no_name:'no name found, so skipped',bad_email:"not an email we can use, so skipped"};
 function renderReview(){
-  const box=$('addReview');if(!REVIEW){box.hidden=true;box.innerHTML='';$('addStudent').textContent='Check list';return}
+  const box=$('addReview');if(!REVIEW){box.hidden=true;box.innerHTML='';$('addStudent').textContent='Create usernames';return}
   const {rows,res}=REVIEW,byRow={};res.added.forEach(a=>byRow[a.row]={ok:true,...a});res.skipped.forEach(x=>byRow[x.row]={ok:false,...x});
   const n=res.added.length,anyNames=rows.some(r=>!r.email);
   box.hidden=false;
@@ -1498,7 +1500,7 @@ let UREVIEW=null; // [{p, u}] while the teacher checks the list
 function updateGiveAll(){
   const left=S.order.map(id=>S.players[id]).filter(p=>!p.username),n=left.length,ready=left.filter(p=>suggestUsername(p)).length,b=$('giveAll');if(!b)return;
   // count only the students who can get one now; the others need a first and last name first (the review says who)
-  b.hidden=!n||viewingOther();b.textContent=ready?`Give everyone a username (${ready})`:`${n} need${n===1?'s':''} a full name for a username`;
+  b.hidden=!n||viewingOther();b.textContent=ready?`Create usernames (${ready})`:`${n} need${n===1?'s':''} a full name for a username`;
 }
 function planUsernames(){
   const taken=new Set(S.order.map(id=>S.players[id].username).filter(Boolean));

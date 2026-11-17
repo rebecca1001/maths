@@ -44,6 +44,9 @@ do $$ declare r json; bad text; begin
   r := public.student_login_user((select v from p where k='school')::uuid, ' Berry.Kid ', (select v from p where k='pin'));
   if r->>'token' is null then raise exception 'FAIL pin login %', r; end if;
   if public.student_login_user((select v from p where k='school')::uuid, 'smith.emma', (select v from p where k='newpin'))->>'token' is null then raise exception 'FAIL new student login'; end if;
+  -- the dot is optional both ways: smithemma logs in as smith.emma
+  if public.student_login_user((select v from p where k='school')::uuid, 'SmithEmma', (select v from p where k='newpin'))->>'token' is null then raise exception 'FAIL login without the dot'; end if;
+  if public.student_login_user((select v from p where k='school')::uuid, 'berrykid', (select v from p where k='pin'))->>'token' is null then raise exception 'FAIL login without the dot (berry)'; end if;
   -- the class code login still works with the same digits
   if public.student_login((select v from p where k='code'), (select v from p where k='pin'))->>'token' is null then raise exception 'FAIL class code login'; end if;
   -- wrong school, wrong code, made-up username: all the same answer
