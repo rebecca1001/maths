@@ -72,6 +72,15 @@ describe('streak: school holidays and the streak card', () => {
 });
 
 describe('screens (demo mode)', () => {
+  it('Principal box: a signed-in school admin lands on the School page', async () => {
+    await api.teacherSignIn('t@demo.ca', 'password123');
+    history.pushState({}, '', '/'); await boot(); await new Promise((res) => setTimeout(res, 60));
+    document.getElementById('gateLogin').click(); await new Promise((res) => setTimeout(res, 20));
+    document.getElementById('kSchool').click(); await new Promise((res) => setTimeout(res, 20));
+    document.getElementById('rPrincipal').click(); await new Promise((res) => setTimeout(res, 120));
+    expect(document.getElementById('school').hidden).toBe(false);
+    expect(document.getElementById('grown').hidden).toBe(true);
+  });
   it('teacher view: no group cards; class minimum, Today column, own minimum per student', async () => {
     const err = vi.spyOn(console, 'error');
     await api.teacherSignIn('t@demo.ca', 'password123');

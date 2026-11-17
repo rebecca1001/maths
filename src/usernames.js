@@ -51,6 +51,7 @@ export function parseRoster(text) {
     } else {
       const one = (cells[0] || '').replace(/[,;]+$/, '').trim();
       if (one.includes(',')) { last = one.split(',')[0].trim(); first = one.split(',').slice(1).join(' ').trim(); }
+      else if (/^[^\s.]+\.[^\s.]+$/.test(one)) { [last, first] = one.split('.'); } // typed as a username: smith.ava -> surname smith, first name ava
       else if (one) { const w = one.split(/\s+/); last = w.length > 1 ? w.pop() : ''; first = w.join(' '); }
     }
     rows.push({ email, first: first.slice(0, 40), last: last.slice(0, 40), line });

@@ -44,9 +44,10 @@
       </div>
       <div class="pickstep" id="roleStep" hidden>
         <h1>School log in</h1>
-        <div class="whogrid">
+        <div class="whogrid three">
           <button type="button" class="whobtn2 w-student" id="rStudent"><b>Student</b></button>
-          <button type="button" class="whobtn2 w-teacher" id="rTeacher"><b>Teacher</b><small>Teachers and principals</small></button>
+          <button type="button" class="whobtn2 w-teacher" id="rTeacher"><b>Teacher</b><small>Your classes</small></button>
+          <button type="button" class="whobtn2 w-principal" id="rPrincipal"><b>Principal</b><small>Your whole school</small></button>
         </div>
       </div>
       <form class="pickstep emailform" id="userStep" hidden autocomplete="on">
@@ -97,7 +98,7 @@
       <button type="button" class="backarrow" id="tBack" aria-label="Back"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <form id="tSignIn" class="tform">
         <h1 id="tTitle">Teachers</h1>
-        <p class="muted small" id="tRoleNote" hidden>Principals sign in here too. Your account knows you run the school, so you'll see the School page.</p>
+        <p class="muted small" id="tRoleNote" hidden>Sign in with your MathWizz teacher account. You'll go straight to the School page: every class, teacher and student in your school.</p>
         <p class="muted small" id="tRegNote" hidden>Create your account first. Next you'll set up your school, or join it if a colleague already has.</p>
         <div class="tmode" role="tablist">
           <button type="button" role="tab" data-tmode="create">Create account</button>
@@ -288,9 +289,9 @@
       <div class="card pcard"><div class="spread"><h2>Class progress</h2><span class="note">Last 10 weeks</span></div><div id="gProgress"></div></div>
       <div class="card addcard">
         <h2>Add students</h2>
-        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</label>
+        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Type names as you like: Create usernames turns “Joshua Franklin” into franklin.joshua for you. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</label>
         <textarea id="addNames" rows="5" placeholder="franklin.joshua@sd54.bc.ca&#10;Ava Smith&#10;Lee, Noah"></textarea>
-        <div class="row"><button class="btn primary" id="addStudent">Check list</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Give everyone a username</button></div>
+        <div class="row"><button class="btn primary" id="addStudent">Create usernames</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Create usernames</button></div>
         <div id="addReview" hidden></div>
         <div id="unameReview" hidden></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
