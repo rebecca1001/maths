@@ -90,30 +90,33 @@ describe('login screens (demo mode)', () => {
     expect($('login').hidden).toBe(true);
     expect(['home', 'intro'].some((id) => !$(id).hidden)).toBe(true);
   });
-  it('Log out goes back to the start (Log in / Register); the school is still remembered, so Student goes straight to it', async () => {
-    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); // what the device remembers after logging in
+  it('Log out goes back to the start (Log in / Register); nothing is remembered, so Student always searches for the school', async () => {
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); // an old device that still remembers a school: ignored
     document.querySelector('[data-tab="logout"]').click(); await settle(80);
     expect($('login').hidden).toBe(false); expect($('gateStep').hidden).toBe(false);
     $('gateLogin').click(); await settle(); $('kSchool').click(); await settle(); $('rStudent').click(); await settle();
-    expect($('userStep').hidden).toBe(false); expect($('schoolStep').hidden).toBe(true);
+    expect($('schoolStep').hidden).toBe(false); expect($('userStep').hidden).toBe(true);
   });
-  it('the back arrow goes one step back through the funnel, forgetting the school on the way', async () => {
-    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
-    expect($('userStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(false);
+  it('the back arrow goes one step back through the funnel, and a reload always starts at the front door', async () => {
+    clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
+    expect($('gateStep').hidden).toBe(false);
+    $('gateLogin').click(); await settle(); $('kSchool').click(); await settle(); $('rStudent').click(); await settle();
+    expect($('schoolStep').hidden).toBe(false); expect($('loginBack').hidden).toBe(false);
     expect($('userChangeSchool')).toBeNull(); expect($('changeClass')).toBeNull(); expect($('userTeacher')).toBeNull(); expect($('toParent')).toBeNull();
-    $('loginBack').click(); await settle(); expect($('schoolStep').hidden).toBe(false);
     $('loginBack').click(); await settle(); expect($('roleStep').hidden).toBe(false);
     $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
     $('loginBack').click(); await settle(); expect($('gateStep').hidden).toBe(false);
-    sessionStorage.clear(); await boot(); await settle(60); expect($('gateStep').hidden).toBe(false); // school forgotten
+    sessionStorage.clear(); await boot(); await settle(60); expect($('gateStep').hidden).toBe(false);
   });
   it('an unknown username gets the same answer as a wrong code', async () => {
     expect((await api.studentLoginUser('demo-school', 'nobody.here', '1234')).error).toBe('wrong_login');
     expect((await api.studentLoginUser('demo-school', 'fox.comet', 'tiger42')).error).toBe('wrong_login');
   });
-  it('next time this device opens straight on the username box, school remembered', async () => {
+  it('a device that remembered a school and login way still opens at the front door: the funnel is always the same', async () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
-    expect($('userStep').hidden).toBe(false); expect($('schoolStep').hidden).toBe(true); expect($('userSchool').textContent).toBe('Demo School');
+    expect($('gateStep').hidden).toBe(false); expect($('userStep').hidden).toBe(true); expect($('classStep').hidden).toBe(true);
+    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'code' }); await boot(); await settle(60);
+    expect($('gateStep').hidden).toBe(false);
   });
   it('Teacher goes to the teacher sign-in (no school step); its back arrow returns to Student / Teacher; Family and Tutor say coming soon', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
@@ -130,7 +133,7 @@ describe('login screens (demo mode)', () => {
     $('loginBack').click(); await settle(); $('kTutor').click(); await settle(); expect($('soonTitle').textContent).toBe('Tutors');
     $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
   });
-  it('TEMPORARY: "Log in with a 4-digit code" on the first screen -> find your school -> pick your class -> code (Ms Berry), remembered', async () => {
+  it('TEMPORARY: "Log in with a 4-digit code" on the first screen -> find your school -> pick your class -> code (Ms Berry)', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
     $('gateCode').click(); await settle();
     expect($('schoolStep').hidden).toBe(false);
@@ -140,17 +143,18 @@ describe('login screens (demo mode)', () => {
     expect($('pinStep').hidden).toBe(false);
     await tapCode('1111'); expect($('login').hidden).toBe(true);
     sessionStorage.clear(); setDevice({ token: null }); await boot(); await settle(60);
-    expect($('classStep').hidden).toBe(false); // this device now opens on the class list
+    expect($('gateStep').hidden).toBe(false); // nothing is remembered: the next visit starts at the front door
   });
   it('no class code typing, no footer teacher link, no Switch player', async () => {
     expect($('classForm')).toBeNull(); expect($('toCodeLogin')).toBeNull(); expect($('toWho')).toBeNull(); expect($('notMe')).toBeNull();
   });
-  it("Ms Berry's class list device: just the class list (no links under it); mathwizz.co/?classlist brings it back", async () => {
-    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'code' }); await api.teacherSignOut(); await boot(); await settle(60);
+  it("mathwizz.co/?classlist opens on the school search, then the class list (Ms Berry's class)", async () => {
+    clearDevice(); await api.teacherSignOut(); history.pushState({}, '', '/?classlist'); await boot(); await settle(60);
+    expect($('schoolStep').hidden).toBe(false);
+    await pickDemoSchool(); await settle(60);
     expect($('classStep').hidden).toBe(false);
     expect($('toUserLogin')).toBeNull(); expect($('classTeacher')).toBeNull();
-    setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); history.pushState({}, '', '/?classlist'); await boot(); await settle(60);
-    expect($('classStep').hidden).toBe(false);
+    history.pushState({}, '', '/');
   });
   it('Register opens Create account, then school setup (set up or join)', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle();
@@ -167,17 +171,6 @@ describe('login screens (demo mode)', () => {
     expect($('tSetup').hidden).toBe(false);
     expect($('tSetup').textContent).toMatch(/Set up my school/); expect($('tSetup').textContent).toMatch(/Join my school/);
     $('tSetupOut').click(); await settle(60);
-  });
-  it('a device that remembers its school skips the front door', async () => {
-    clearDevice(); setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'user' }); await boot(); await settle(60);
-    expect($('gateStep').hidden).toBe(true); expect($('userStep').hidden).toBe(false);
-  });
-  it("Ms Berry's class: a device that remembered its school before usernames still goes straight to its class list", async () => {
-    clearDevice(); setDevice({ school: { id: 'demo-school', name: 'Demo School' } });
-    await boot(); await settle(60);
-    expect($('userStep').hidden).toBe(true); expect($('classStep').hidden).toBe(false);
-    $('classList').querySelector('[data-code]').click(); await settle();
-    expect($('pinStep').hidden).toBe(false);
   });
 });
 
