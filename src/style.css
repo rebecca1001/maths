@@ -839,5 +839,5 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 @media (prefers-reduced-motion:reduce){.countdown b{animation:none}}
 
 .schoolcode{text-align:center}
-.schoolcode .bigcode{display:block;font-family:var(--display);font-size:clamp(2.4rem,9vw,4rem);letter-spacing:.18em;color:var(--accent);margin:6px 0 4px;user-select:all}
+.schoolcode .bigcode{display:block;font-family:var(--display);font-size:clamp(1.8rem,7vw,2.8rem);letter-spacing:.14em;color:var(--accent);margin:6px 0 4px;user-select:all}
 .schoolcode .row{justify-content:center}
