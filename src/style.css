@@ -773,7 +773,7 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 @media (prefers-reduced-motion:reduce){.streakbox.lit .sflame svg{animation:none}}
 
 /* ---------- owner viewing another school: read-only ---------- */
-#grown.viewonly .addcard,#grown.viewonly #gNewClass,#grown.viewonly [data-gtab="goal"],#grown.viewonly [data-gtab="settings"],
+#grown.viewonly .addcard,#grown.viewonly #gNewClass,#grown.viewonly #gRenameClass,#grown.viewonly [data-gtab="goal"],#grown.viewonly [data-gtab="settings"],
 #grown.viewonly #gdRealForm,#grown.viewonly #gdActions,#grown.viewonly [data-newpin]{display:none!important}
 #gSchool{max-width:260px}
 
@@ -823,7 +823,7 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 #loginPad .key{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1}
 
 /* back arrow, top left of the login and teacher cards (TT Rock Stars style) */
-.teachcard{position:relative}
+.teachcard{position:relative;padding-top:68px}
 .backarrow{position:absolute;top:12px;left:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:0;background:transparent;color:var(--ink);cursor:pointer;z-index:2}
 .backarrow:hover,.backarrow:focus-visible{background:rgba(255,255,255,.08)}
 .backarrow[hidden]{display:none}
@@ -837,3 +837,7 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .countdown b{font-size:clamp(8rem,38vw,16rem);line-height:1;font-weight:900;color:var(--accent);animation:cdpop .8s ease-out}
 @keyframes cdpop{from{transform:scale(1.6);opacity:0}30%{opacity:1}to{transform:scale(.9);opacity:.9}}
 @media (prefers-reduced-motion:reduce){.countdown b{animation:none}}
+
+.schoolcode{text-align:center}
+.schoolcode .bigcode{display:block;font-family:var(--display);font-size:clamp(2.4rem,9vw,4rem);letter-spacing:.18em;color:var(--accent);margin:6px 0 4px;user-select:all}
+.schoolcode .row{justify-content:center}
