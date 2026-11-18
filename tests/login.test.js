@@ -157,6 +157,9 @@ describe('login screens (demo mode)', () => {
     $('gateRegister').click(); await settle(60);
     expect($('kindTitle').textContent).toBe('Register');
     $('kSchool').click(); await settle(60);
+    expect($('roleStep').hidden).toBe(false); expect($('roleTitle').textContent).toBe('School register');
+    expect([$('rStudent'), $('rTeacher'), $('rPrincipal')].map((b) => b.querySelector('b').textContent)).toEqual(['Student', 'Teacher', 'Principal']);
+    $('rPrincipal').click(); await settle(60);
     expect($('teach').hidden).toBe(false); expect($('tTitle').textContent).toBe('Register');
     expect($('tRegNote').hidden).toBe(false); expect($('tSubmit').textContent).toBe('Create account');
     $('tEmail').value = 'new@school.ca'; $('tPass').value = 'longpassword1';
