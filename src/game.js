@@ -286,18 +286,15 @@ function setAddress(teacher){try{const want=teacher?'/?teacher=1':'/';if(locatio
 // Login funnel, copied from TT Rock Stars (Sam, 12 Nov):
 //   Log in / Register -> School / Family / Tutor -> (Log in, School) Student / Teacher -> find your school -> username + 4-digit code
 //   Register -> School -> create a teacher account. Family and Tutor: coming soon.
-// A device that remembers its school opens straight on that school's student login (username + keypad on one screen).
-// A device that already logs in with class codes (Ms Berry's class) keeps going straight to its class list -> code.
+// The funnel is always the same: no remembered school or login way, every visit starts at the front door.
 let lastClass=null; // the class just used (class list login)
 function openLogin(keepClass,toStart){
   // hidden way back to the class list for Ms Berry's class until they have usernames: mathwizz.co/?classlist
   const classlist=/[?&]classlist\b/.test(location.search);
   if(classlist)setLocal({loginWay:'code'});
   setAddress(false);
-  const sc=local().school||null,kc=keepClass&&lastClass,way=local().loginWay;
-  const codeDevice=way==='code'||(sc&&!way); // a remembered school with no login way = the class code flow from before usernames
-  L={flow:'login',school:sc,username:'',classCode:kc?kc.code:'',className:kc?kc.name:'',entry:'',fails:0,busy:false,via:codeDevice?'code':'user',
-     step:toStart?'gate':!sc?(classlist?'school':'gate'):kc?'pin':codeDevice?'class':'user'};
+  // The funnel is always the same: nothing is remembered on the device, so everyone starts at the front door.
+  L={flow:'login',school:null,username:'',classCode:'',className:'',entry:'',fails:0,busy:false,via:classlist?'code':'user',step:classlist?'school':'gate'};
   $('classFb').textContent='';$('loginFb').textContent='';$('sUser').value='';$('schoolSearch').value='';$('schoolList').innerHTML='';
   $('demoHint').hidden=api.mode!=='demo';
   renderLogin();show('login');
@@ -354,7 +351,7 @@ const SOON={family:['Families','Family accounts are coming soon. For now, your c
 function showSoon(k){$('soonTitle').textContent=SOON[k][0];$('soonText').textContent=SOON[k][1];goStep('soon')}
 $('kFamily').onclick=()=>showSoon('family');
 $('kTutor').onclick=()=>showSoon('tutor');
-$('rStudent').onclick=()=>{L.flow='login';L.via='user';if(L.school)setLocal({loginWay:'user'});goStep(L.school?'user':'school')}; // a remembered school skips the search
+$('rStudent').onclick=()=>{L.flow='login';L.via='user';goStep('school')}; // always search for the school: nothing is remembered
 $('rTeacher').onclick=()=>openTeacher(L.flow==='register'?'register':'teacher');
 $('rPrincipal').onclick=()=>openTeacher(L.flow==='register'?'register':'principal'); // principals land on the School page when logging in
 // Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
