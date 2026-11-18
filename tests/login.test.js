@@ -176,10 +176,10 @@ describe('login screens (demo mode)', () => {
     clearDevice(); await api.teacherSignIn('t@school.ca', 'longpassword1'); history.pushState({}, '', '/?teacher=1');
     await boot(); await settle(120);
     expect($('grown').hidden).toBe(false);
-    const ask = vi.spyOn(window, 'prompt').mockReturnValue("Miss Shelter's class");
+    const ask = vi.spyOn(window, 'prompt').mockReturnValue("Miss Smith's class");
     $('gRenameClass').click(); await settle(80);
-    expect($('gTitle').textContent).toBe("Miss Shelter's class"); expect((await api.listClasses())[0].name).toBe("Miss Shelter's class");
-    ask.mockReturnValue(null); $('gRenameClass').click(); await settle(40); expect($('gTitle').textContent).toBe("Miss Shelter's class");
+    expect($('gTitle').textContent).toBe("Miss Smith's class"); expect((await api.listClasses())[0].name).toBe("Miss Smith's class");
+    ask.mockReturnValue(null); $('gRenameClass').click(); await settle(40); expect($('gTitle').textContent).toBe("Miss Smith's class");
     ask.mockRestore();
     $('gSchoolBtn').click(); await settle(150);
     expect($('sCode').textContent.length).toBeGreaterThan(3); expect($('sClasses').textContent).toMatch(/Rename/);
