@@ -310,6 +310,7 @@ function renderLogin(){
   const st=L.step;
   $('gateStep').hidden=st!=='gate';$('kindStep').hidden=st!=='kind';$('roleStep').hidden=st!=='role';$('soonStep').hidden=st!=='soon';$('userStep').hidden=st!=='user';
   $('kindTitle').textContent=L.flow==='register'?'Register':'Log in';
+  $('roleTitle').textContent=L.flow==='register'?'School register':'School log in';$('roleNote').hidden=L.flow!=='register';
   const slot=st==='user'?$('userPadSlot'):$('pinPadSlot');if($('padBox').parentNode!==slot)slot.appendChild($('padBox'));
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('pinStep').hidden=st!=='pin';
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
@@ -347,15 +348,15 @@ $('gateLogin').onclick=()=>{L.flow='login';goStep('kind')};
 $('gateRegister').onclick=()=>{L.flow='register';goStep('kind')};
 // TEMPORARY: 4-digit code login for classes without usernames yet (Ms Berry's): find your school -> pick your class -> code. Remove in January.
 $('gateCode').onclick=()=>{L.via='code';setLocal({loginWay:'code'});goStep(L.school?'class':'school')};
-$('kSchool').onclick=()=>{if(L.flow==='register')openTeacher('register');else goStep('role')};
+$('kSchool').onclick=()=>goStep('role'); // Log in and Register both ask Student / Teacher / Principal next
 const SOON={family:['Families','Family accounts are coming soon. For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they\'re doing.'],
   tutor:['Tutors','Tutor accounts are coming soon. MathWizz is for schools for now.']};
 function showSoon(k){$('soonTitle').textContent=SOON[k][0];$('soonText').textContent=SOON[k][1];goStep('soon')}
 $('kFamily').onclick=()=>showSoon('family');
 $('kTutor').onclick=()=>showSoon('tutor');
-$('rStudent').onclick=()=>{L.via='user';if(L.school)setLocal({loginWay:'user'});goStep(L.school?'user':'school')}; // a remembered school skips the search
-$('rTeacher').onclick=()=>openTeacher('teacher');
-$('rPrincipal').onclick=()=>openTeacher('principal'); // principals land on the School page
+$('rStudent').onclick=()=>{L.flow='login';L.via='user';if(L.school)setLocal({loginWay:'user'});goStep(L.school?'user':'school')}; // a remembered school skips the search
+$('rTeacher').onclick=()=>openTeacher(L.flow==='register'?'register':'teacher');
+$('rPrincipal').onclick=()=>openTeacher(L.flow==='register'?'register':'principal'); // principals land on the School page when logging in
 // Back arrow (top left), one step back through the funnel. Going back from a school's login forgets the school.
 function loginBack(){
   if(!L||L.busy)return;const st=L.step;
@@ -1108,7 +1109,7 @@ $('helpClose').onclick=closeHelp;
 $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()});
 // back from teacher sign-in: one step back in the funnel (Student / Teacher, or School / Family / Tutor after Register)
 let TFROM='teacher';
-$('tBack').onclick=()=>{openLogin();if(L.step==='class')return;L.flow=TFROM==='register'?'register':'login';goStep(TFROM==='register'?'kind':'role')};
+$('tBack').onclick=()=>{openLogin();if(L.step==='class')return;L.flow=TFROM==='register'?'register':'login';goStep('role')};
 async function openTeacher(who){setAddress(true);if(who)TFROM=who;who=TFROM; // sign-in and reset call openTeacher() again: keep who they came as
   const pr=who==='principal',reg=who==='register';$('tTitle').textContent=reg?'Register':pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;$('tRegNote').hidden=!reg;
   $('tFb').textContent='';$('tSetupFb').textContent='';
