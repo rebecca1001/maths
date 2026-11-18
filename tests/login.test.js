@@ -172,6 +172,32 @@ describe('login screens (demo mode)', () => {
     expect($('tSetup').textContent).toMatch(/Set up my school/); expect($('tSetup').textContent).toMatch(/Join my school/);
     $('tSetupOut').click(); await settle(60);
   });
+  it('a teacher or principal can rename a class, and the school page shows a big school code', async () => {
+    clearDevice(); await api.teacherSignIn('t@school.ca', 'longpassword1'); history.pushState({}, '', '/?teacher=1');
+    await boot(); await settle(120);
+    expect($('grown').hidden).toBe(false);
+    const ask = vi.spyOn(window, 'prompt').mockReturnValue("Miss Shelter's class");
+    $('gRenameClass').click(); await settle(80);
+    expect($('gTitle').textContent).toBe("Miss Shelter's class"); expect((await api.listClasses())[0].name).toBe("Miss Shelter's class");
+    ask.mockReturnValue(null); $('gRenameClass').click(); await settle(40); expect($('gTitle').textContent).toBe("Miss Shelter's class");
+    ask.mockRestore();
+    $('gSchoolBtn').click(); await settle(150);
+    expect($('sCode').textContent.length).toBeGreaterThan(3); expect($('sClasses').textContent).toMatch(/Rename/);
+    await api.teacherSignOut();
+  });
+  it('Login never shows school setup: a signed-in account with no school gets the plain sign-in screen', async () => {
+    clearDevice(); await api.teacherSignOut();
+    const orphan = vi.spyOn(api, 'teacherSession').mockResolvedValue({ email: 'half@school.ca', teacher: null }); // an account that never finished setup
+    await boot(); await settle(60);
+    $('gateLogin').click(); await settle(); $('kSchool').click(); await settle();
+    $('rPrincipal').click(); await settle(80);
+    expect($('teach').hidden).toBe(false); expect($('tSetup').hidden).toBe(true); expect($('tSignIn').hidden).toBe(false);
+    expect($('tSubmit').textContent).toBe('Sign in');
+    $('tEmail').value = 'half@school.ca'; $('tPass').value = 'longpassword1';
+    $('tSignIn').dispatchEvent(new Event('submit', { cancelable: true })); await settle(150);
+    expect($('tSetup').hidden).toBe(true); expect($('tFb').textContent).toMatch(/Register/);
+    orphan.mockRestore(); await api.teacherSignOut();
+  });
 });
 
 describe('teachers add students from a pasted list', () => {

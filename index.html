@@ -274,6 +274,7 @@
         <span class="row" id="gSchoolWrap" hidden style="align-items:center"><label class="muted" for="gSchool">School</label><select id="gSchool"></select></span>
         <label class="muted" for="gClass">Class</label>
         <select id="gClass"></select>
+        <button class="btn" id="gRenameClass">Rename</button>
         <button class="btn" id="gNewClass">+ New class</button>
         <span class="classcode">Class code <b class="num" id="gCode"></b></span>
       </div>
@@ -339,6 +340,12 @@
       <div class="ttitle"><span>School</span><h1 id="sName"></h1></div>
       <div class="row"><button class="btn" id="sBack">← Classes</button><button class="btn" id="sOut">Sign out</button></div>
     </div>
+    <div class="card schoolcode">
+      <span class="label">Your school code</span>
+      <b class="bigcode num" id="sCode" aria-label="School code"></b>
+      <p class="muted small">Teachers choose "Join my school" when they register and type this code.</p>
+      <div class="row"><button class="btn primary" id="sCopyCode" type="button">Copy code</button></div>
+    </div>
     <div class="card pcard">
       <div class="spread"><h2>School progress</h2><span class="note">Last 10 weeks</span></div>
       <div id="sProgress"></div>
@@ -348,7 +355,7 @@
       <h2>Classes</h2>
       <div class="tbl-wrap"><table class="tbl plain" id="sClasses"></table></div>
       <form class="row addclass" id="sAddClass" style="align-items:center">
-        <input id="sClassName" placeholder="New class name, e.g. Grade 5 Ravens" maxlength="80" required>
+        <input id="sClassName" placeholder="New class name, e.g. Miss Shelter's class or K-7" maxlength="80" required>
         <select id="sClassTeacher" aria-label="Teacher"></select>
         <button class="btn primary" type="submit">Add class</button>
       </form>

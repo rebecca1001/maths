@@ -1107,17 +1107,24 @@ $('helpOv').addEventListener('click',e=>{if(e.target.id==='helpOv')closeHelp()})
 // back from teacher sign-in: one step back in the funnel (Student / Teacher, or School / Family / Tutor after Register)
 let TFROM='teacher';
 $('tBack').onclick=()=>{openLogin();if(L.step==='class')return;L.flow=TFROM==='register'?'register':'login';goStep('role')};
-async function openTeacher(who){setAddress(true);if(who)TFROM=who;who=TFROM; // sign-in and reset call openTeacher() again: keep who they came as
+async function openTeacher(who,afterSignIn){setAddress(true);if(who)TFROM=who;who=TFROM; // sign-in and reset call openTeacher() again: keep who they came as
   const pr=who==='principal',reg=who==='register';$('tTitle').textContent=reg?'Register':pr?'Principals':'Teachers';$('tRoleNote').hidden=!pr;$('tRegNote').hidden=!reg;
   $('tFb').textContent='';$('tSetupFb').textContent='';
   let info=null;try{info=await api.teacherSession()}catch(e){info=null}
   if(!info){$('tSignIn').hidden=false;$('tSetup').hidden=true;setTMode(reg?'create':'signin');show('teach');return}
-  if(!info.teacher){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
+  if(!info.teacher){
+    // Setting up or joining a school belongs to Register only. Sign in is always the plain sign-in screen.
+    if(reg){$('tSignIn').hidden=true;$('tSetup').hidden=false;show('teach');return}
+    try{await api.teacherSignOut()}catch(e){}
+    $('tSignIn').hidden=false;$('tSetup').hidden=true;setTMode('signin');
+    if(afterSignIn)say('tFb',"That account doesn't have a school yet. Go back and choose Register to set up your school, or join it with a school code.");
+    show('teach');return}
   TEACH={info,classes:[],classId:local().teacherClass||null,super:false};setLocal({teacher:true});
   try{TEACH.super=!!(await api.isSuperAdmin())}catch(e){TEACH.super=false}
   if(TEACH.super){try{TEACH.schools=await api.listSchools()}catch(e){TEACH.schools=[]}
     const saved=local().ownerSchool;if(saved&&TEACH.schools.some(x=>x.id===saved))TEACH.viewSchool=saved}
   await loadClasses();show('grown');
+  if(TEACH.firstClass&&!pr){const fc=TEACH.firstClass;TEACH.firstClass=null;await renameClass(fc,'addMsg',true)} // a new teacher names their first class straight away
   if(pr){TFROM='teacher';if(isAdmin())await openSchool();else{const m=$('addMsg');if(m)m.textContent="Your account isn't a principal (school admin) yet, so you're on the teacher view. Your school's MathWizz admin can make you one on the School page."}}
 }
 // Sign-in messages: green for progress and info, red for problems
@@ -1160,12 +1167,12 @@ $('tSignIn').addEventListener('submit',async e=>{
     const r=await api.teacherSignUp(email,pw);
     if(r.error){say('tFb',authMsg(r.error));return}
     if(r.needsConfirm){setTMode('signin');say('tFb','Check your email and tap the link to confirm your account, then sign in here.',true);return}
-    openTeacher();return;
+    openTeacher('register');return;
   }
   say('tFb','Signing in…',true);
   const r=await api.teacherSignIn(email,pw);
   if(r.error){say('tFb',authMsg(r.error));return}
-  openTeacher();
+  openTeacher(null,true);
 });
 document.querySelectorAll('input[name="tMode"]').forEach(r=>r.onchange=()=>{const j=document.querySelector('input[name="tMode"]:checked').value==='join';$('tJoinRow').hidden=!j;$('tSchoolNameRow').hidden=j});
 $('tSetup').addEventListener('submit',async e=>{
@@ -1189,7 +1196,7 @@ async function loadClasses(){
   if(isAdmin()||viewingOther()){try{TEACH.teachers=await api.listTeachers(sid)}catch(e){TEACH.teachers=[]}}
   if(!visibleClasses().length){
     if(viewingOther()){TEACH.classes=[];TEACH.classId=null;renderOwnerEmpty();return}
-    TEACH.all.push(await api.createClass('My class'))}
+    const mc=await api.createClass('My class');TEACH.all.push(mc);TEACH.firstClass=mc}
   TEACH.classes=visibleClasses();
   if(!TEACH.classes.some(c=>c.id===TEACH.classId))TEACH.classId=(TEACH.classes.find(c=>c.teacher_id===myId())||TEACH.classes[0]).id;
   await loadClassStudents();
@@ -1231,6 +1238,17 @@ function renderTeacherBar(){
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
+// Teachers and principals can rename a class, for example "Miss Shelter's class" or "K-7"
+async function renameClass(c,msgId,first){
+  if(!c)return false;
+  const n=prompt(first?'What would you like to call your class? For example "Miss Shelter\'s class" or "K-7"':'New name for this class',c.name);
+  if(n==null)return false;const name=n.trim().slice(0,80);if(name.length<1||name===c.name)return false;
+  try{await api.updateClass(c.id,{name});c.name=name;const m=$(msgId);if(m)m.textContent=`Renamed to ${name}.`;
+    if(TEACH.classes&&TEACH.classes.some(x=>x.id===c.id))renderTeacherBar();return true}
+  catch(err){const m=$(msgId);if(m)m.textContent='Could not rename: '+err.message;return false}
+}
+$('gRenameClass').onclick=()=>renameClass(curClass(),'addMsg');
+$('sCopyCode').onclick=async()=>{const code=TEACH.info.teacher.school.join_code||'';try{await navigator.clipboard.writeText(code);$('sCopyCode').textContent='Copied!'}catch(e){}setTimeout(()=>$('sCopyCode').textContent='Copy code',1500)};
 $('gNewClass').onclick=async()=>{
   const name=prompt('Name for the new class (for example "Grade 5 Ravens")');if(!name||!name.trim())return;
   const c=await api.createClass(name.trim().slice(0,80));TEACH.all.push(c);TEACH.classes=visibleClasses();TEACH.classId=c.id;await loadClassStudents();
@@ -1597,10 +1615,10 @@ function renderSchoolProgress(){
 }
 function renderSchool(){
   const t=TEACH.info.teacher,sc=t.school||{},ts=TEACH.teachers||[],me=myId();
-  $('sName').textContent=sc.name||'My school';$('sNameInput').value=sc.name||'';
+  $('sName').textContent=sc.name||'My school';$('sCode').textContent=sc.join_code||'';$('sNameInput').value=sc.name||'';
   const tOpts=sel=>`<option value="">No teacher</option>`+ts.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`).join('');
   $('sClasses').innerHTML=`<thead><tr><th>Class</th><th>Teacher</th><th class="r">Students</th><th>Class code</th><th></th></tr></thead><tbody>`+
-    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}" aria-label="Teacher for ${esc(c.name)}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td><button class="btn" data-open="${c.id}">Open</button></td></tr>`).join('')+'</tbody>';
+    TEACH.all.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td><select data-ct="${c.id}" aria-label="Teacher for ${esc(c.name)}">${tOpts(c.teacher_id)}</select></td><td class="r">${(TEACH.counts||{})[c.id]||0}</td><td><b class="num">${esc(c.code)}</b></td><td class="nowrap"><button class="btn" data-open="${c.id}">Open</button> <button class="linkbtn" data-rename="${c.id}">Rename</button></td></tr>`).join('')+'</tbody>';
   $('sClassTeacher').innerHTML=ts.map(x=>`<option value="${x.id}" ${x.id===me?'selected':''}>${esc(x.name)}</option>`).join('');
   const nClasses=id=>TEACH.all.filter(c=>c.teacher_id===id).length,admins=ts.filter(x=>x.role==='admin').length;
   $('sTeachers').innerHTML=`<thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="r">Classes</th><th></th></tr></thead><tbody>`+
@@ -1615,6 +1633,7 @@ $('sClasses').addEventListener('change',async e=>{
   renderSchool();
 });
 $('sClasses').addEventListener('click',async e=>{
+  const rb=e.target.closest('[data-rename]');if(rb){await renameClass(TEACH.all.find(x=>x.id===rb.dataset.rename),'sClassMsg');renderSchool();return}
   const b=e.target.closest('[data-open]');if(!b)return;
   TEACH.classes=TEACH.all;TEACH.classId=b.dataset.open;TEACH_TAB='students';await loadClassStudents();show('grown');
 });
@@ -1924,7 +1943,7 @@ export async function boot(){
     ['tSignIn','tSetup'].forEach(id=>$(id).hidden=true);$('tReset').hidden=false;show('teach');return}
   if(q.get('teacher')||location.hash.includes('access_token')){
     setTimeout(()=>{if(TEACH||screen==='teach')setAddress(true)},1500); // tidy the address bar after the email link
-    openTeacher();return}
+    openTeacher(location.hash.includes('access_token')?'register':undefined);return} // an email confirmation link finishes registering: school setup
   let t=null;try{t=sessionStorage.getItem(TAB)}catch(e){}
   t=t||local().token; // this tab's student first, so several tabs can stay logged in as different students
   if(t){SESSION={token:t};const ok=await loadStudent();if(ok){enterPlayer();return}}
