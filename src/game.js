@@ -1238,10 +1238,10 @@ function renderTeacherBar(){
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
-// Teachers and principals can rename a class, for example "Miss Shelter's class" or "K-7"
+// Teachers and principals can rename a class, for example "Miss Smith's class" or "K-7"
 async function renameClass(c,msgId,first){
   if(!c)return false;
-  const n=prompt(first?'What would you like to call your class? For example "Miss Shelter\'s class" or "K-7"':'New name for this class',c.name);
+  const n=prompt(first?'What would you like to call your class? For example "Miss Smith\'s class" or "K-7"':'New name for this class',c.name);
   if(n==null)return false;const name=n.trim().slice(0,80);if(name.length<1||name===c.name)return false;
   try{await api.updateClass(c.id,{name});c.name=name;const m=$(msgId);if(m)m.textContent=`Renamed to ${name}.`;
     if(TEACH.classes&&TEACH.classes.some(x=>x.id===c.id))renderTeacherBar();return true}
