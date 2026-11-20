@@ -78,6 +78,7 @@ function applyState(st,keepMe){
   S.players=players;S.order=order;S.current=me.id;
   COMPS=Array.isArray(st.competitions)?st.competitions:[];
   SCHOOLBOARD=Array.isArray(st.school_board)?st.school_board:null;if(!SCHOOLBOARD)boardScope='class';
+  HOME=st.home===true;HOMEBOARD=HOME&&Array.isArray(st.home_board)?st.home_board:null; // home plan: one Top 30 across home players, plus the Progress tab
 }
 
 // ---------- fluency maths ----------
@@ -276,7 +277,7 @@ function spaceName(){const used=new Set(Object.values(S.players).map(p=>p.name))
 let L=null;
 function toLogin(expired,keepClass,toStart){
   if(SESSION){flushSave();if(!expired)api.studentLogout(SESSION.token);}
-  SESSION=null;CLASS=null;TEACH=null;S={players:{},order:[],current:null,showBoard:true,muted:false};
+  SESSION=null;CLASS=null;TEACH=null;HOME=false;HOMEBOARD=null;S={players:{},order:[],current:null,showBoard:true,muted:false};
   try{const mine=sessionStorage.getItem(TAB);sessionStorage.removeItem(TAB);if(!mine||local().token===mine)setLocal({token:null})}catch(e){setLocal({token:null})}
   applyWorld();openLogin(keepClass,toStart);
   if(expired)$('loginFb').textContent='Please log in again.';
@@ -305,12 +306,15 @@ function openLogin(keepClass,toStart){
 function focusUser(){setTimeout(()=>{try{$('sUser').focus()}catch(e){}},50)}
 function renderLogin(){
   const st=L.step;
-  $('gateStep').hidden=st!=='gate';$('kindStep').hidden=st!=='kind';$('roleStep').hidden=st!=='role';$('soonStep').hidden=st!=='soon';$('userStep').hidden=st!=='user';
+  $('gateStep').hidden=st!=='gate';$('kindStep').hidden=st!=='kind';$('roleStep').hidden=st!=='role';$('soonStep').hidden=st!=='soon';$('userStep').hidden=st!=='user';$('homeStep').hidden=st!=='home';
   $('kindTitle').textContent=L.flow==='register'?'Register':'Log in';
   $('roleTitle').textContent=L.flow==='register'?'School register':'School log in';$('roleNote').hidden=L.flow!=='register';
   const slot=st==='user'?$('userPadSlot'):$('pinPadSlot');if($('padBox').parentNode!==slot)slot.appendChild($('padBox'));
   $('schoolStep').hidden=st!=='school';$('classStep').hidden=st!=='class';$('pinStep').hidden=st!=='pin';
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
+  if(st==='home'){const reg=L.flow==='register';$('homeTitle').textContent=reg?'Family register':'Family log in';$('homeNote').hidden=!reg;$('hGo').textContent=reg?'Create account':'Log in';
+    $('hPass').autocomplete=reg?'new-password':'current-password';
+    $('homeSwitch').innerHTML=reg?'Already have an account? <a href="#" id="hSwap">Log in</a>':'No account yet? <a href="#" id="hSwap">Register</a>'}
   $('loginTitle').textContent='Log in';
   $('loginSub').textContent=`${L.className||'Class '+L.classCode} · enter your 4-digit code`;
   $('loginBack').hidden=st==='gate';
@@ -349,7 +353,7 @@ $('kSchool').onclick=()=>goStep('role'); // Log in and Register both ask Student
 const SOON={family:['Families','Family accounts are coming soon. For now, your child logs in with the username and 4-digit code on their login card, at school or at home. Their teacher can tell you how they\'re doing.'],
   tutor:['Tutors','Tutor accounts are coming soon. MathWizz is for schools for now.']};
 function showSoon(k){$('soonTitle').textContent=SOON[k][0];$('soonText').textContent=SOON[k][1];goStep('soon')}
-$('kFamily').onclick=()=>showSoon('family');
+$('kFamily').onclick=()=>{$('hUser').value='';$('hPass').value='';goStep('home')};
 $('kTutor').onclick=()=>showSoon('tutor');
 $('rStudent').onclick=()=>{L.flow='login';L.via='user';goStep('school')}; // always search for the school: nothing is remembered
 $('rTeacher').onclick=()=>openTeacher(L.flow==='register'?'register':'teacher');
@@ -360,12 +364,29 @@ function loginBack(){
   if(st==='pin'){L.classCode='';L.className='';goStep(L.school?'class':'school');return}
   if(st==='user'||st==='class'){L.school=null;L.username='';setLocal({school:null});goStep('school');return}
   if(st==='school'){if(L.via==='code'){L.via='user';setLocal({loginWay:null});goStep('gate');return}L.flow='login';goStep('role');return}
-  if(st==='role'||st==='soon'){goStep('kind');return}
+  if(st==='role'||st==='soon'||st==='home'){goStep('kind');return}
   if(st==='kind')goStep('gate');
 }
 $('loginBack').onclick=loginBack;
 // Username and keypad on one screen (TT Rock Stars student login): pressing Enter in the username box moves to the keypad
 $('userStep').addEventListener('submit',e=>{e.preventDefault();try{$('sUser').blur()}catch(err){}});
+// Home plan: register a child (username + password) or log in
+$('homeStep').addEventListener('click',e=>{if(e.target.id==='hSwap'){e.preventDefault();L.flow=L.flow==='register'?'login':'register';$('loginFb').textContent='';renderLogin()}});
+$('homeStep').addEventListener('submit',async e=>{
+  e.preventDefault();if(!L||L.busy)return;
+  const u=$('hUser').value.trim(),pw=$('hPass').value,reg=L.flow==='register';
+  if(!u){$('loginFb').textContent='Type your username.';return}
+  if(!pw){$('loginFb').textContent='Type your password.';return}
+  if(reg&&u.replace(/[^a-zA-Z0-9._-]/g,'').length<3){$('loginFb').textContent='Pick a username with at least 3 letters or numbers.';return}
+  if(reg&&pw.length<6){$('loginFb').textContent='Use at least 6 characters for the password.';return}
+  L.busy=true;$('hGo').disabled=true;$('loginFb').textContent=reg?'Creating account…':'Logging in…';
+  let r;try{r=reg?await api.homeRegister(u,pw,spaceName()):await api.homeLogin(u,pw)}catch(err){r={error:'network'}}
+  L.busy=false;$('hGo').disabled=false;
+  if(r&&r.token){SESSION={token:r.token};lastClass=null;setLocal({token:r.token,loginWay:'user'});try{sessionStorage.setItem(TAB,r.token)}catch(err){}
+    $('hUser').value='';$('hPass').value='';$('loginFb').textContent='';const ok=await loadStudent();if(ok)enterPlayer();return}
+  const er=r&&r.error;
+  $('loginFb').textContent=er==='username_taken'?'That username is taken. Try another one.':er==='bad_username'?'Usernames use letters, numbers, dots and dashes, at least 3.':er==='bad_password'?'Use at least 6 characters for the password.':er==='too_many_tries'?'Too many tries. Wait a few minutes, then try again.':er==='wrong_login'?'Not quite. Check your username and password.':'Could not connect. Check the internet and try again.';
+});
 function loginPress(d){
   if(!L||L.busy||d==='enter')return;
   if(L.step==='user'){
@@ -515,6 +536,7 @@ const roundStars=r=>r.stars!=null?r.stars:gameStars(r.c,r.n,r.ms);
 const boardStars=p=>p.totStars!=null?p.totStars:p.totBase!=null?p.totBase+p.rounds.filter(r=>r.d>p.totBaseAt).reduce((s,r)=>s+roundStars(r),0):p.rounds.reduce((s,r)=>s+roundStars(r),0);
 function migrateStars(p){if(p.starsV2)return;p.maxCoins=Math.max(p.maxCoins||0,p.coins||0);p.coins=Math.max(p.coins||0,p.rounds.reduce((s,r)=>s+roundStars(r),0));p.starsV2=true}
 const fmtN=n=>n.toLocaleString();
+let HOME=false,HOMEBOARD=null; // home plan child, and the Top 30 of home players
 let SCHOOLBOARD=null,boardScope='class'; // school Top 10 (School plan), and which board the Top 10 tab shows
 function starBoard(){return S.order.map(id=>S.players[id]).map(q=>({p:q,s:boardStars(q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s)}
 function renderHome(){
@@ -524,7 +546,8 @@ function renderHome(){
   $('playTitle').textContent=`Ready, ${p.name}?`;
   {const wb=starBoard(),pos=wb.findIndex(x=>x.p.id===p.id);
    // the rank is only shown inside the Top 10, so nobody sees that they are near the bottom
-   $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(boardStars(p))}</b> stars${pos>=0&&pos<10?` · <b>#${pos+1}</b>`:''}`;
+   const hpos=HOME&&HOMEBOARD?HOMEBOARD.findIndex(x=>x.id===p.id):-1,top=HOME?30:10,rank=HOME?hpos:pos;
+   $('playPts').innerHTML=`<span class="coin"></span><b class="num">${fmtN(boardStars(p))}</b> stars${rank>=0&&rank<top?` · <b>#${rank+1}</b>`:''}`;
   }
   renderStreak(p);
   {const j=journeyHTML(p);$('journey').innerHTML=j.track;$('journeyMsg').innerHTML=j.msg;}
@@ -545,6 +568,7 @@ function renderMinBox(p){
   box.innerHTML=`<span class="label">Today</span><div class="gline">${done?`<b>Done for today! ✓</b> <span class="muted">${n} round${n>1?'s':''}</span>`:`<b class="num">${n} of ${m}</b> rounds · <span>${m-n} to go</span>`}</div><div class="gbar"><i style="width:${Math.min(100,n/m*100).toFixed(0)}%"></i></div>`;
 }
 function renderBoard(p){
+  if(HOME)return renderHomeBoard(p);
   const mine=boardStars(p),school=boardScope==='school'&&SCHOOLBOARD;
   $('boardTitle').textContent=S.showBoard?(school?'Top 10 in your school':'Top 10 in your class'):'My stars';
   $('boardScope').hidden=!S.showBoard||!SCHOOLBOARD;
@@ -556,8 +580,47 @@ function renderBoard(p){
   $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.skin,40)}<span class="lnm">${esc(x.name)}${x.id===p.id?' <small>(you)</small>':''}${x.sub?`<small class="lsub">${esc(x.sub)}</small>`:''}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.s)}</b></span></div>`).join(''):'<p class="muted">No games played this week yet. Be the first!</p>';
   $('boardMe').textContent=inTop?'Every star you earn counts. Keep playing!':mine>0?`You have ${fmtN(mine)} stars. Keep playing to climb into the Top 10!`:'Play a round to get on the board.';
 }
+// Home plan: one Top 30 across every home player (never school students)
+function renderHomeBoard(p){
+  const mine=boardStars(p),rows=(HOMEBOARD||[]).slice(0,30),inTop=rows.some(x=>x.id===p.id);
+  $('boardTitle').textContent='Top 30 players';$('boardScope').hidden=true;
+  $('board').classList.add('simple');
+  $('board').innerHTML=rows.length?`<div class="lhead"><span></span><span></span><span>Player</span><span>Stars</span></div>`+rows.map((x,i)=>`<div class="lrow r${i+1} ${x.id===p.id?'me':''}"><span class="lpos num">${i+1}</span>${avatar(x.skin,40)}<span class="lnm">${esc(x.name)}${x.id===p.id?' <small>(you)</small>':''}</span><span class="lstars"><span class="coin"></span><b class="num">${fmtN(x.stars)}</b></span></div>`).join(''):'<p class="muted">Nobody is on the board yet. Play a round to be the first!</p>';
+  $('boardMe').textContent=inTop?'Every star you earn counts. Keep playing!':mine>0?`You have ${fmtN(mine)} stars. Keep playing to climb into the Top 30!`:'Play a round to get on the board.';
+}
 $('boardScope').addEventListener('click',e=>{const b=e.target.closest('[data-scope]');if(!b)return;boardScope=b.dataset.scope;renderBoard(P())});
 $('start').onclick=()=>startRound();
+// ---------- Progress tab (home plan): a child or a parent can open it, no lock ----------
+function progressData(p){
+  const tables=ALL.map(t=>({t,s:tableScore(p,t)}));
+  const tried=tables.filter(x=>x.s!=null);
+  const strong=[...tried].filter(x=>x.s>=3).sort((a,b)=>b.s-a.s||a.t-b.t).slice(0,3).map(x=>x.t);
+  const weak=focusOf(p);
+  const hard=Object.entries(p.facts||{}).filter(([k,f])=>f&&f.r&&f.r.length>=2&&level(f)<=2).map(([k,f])=>({k,w:weakWeight(p,...k.split(',').map(Number))})).sort((a,b)=>b.w-a.w).slice(0,6).map(x=>x.k.replace(',',' × '));
+  const rs=p.rounds.filter(r=>r.n>=8),accOf=a=>{const n=a.reduce((s,r)=>s+r.n,0);return n?Math.round(a.reduce((s,r)=>s+r.c,0)/n*100):null};
+  const first=rs.slice(0,5),last=rs.slice(-5);
+  const cpm=r=>r.c*60/(r.len||60);
+  const speedFirst=rs.length>=3?Math.round(rs.slice(0,3).reduce((s,r)=>s+cpm(r),0)/3):null;
+  const speedBest=rs.length>=3?Math.round(Math.max(...rs.map(cpm))):null;
+  const days=Array.isArray(p.playedDays)?p.playedDays.length:new Set(p.rounds.map(r=>new Date(r.d).toDateString())).size;
+  return {tables,strong,weak,hard,accFirst:rs.length>=6?accOf(first):null,accNow:rs.length>=6?accOf(last):null,speedFirst,speedBest,days,rounds:p.rounds.length,stars:boardStars(p),tried:tried.length};
+}
+function renderProgress(){
+  const p=P(),d=progressData(p),box=$('progressBox');if(!box||!p)return;
+  const chip=t=>`<span class="fchip big">${t}</span>`;
+  const tile=(n,l)=>`<div class="ptile"><b class="num">${n}</b><span>${l}</span></div>`;
+  const grow=(a,b,unit)=>a!=null&&b!=null?`<div class="pgrow"><span class="muted">${unit}</span><b class="num">${a}</b><span>→</span><b class="num good">${b}</b></div>`:'';
+  box.innerHTML=`<div class="spread"><h2>${esc(p.name)}'s progress</h2></div>
+    <div class="pstats">${tile(fmtN(d.stars),'stars earned')}${tile(d.rounds,'rounds played')}${tile(d.days,'days played lately')}${tile(d.tried+' of '+ALL.length,'times tables tried')}</div>
+    ${d.accFirst!=null||d.speedBest!=null?`<div class="pgrows">${grow(d.accFirst,d.accNow,'% right, first rounds → latest rounds')}${grow(d.speedFirst,d.speedBest,'answers a minute, first rounds → best round')}</div>`:''}
+    <h3>Strengths</h3>
+    <p>${d.strong.length?d.strong.map(t=>chip(t+'×')).join(' '):'<span class="muted">Play a few rounds and your strongest tables show up here.</span>'}</p>
+    <h3>Needs practice</h3>
+    <p>${d.weak.length?d.weak.map(t=>chip(t+'×')).join(' '):'<span class="muted">Nothing tricky yet. Keep playing!</span>'}</p>
+    ${d.hard.length?`<p class="muted small">Trickiest facts right now: ${d.hard.map(chip).join(' ')}. MathWizz picks these more often until they feel easy.</p>`:''}
+    <h3>Every times table</h3>
+    <div class="ptables">${d.tables.map(x=>{const lv=x.s==null?0:Math.min(4,Math.max(1,Math.round(x.s)));return `<div class="prow"><b class="num">${x.t}×</b><div class="gbar"><i style="width:${lv*25}%"></i></div><span class="muted small">${LEVELS[lv]}</span></div>`}).join('')}</div>`;
+}
 let tab='play';
 function logout(){toLogin(false,false,true)} // back to the start: Log in / Register (Sam, 13 Nov)
 function setTab(t){
@@ -567,7 +630,12 @@ function setTab(t){
 }
 function syncTab(){
   document.querySelectorAll('.rail [role=tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
-  ['play','board','badges','shop'].forEach(x=>$('tab-'+x).hidden=x!==tab);
+  if(tab==='progress'&&!HOME)tab='play';
+  $('railProgress').hidden=!HOME;
+  {const lb=document.querySelector('.rail [data-tab=board] span');if(lb)lb.textContent=HOME?'Top 30':'Top 10'}
+  document.querySelectorAll('.rail [role=tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
+  ['play','board','progress','badges','shop'].forEach(x=>$('tab-'+x).hidden=x!==tab);
+  if(tab==='progress')renderProgress();
   if(tab==='badges')renderBadges();
   if(tab==='shop')renderShop();
 }
@@ -1958,7 +2026,7 @@ export const __test = {
   streakInfo, bumpStreak, restoreStreak, STREAK_PRICE, STREAK_BUYBACK_DAYS, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
   checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
-  renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
+  setTab, progressData, renderProgress, renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
   rowsFromPlayers, pSeries,
   setG(v) { G = v; }, setQ(v) { q = v; }, resetRecent() { recent = []; },

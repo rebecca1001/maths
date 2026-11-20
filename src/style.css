@@ -841,3 +841,15 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .schoolcode{text-align:center}
 .schoolcode .bigcode{display:block;font-family:var(--display);font-size:clamp(1.8rem,7vw,2.8rem);letter-spacing:.14em;color:var(--accent);margin:6px 0 4px;user-select:all}
 .schoolcode .row{justify-content:center}
+
+/* Home plan: Progress tab */
+.pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.ptile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:16px;background:color-mix(in srgb,var(--ink) 5%,transparent);font-family:var(--display)}
+.ptile b{font-size:1.7rem;line-height:1.1}.ptile span{font-size:.85rem;color:var(--muted)}
+.pgrows{display:flex;flex-direction:column;gap:6px}
+.pgrow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.pgrow b{font-size:1.4rem}.pgrow .good{color:var(--good)}
+.ptables{display:flex;flex-direction:column;gap:6px}
+.prow{display:grid;grid-template-columns:44px 1fr 96px;gap:10px;align-items:center}
+.prow .gbar{margin:0}
+#homeStep .btn{margin-top:8px}
+@media (max-width:560px){.pstats{grid-template-columns:1fr 1fr}}
