@@ -618,6 +618,12 @@ function renderProgress(){
     <h3>Needs practice</h3>
     <p>${d.weak.length?d.weak.map(t=>chip(t+'×')).join(' '):'<span class="muted">Nothing tricky yet. Keep playing!</span>'}</p>
     ${d.hard.length?`<p class="muted small">Trickiest facts right now: ${d.hard.map(chip).join(' ')}. MathWizz picks these more often until they feel easy.</p>`:''}
+    <h3>How you're getting on</h3>
+    <div class="ptraj">${chartHTML(pSeries(rowsFromPlayers([p])))}</div>
+    <h3>Every fact: what you're good at</h3>
+    ${(()=>{const mx=ALL.at(-1);let hm='<div class="h">×</div>';for(let b=1;b<=mx;b++)hm+=`<div class="h">${b}</div>`;
+      for(let a=1;a<=mx;a++){hm+=`<div class="h">${a}</div>`;for(let b=1;b<=mx;b++)hm+=`<div class="cell l${level(p.facts[a+','+b])}" title="${a} × ${b}"></div>`}
+      return `<div class="hm-wrap"><div class="hm" style="grid-template-columns:repeat(${mx+1},minmax(22px,1fr))">${hm}</div></div><div class="legend"><span><i style="background:var(--h0)"></i>Not tried</span><span><i style="background:var(--h1)"></i>Tricky</span><span><i style="background:var(--h2)"></i>Getting there</span><span><i style="background:var(--h3)"></i>Quick</span><span><i style="background:var(--h4)"></i>Instant</span></div>`})()}
     <h3>Every times table</h3>
     <div class="ptables">${d.tables.map(x=>{const lv=x.s==null?0:Math.min(4,Math.max(1,Math.round(x.s)));return `<div class="prow"><b class="num">${x.t}×</b><div class="gbar"><i style="width:${lv*25}%"></i></div><span class="muted small">${LEVELS[lv]}</span></div>`}).join('')}</div>`;
 }
