@@ -28,6 +28,9 @@ function supabaseApi() {
     studentLogin: (classCode, pin) => rpc('student_login', { p_class_code: classCode, p_pin: pin }),
     // school + username (or whole school email) + password
     studentLoginUser: (schoolId, username, code) => rpc('student_login_user', { p_school: schoolId, p_username: username, p_passcode: code }), // p_passcode is the 4-digit code
+    // home plan: one account per child, own username + password
+    homeRegister: (username, password, name) => rpc('home_register', { p_username: username, p_password: password, p_name: name }),
+    homeLogin: (username, password) => rpc('home_login', { p_username: username, p_password: password }),
     findSchools: (q) => rpc('find_schools', { p_query: q }),
     schoolClasses: (schoolId) => rpc('school_classes', { p_school: schoolId }),
     studentState: (token) => rpc('student_state', { p_token: token }),
@@ -179,16 +182,39 @@ function demoApi() {
       const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
       return ok({ token: t, student_id: s.id });
     },
+    // home plan (same rules as home_register / home_login in the database)
+    homeRegister(username, password, name) {
+      const u = normUsername(username);
+      if (!u || u.length < 3 || !/^[a-z0-9._-]+$/.test(u)) return ok({ error: 'bad_username' });
+      if (String(password || '').length < 6 || String(password).length > 72) return ok({ error: 'bad_password' });
+      if (db.students.some((x) => x.home && x.username === u)) return ok({ error: 'username_taken' });
+      const cid = id();
+      db.classes.push({ id: cid, name: 'Home', code: 'H' + id().slice(0, 5).toUpperCase(), teacher_id: null, settings: { maxTable: 12, division: false, sound: true, battles: false }, archived_at: null, home: true });
+      const s = { id: id(), class_id: cid, name: String(name || '').trim().slice(0, 60) || 'Space Cadet', pin: randomPin(), username: u, home: true, home_pass: String(password), data: {} };
+      db.students.push(s);
+      const t = id() + id(); db.sessions[t] = s.id; persist();
+      return ok({ token: t, student_id: s.id });
+    },
+    homeLogin(username, password) {
+      const u = normUsername(username);
+      const s = u && db.students.find((x) => x.home && x.username === u && x.home_pass === String(password || ''));
+      if (!s) return ok({ error: 'wrong_login' });
+      const t = id() + id(); db.sessions[t] = s.id; s.last_login_at = s.last_seen_at = new Date().toISOString(); persist();
+      return ok({ token: t, student_id: s.id });
+    },
     studentState(token) {
       const m = me(token); if (!m) return ok({ error: 'signed_out' });
       const c = db.classes.find(x => x.id === m.class_id);
       const cut = mondayStart();
       return ok({
-        school_board: paid() ? db.students.map(s => ({ id: s.id, name: s.name, skin: (s.data && s.data.skin) || 'blob', class: (db.classes.find(x => x.id === s.class_id) || {}).name || '', stars: weekStars(s, 0) }))
+        school_board: paid() && !m.home ? db.students.map(s => ({ id: s.id, name: s.name, skin: (s.data && s.data.skin) || 'blob', class: (db.classes.find(x => x.id === s.class_id) || {}).name || '', stars: weekStars(s, 0) }))
           .filter(x => x.stars > 0).sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name)).slice(0, 10) : null,
+        home: !!m.home,
+        home_board: m.home ? db.students.filter((x) => x.home).map((x) => ({ id: x.id, name: x.name, skin: (x.data && x.data.skin) || 'blob', stars: weekStars(x, 0) }))
+          .filter((x) => x.stars > 0).sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name)).slice(0, 30) : null,
         me: { id: m.id, name: m.name, data: m.data }, me_total_stars: weekStars(m, 0), played_days: [...new Set(((m.data && m.data.rounds) || []).map(r => { const d = new Date(r.d); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }))],
         class: { id: c.id, name: c.name, settings: c.settings },
-        competitions: paid() ? demoComps(x => (!x.class_id || x.class_id === m.class_id) && new Date(x.starts_at) - Date.now() < 7 * 864e5 && Date.now() - new Date(x.ended_at || x.ends_at) < 7 * 864e5, m.id, false) : [],
+        competitions: paid() && !m.home ? demoComps(x => (!x.class_id || x.class_id === m.class_id) && new Date(x.starts_at) - Date.now() < 7 * 864e5 && Date.now() - new Date(x.ended_at || x.ends_at) < 7 * 864e5, m.id, false) : [],
         classmates: db.students.filter(s => s.class_id === m.class_id && s.id !== m.id).map(s => {
           const rs = (s.data.rounds || []).filter(r => r.d >= cut);
           return { id: s.id, name: s.name, data: { skin: s.data.skin || 'blob', totStars: weekStars(s, 0), wkMins: Math.round(rs.reduce((t, r) => t + (r.len || 60), 0) / 60) } };

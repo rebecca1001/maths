@@ -118,7 +118,7 @@ describe('login screens (demo mode)', () => {
     setDevice({ school: { id: 'demo-school', name: 'Demo School' }, loginWay: 'code' }); await boot(); await settle(60);
     expect($('gateStep').hidden).toBe(false);
   });
-  it('Teacher goes to the teacher sign-in (no school step); its back arrow returns to Student / Teacher; Family and Tutor say coming soon', async () => {
+  it('Teacher goes to the teacher sign-in (no school step); its back arrow returns to Student / Teacher; Family opens the home plan, Tutor says coming soon', async () => {
     clearDevice(); await api.teacherSignOut(); await boot(); await settle(60);
     $('gateLogin').click(); await settle(); $('kSchool').click(); await settle();
     expect($('rTeacher').textContent).toMatch(/Teacher/); expect($('rPrincipal').textContent).toMatch(/Principal/);
@@ -129,7 +129,7 @@ describe('login screens (demo mode)', () => {
     expect($('teach').hidden).toBe(false); expect($('tTitle').textContent).toBe('Principals'); expect($('tRoleNote').hidden).toBe(false);
     $('tBack').click(); await settle(); expect($('roleStep').hidden).toBe(false);
     $('loginBack').click(); await settle();
-    $('kFamily').click(); await settle(); expect($('soonStep').textContent).toMatch(/coming soon/);
+    $('kFamily').click(); await settle(); expect($('homeStep').hidden).toBe(false); // Family is the home plan: username + password
     $('loginBack').click(); await settle(); $('kTutor').click(); await settle(); expect($('soonTitle').textContent).toBe('Tutors');
     $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
   });

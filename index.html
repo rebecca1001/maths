@@ -59,7 +59,16 @@
         <div class="padslot" id="userPadSlot"></div>
         <p class="muted small">Your username and 4-digit code are on the login card from your teacher.</p>
       </form>
-      <!-- Family and Tutor (not built yet) -->
+      <!-- Home plan: one account per child, own username and password -->
+      <form class="pickstep emailform" id="homeStep" hidden autocomplete="on">
+        <h1 id="homeTitle">Family log in</h1>
+        <p class="muted small" id="homeNote" hidden>One account for each child. Pick a username and a password you will remember.</p>
+        <label class="flabel">Username<input id="hUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="pick a username" maxlength="40"></label>
+        <label class="flabel">Password<input id="hPass" type="password" autocomplete="current-password" placeholder="at least 6 characters" maxlength="72"></label>
+        <button type="submit" class="btn primary" id="hGo">Log in</button>
+        <p class="muted small" id="homeSwitch"></p>
+      </form>
+      <!-- Tutor (not built yet) -->
       <div class="pickstep" id="soonStep" hidden>
         <h1 id="soonTitle">Families</h1>
         <p id="soonText"></p>
@@ -156,6 +165,7 @@
         <button role="tab" data-tab="play" aria-selected="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.5 4.8v14.4a.8.8 0 0 0 1.2.7l11.3-7.2a.8.8 0 0 0 0-1.4L8.7 4.1a.8.8 0 0 0-1.2.7z"/></svg><span>Play</span></button>
         <button role="tab" data-tab="board" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4"/></svg><span>Top 10</span></button>
         <button role="tab" data-tab="badges" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="14" r="6"/><path d="M8.5 9L6 2h4l2 5M15.5 9L18 2h-4l-2 5"/></svg><span>Badges</span></button>
+        <button role="tab" data-tab="progress" id="railProgress" aria-selected="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span>Progress</span></button>
         <button role="tab" data-tab="shop" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Shop</span></button>
         <button data-tab="logout" class="out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg><span>Log out</span></button>
       </nav>
@@ -189,6 +199,11 @@
             <div class="board" id="board"></div>
             <p class="muted" id="boardMe"></p>
           </div>
+        </div>
+
+        <!-- PROGRESS (home plan) -->
+        <div class="panel" id="tab-progress" role="tabpanel" hidden>
+          <div class="card" id="progressBox"></div>
         </div>
 
         <!-- BADGES -->
