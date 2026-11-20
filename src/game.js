@@ -314,6 +314,7 @@ function renderLogin(){
   if(L.school){$('pickedSchool').textContent=L.school.name;$('userSchool').textContent=L.school.name}
   if(st==='home'){const reg=L.flow==='register';$('homeTitle').textContent=reg?'Family register':'Family log in';$('homeNote').hidden=!reg;$('hGo').textContent=reg?'Create account':'Log in';
     $('hPass').autocomplete=reg?'new-password':'current-password';
+    $('hUser').placeholder=reg?'pick a username':'username';$('hPass').placeholder=reg?'at least 6 characters':'password';
     $('homeSwitch').innerHTML=reg?'Already have an account? <a href="#" id="hSwap">Log in</a>':'No account yet? <a href="#" id="hSwap">Register</a>'}
   $('loginTitle').textContent='Log in';
   $('loginSub').textContent=`${L.className||'Class '+L.classCode} · enter your 4-digit code`;

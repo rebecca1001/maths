@@ -18,7 +18,7 @@ describe('home plan (demo mode)', () => {
   it('Family opens a username + password form (not "coming soon"), and the back arrow returns to School / Family / Tutor', async () => {
     await openFamily('login');
     expect($('homeStep').hidden).toBe(false); expect($('soonStep').hidden).toBe(true);
-    expect($('homeTitle').textContent).toBe('Family log in'); expect($('hGo').textContent).toBe('Log in');
+    expect($('homeTitle').textContent).toBe('Family log in'); expect($('hGo').textContent).toBe('Log in'); expect($('hUser').placeholder).toBe('username');
     $('loginBack').click(); await settle(); expect($('kindStep').hidden).toBe(false);
   });
 
@@ -26,6 +26,7 @@ describe('home plan (demo mode)', () => {
     const err = vi.spyOn(console, 'error');
     await openFamily('register');
     expect($('homeTitle').textContent).toBe('Family register'); expect($('hGo').textContent).toBe('Create account');
+    expect($('hUser').placeholder).toBe('pick a username');
     $('hUser').value = 'x'; $('hPass').value = 'abcdef'; await submit();
     expect($('loginFb').textContent).toMatch(/at least 3/); expect($('login').hidden).toBe(false);
     $('hUser').value = 'zoe.home'; $('hPass').value = 'abc'; await submit();
