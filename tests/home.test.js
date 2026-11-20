@@ -57,7 +57,7 @@ describe('home plan (demo mode)', () => {
     g.setTab('progress'); await settle();
     expect($('tab-progress').hidden).toBe(false);
     expect($('progressBox').textContent).toMatch(/progress/);
-    expect($('progressBox').textContent).toMatch(/Strengths/); expect($('progressBox').textContent).toMatch(/Needs practice/);
+    expect($('progressBox').querySelector('.hm .cell')).not.toBeNull(); expect($('progressBox').textContent).toMatch(/getting on/); expect($('progressBox').textContent).toMatch(/Strengths/); expect($('progressBox').textContent).toMatch(/Needs practice/);
   });
 
   it('Progress shows strengths and weaknesses from the facts the child has practised', () => {
