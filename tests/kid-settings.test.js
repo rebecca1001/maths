@@ -71,7 +71,7 @@ describe('teacher screen: settings for one student', () => {
     const ids = Object.keys(cls.settings.kids || {});
     expect(ids.length).toBe(1); expect(cls.settings.kids[ids[0]].division).toBe(true);
     $('kset').querySelector('[data-kt="7"]').click(); await settle(30);
-    $('kset').querySelector('[data-kr="5"]').click(); await settle(30);
+    { const r = $('kRounds'); r.value = '5'; r.dispatchEvent(new Event('input', { bubbles: true })); await settle(30); }
     $('kSave').click(); await settle(100);
     cls = (await api.listClasses())[0];
     expect(cls.settings.kids[ids[0]].goal).toEqual({ tables: [7], rounds: 5 });

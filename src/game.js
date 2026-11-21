@@ -1059,7 +1059,7 @@ function kidSettingsHTML(p){
     <span class="label">Focus tables ${k.goal?'':`<span class="muted small">(class: ${classG})</span>`}</span>
     <div class="tchips">${ALL.map(t=>`<button type="button" class="tchip ${kidDraft.tables.includes(t)?'on':''}" data-kt="${t}" ${ro?'disabled':''}>${t}×</button>`).join('')}</div>
     <span class="label">Goal: rounds this week</span>
-    <div class="tchips">${[0,3,5,7,10].map(n=>`<button type="button" class="tchip ${kidDraft.rounds===n?'on':''}" data-kr="${n}" ${ro?'disabled':''}>${n||'No goal'}</button>`).join('')}</div>
+    <div class="row" style="align-items:center;gap:10px"><input type="number" id="kRounds" inputmode="numeric" min="0" max="50" step="1" placeholder="0" value="${kidDraft.rounds||''}" ${ro?'disabled':''} style="width:6.5rem" aria-label="Rounds this week"><span class="muted small">rounds this week (leave empty for no goal)</span></div>
     ${ro?'':`<div class="row"><button type="button" class="btn primary" id="kSave">Save for ${nm}</button>${k.goal?'<button type="button" class="btn" id="kClear">Use the class goal</button>':''}</div>`}
     <p class="note" id="kMsg" aria-live="polite" style="background:none;padding:0"></p></div>`;
 }
@@ -1069,9 +1069,8 @@ async function saveKid(patch,msg){
   catch(err){const m=$('kMsg');if(m)m.textContent='Could not save: '+err.message}
 }
 $('gdetail').addEventListener('click',async e=>{
-  const t=e.target.closest('[data-kt]'),r=e.target.closest('[data-kr]');
+  const t=e.target.closest('[data-kt]');
   if(t&&kidDraft){const n=+t.dataset.kt,i=kidDraft.tables.indexOf(n);i>=0?kidDraft.tables.splice(i,1):kidDraft.tables.push(n);kidDraft.tables.sort((a,b)=>a-b);const keep={...kidDraft};renderGrown();kidDraft=keep;return}
-  if(r&&kidDraft){kidDraft.rounds=+r.dataset.kr;const keep={...kidDraft};renderGrown();kidDraft=keep;return}
   if(e.target.closest('#kSave')&&kidDraft){await saveKid({goal:{tables:kidDraft.tables,rounds:kidDraft.rounds}},'Saved.');return}
   if(e.target.closest('#kClear')){await saveKid({goal:null},'Back to the class goal.');return}
 });
@@ -1082,6 +1081,10 @@ $('gdetail').addEventListener('change',async e=>{
   if(!mul&&!div){e.target.checked=true;$('kMsg').textContent='Keep at least one on: multiplication or division.';return}
   const cs=c.settings||{},clsMul=cs.multiplication!==false,clsDiv=!!cs.division;
   await saveKid({multiplication:mul===clsMul?null:mul,division:div===clsDiv?null:div},'Saved.');
+});
+$('gdetail').addEventListener('input',e=>{
+  if(e.target.id!=='kRounds'||!kidDraft)return;
+  const n=Math.round(+e.target.value);kidDraft.rounds=Math.max(0,Math.min(50,Number.isFinite(n)?n:0));
 });
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
 // whole-class minimum
