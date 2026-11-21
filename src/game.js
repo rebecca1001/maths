@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { lastPlayedLabel, STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { lastPlayedLabel, STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, kidOf, withKid, effectiveSettings, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 import { parseRoster, swapNames, usernameFromName } from './usernames.js';
@@ -69,7 +69,7 @@ function applySettings(st){
 }
 // Turn the server's student_state into the game's state
 function applyState(st,keepMe){
-  CLASS=st.class;applySettings(CLASS.settings);
+  CLASS=st.class;applySettings(effectiveSettings(CLASS.settings,st.me.id));
   const me=keepMe&&P()&&P().id===st.me.id?P():fixPlayer({...newPlayerData(),...st.me.data,id:st.me.id,name:st.me.name});
   if(st.me_total_stars!=null){me.totBase=st.me_total_stars;me.totBaseAt=Date.now()}
   if(Array.isArray(st.played_days))me.playedDays=st.played_days;
@@ -1033,6 +1033,7 @@ function renderGrown(){
       :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">Username</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="${esc(suggestUsername(p))}" value="${esc(suggestUsername(p))}"><button class="btn" type="submit">Give a username</button></form><p class="muted small">Same student, so their stars and history stay. Their 4-digit code keeps working too.</p>`}
     ${(()=>{const cs=curClass()&&curClass().settings,cm=+(cs&&cs.minRounds)||0,own=hasOwnMin(cs,p.id),td=roundsToday(p.rounds);
       return `<form class="row realrow" id="gdMinForm"><label for="gdMin">Minimum rounds</label><select id="gdMin">${minOpts(own?String(minFor(cs,p.id)):'class',['class',`Same as class (${cm?cm+' round'+(cm>1?'s':''):'none'})`])}</select><span class="muted small">Today: ${td} round${td===1?'':'s'}</span></form>`})()}
+    ${kidSettingsHTML(p)}
     <div class="row" id="gdActions" style="justify-content:flex-end"><button class="btn" id="gdNewCode">Give a new code</button><button class="btn danger" id="gdRemove">Remove student</button></div>
     <p class="note" id="gdMsg" aria-live="polite" style="background:none;padding:0"></p>
     <div class="kid-head">${avatar(p.skin,56)}<div style="min-width:0"><h2>${esc(p.realName||p.name)}</h2><span class="muted">${p.realName?'Space name '+esc(p.name)+' · ':''}${ti<0?'No status yet':TIERS[ti].name+' · '+statusSecs(p).toFixed(1)+' s per answer'} · login code <b class="num">${esc(p.pin)}</b></span></div></div>
@@ -1043,6 +1044,38 @@ function renderGrown(){
     </div>
     <div class="gd-col"><span class="label">Recent rounds</span>${recent.length?`<div class="rr">${recent.map(r=>`<span>${new Date(r.d).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}</span><span><b>${r.c}</b> <span class="muted">/ ${r.n}</span></span><span class="muted">${r.len/60} min</span><span class="muted">${r.c?(r.ms/1000).toFixed(1)+' s':'—'}</span>`).join('')}</div>`:'<p class="muted">No rounds yet.</p>'}</div>`;
 }
+// Settings for this child only: division, focus tables and a weekly rounds goal. Anything left alone follows the class.
+let kidDraft=null;
+function kidSettingsHTML(p){
+  const c=curClass(),cs=(c&&c.settings)||{},k=kidOf(cs,p.id),ro=viewingOther();
+  if(!kidDraft||kidDraft.id!==p.id){const g=k.goal||{tables:[],rounds:0};kidDraft={id:p.id,tables:[...g.tables],rounds:g.rounds||0}}
+  const classDiv=!!cs.division,dv=k.division==null?'class':k.division?'on':'off',nm=esc(p.realName||p.name);
+  const seg=(v,l)=>`<button type="button" class="tchip ${dv===v?'on':''}" data-kdiv="${v}" ${ro?'disabled':''}>${l}</button>`;
+  const classG=cs.goal&&cs.goal.tables&&cs.goal.tables.length?cs.goal.tables.map(t=>t+'×').join(' '):'none';
+  return `<div class="card kset" id="kset"><h3>Settings for ${nm}</h3>
+    <p class="muted small">Only ${nm} gets these. Anything you leave alone follows the class. They apply the next time ${nm} opens the game.</p>
+    <span class="label">Division</span>
+    <div class="tchips">${seg('class',`Same as class (${classDiv?'on':'off'})`)}${seg('on','On')}${seg('off','Off')}</div>
+    <span class="label">Focus tables ${k.goal?'':`<span class="muted small">(class: ${classG})</span>`}</span>
+    <div class="tchips">${ALL.map(t=>`<button type="button" class="tchip ${kidDraft.tables.includes(t)?'on':''}" data-kt="${t}" ${ro?'disabled':''}>${t}×</button>`).join('')}</div>
+    <span class="label">Goal: rounds this week</span>
+    <div class="tchips">${[0,3,5,7,10].map(n=>`<button type="button" class="tchip ${kidDraft.rounds===n?'on':''}" data-kr="${n}" ${ro?'disabled':''}>${n||'No goal'}</button>`).join('')}</div>
+    ${ro?'':`<div class="row"><button type="button" class="btn primary" id="kSave">Save for ${nm}</button>${k.goal?'<button type="button" class="btn" id="kClear">Use the class goal</button>':''}</div>`}
+    <p class="note" id="kMsg" aria-live="polite" style="background:none;padding:0"></p></div>`;
+}
+async function saveKid(patch,msg){
+  const c=curClass(),p=S.players[GSel];if(!c||!p||viewingOther())return;
+  try{c.settings=withKid(c.settings,p.id,patch);await api.updateClass(c.id,{settings:c.settings});kidDraft=null;renderGrown();const m=$('kMsg');if(m)m.textContent=msg}
+  catch(err){const m=$('kMsg');if(m)m.textContent='Could not save: '+err.message}
+}
+$('gdetail').addEventListener('click',async e=>{
+  const d=e.target.closest('[data-kdiv]'),t=e.target.closest('[data-kt]'),r=e.target.closest('[data-kr]');
+  if(d){const v=d.dataset.kdiv;await saveKid({division:v==='class'?null:v==='on'},'Saved.');return}
+  if(t&&kidDraft){const n=+t.dataset.kt,i=kidDraft.tables.indexOf(n);i>=0?kidDraft.tables.splice(i,1):kidDraft.tables.push(n);kidDraft.tables.sort((a,b)=>a-b);const keep={...kidDraft};renderGrown();kidDraft=keep;return}
+  if(r&&kidDraft){kidDraft.rounds=+r.dataset.kr;const keep={...kidDraft};renderGrown();kidDraft=keep;return}
+  if(e.target.closest('#kSave')&&kidDraft){await saveKid({goal:{tables:kidDraft.tables,rounds:kidDraft.rounds}},'Saved.');return}
+  if(e.target.closest('#kClear')){await saveKid({goal:null},'Back to the class goal.');return}
+});
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
 // whole-class minimum
 $('kpis').addEventListener('change',async e=>{
@@ -2032,7 +2065,7 @@ export const __test = {
   level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
   streakInfo, bumpStreak, restoreStreak, STREAK_PRICE, STREAK_BUYBACK_DAYS, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
-  checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
+  kidSettingsHTML, checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
   setTab, progressData, renderProgress, renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
   rowsFromPlayers, pSeries,
