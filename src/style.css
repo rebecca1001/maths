@@ -853,3 +853,12 @@ small.up{color:#1f8f55}small.down{color:#c23b40}
 .prow .gbar{margin:0}
 #homeStep .btn{margin-top:8px}
 @media (max-width:560px){.pstats{grid-template-columns:1fr 1fr}}
+
+/* Wrong answer: show the right one big and clear (Sam, 20 Nov) */
+.fb.reveal{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:6px 12px;font-family:var(--display);line-height:1.05}
+.fb.reveal .rv-eq{font-size:1.5rem;opacity:.95}
+.fb.reveal .rv-ans{font-size:2.9rem;font-weight:700;color:var(--good);background:#fff;border-radius:12px;padding:2px 14px;box-shadow:0 0 0 3px var(--good)}
+.fb.reveal .rv-try{flex-basis:100%;font-size:1rem;font-family:var(--body)}
+.console .fb.no.reveal{font-size:1rem;min-height:3.6rem}
+.console .fb.reveal .rv-ans{color:#15803D}
+@media (max-height:700px){.console .fb.no.reveal{min-height:2.6rem}.fb.reveal .rv-ans{font-size:2.1rem}.fb.reveal .rv-eq{font-size:1.15rem}}

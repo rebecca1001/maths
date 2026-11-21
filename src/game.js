@@ -823,7 +823,7 @@ function check(){
     const cb=$('combo');cb.hidden=!(G.mode==='round'&&G.streak>=3);cb.textContent=`${G.streak} in a row`;cb.classList.toggle('hot',G.streak>=10);
     $('pcoins').textContent=liveStars();$('score').textContent=G.c;if(G.opp)renderRace();$('ans').className='ans ok';$('fb').className='fb goal';
     $('fb').textContent=G.mode==='round'&&G.streak>=3?`${G.streak} in a row!`:'Correct!';locked=true;setTimeout(()=>{locked=false;next()},140)}
-  else{G.streak=0;$('combo').hidden=true;SFX.wrong();$('ans').className='ans no';$('fb').className='fb no';$('fb').textContent=(G.mode==='check'?'Good try! ':'')+`${q.text} = ${q.ans}`;locked=true;setTimeout(()=>{locked=false;next()},1300)}
+  else{G.streak=0;$('combo').hidden=true;SFX.wrong();$('ans').className='ans no';$('fb').className='fb no reveal';$('fb').innerHTML=`${G.mode==='check'?'<small class="rv-try">Good try!</small>':''}<span class="rv-eq">${q.text} =</span> <span class="rv-ans">${q.ans}</span>`;locked=true;setTimeout(()=>{locked=false;next()},1900)}
 }
 function rankReward(t){return 10+t*5}
 function liveStars(){return G.mode==='round'?gameStars(G.c,G.n,G.c?G.ms/G.c:0):G.coins}
