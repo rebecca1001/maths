@@ -64,7 +64,7 @@ const P=()=>S.players[S.current];
 function applySettings(st){
   st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
   ALL=Array.from({length:mx-1},(_,i)=>i+2);
-  S.muted=st.sound===false;S.division=!!st.division;
+  S.muted=st.sound===false;S.division=!!st.division;S.multiplication=st.multiplication!==false||!st.division; // multiplication is on unless a teacher turned it off; never both off
   const g=st.goal;let goal=null;if(g&&Array.isArray(g.tables)){const tables=g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds=Math.max(0,Math.min(50,+g.rounds||0));if(tables.length||rounds)goal={tables,rounds}}S.goal=goal;S.settings=st;
 }
 // Turn the server's student_state into the game's state
@@ -650,7 +650,7 @@ document.querySelector('.rail').addEventListener('click',e=>{const b=e.target.cl
 
 // ---------- question picking ----------
 let G=null,q=null,input='',qStart=0,locked=false,tick=null,recent=[];
-function makeQ(a,b,p){const div=S.division&&a>1&&Math.random()<.4;return div?{a,b,text:`${a*b} ÷ ${a}`,ans:b}:{a,b,text:`${a} × ${b}`,ans:a*b}}
+function makeQ(a,b,p){const div=S.division&&a>1&&(S.multiplication===false||Math.random()<.4);return div?{a,b,text:`${a*b} ÷ ${a}`,ans:b}:{a,b,text:`${a} × ${b}`,ans:a*b}}
 // ---------- adaptive question picking ----------
 // Goals: aim for roughly 4 right answers in 5 so it stays fun, while steadily
 // working on each player's weak facts and opening up new ones in a sensible order.
@@ -1049,13 +1049,13 @@ let kidDraft=null;
 function kidSettingsHTML(p){
   const c=curClass(),cs=(c&&c.settings)||{},k=kidOf(cs,p.id),ro=viewingOther();
   if(!kidDraft||kidDraft.id!==p.id){const g=k.goal||{tables:[],rounds:0};kidDraft={id:p.id,tables:[...g.tables],rounds:g.rounds||0}}
-  const classDiv=!!cs.division,dv=k.division==null?'class':k.division?'on':'off',nm=esc(p.realName||p.name);
-  const seg=(v,l)=>`<button type="button" class="tchip ${dv===v?'on':''}" data-kdiv="${v}" ${ro?'disabled':''}>${l}</button>`;
+  const classDiv=!!cs.division,classMul=cs.multiplication!==false,eff=effectiveSettings(cs,p.id),mulOn=eff.multiplication!==false,divOn=!!eff.division;
+  const nm=esc(p.realName||p.name),box=(op,l,on)=>`<label class="kcheck"><input type="checkbox" data-kop="${op}" ${on?'checked':''} ${ro?'disabled':''}> ${l}</label>`;
   const classG=cs.goal&&cs.goal.tables&&cs.goal.tables.length?cs.goal.tables.map(t=>t+'×').join(' '):'none';
   return `<div class="card kset" id="kset"><h3>Settings for ${nm}</h3>
     <p class="muted small">Only ${nm} gets these. Anything you leave alone follows the class. They apply the next time ${nm} opens the game.</p>
-    <span class="label">Division</span>
-    <div class="tchips">${seg('class',`Same as class (${classDiv?'on':'off'})`)}${seg('on','On')}${seg('off','Off')}</div>
+    <span class="label">Questions ${k.multiplication==null&&k.division==null?`<span class="muted small">(class: multiplication ${classMul?'yes':'no'}, division ${classDiv?'yes':'no'})</span>`:''}</span>
+    <div class="kchecks">${box('mul','Multiplication',mulOn)}${box('div','Division',divOn)}</div>
     <span class="label">Focus tables ${k.goal?'':`<span class="muted small">(class: ${classG})</span>`}</span>
     <div class="tchips">${ALL.map(t=>`<button type="button" class="tchip ${kidDraft.tables.includes(t)?'on':''}" data-kt="${t}" ${ro?'disabled':''}>${t}×</button>`).join('')}</div>
     <span class="label">Goal: rounds this week</span>
@@ -1069,12 +1069,19 @@ async function saveKid(patch,msg){
   catch(err){const m=$('kMsg');if(m)m.textContent='Could not save: '+err.message}
 }
 $('gdetail').addEventListener('click',async e=>{
-  const d=e.target.closest('[data-kdiv]'),t=e.target.closest('[data-kt]'),r=e.target.closest('[data-kr]');
-  if(d){const v=d.dataset.kdiv;await saveKid({division:v==='class'?null:v==='on'},'Saved.');return}
+  const t=e.target.closest('[data-kt]'),r=e.target.closest('[data-kr]');
   if(t&&kidDraft){const n=+t.dataset.kt,i=kidDraft.tables.indexOf(n);i>=0?kidDraft.tables.splice(i,1):kidDraft.tables.push(n);kidDraft.tables.sort((a,b)=>a-b);const keep={...kidDraft};renderGrown();kidDraft=keep;return}
   if(r&&kidDraft){kidDraft.rounds=+r.dataset.kr;const keep={...kidDraft};renderGrown();kidDraft=keep;return}
   if(e.target.closest('#kSave')&&kidDraft){await saveKid({goal:{tables:kidDraft.tables,rounds:kidDraft.rounds}},'Saved.');return}
   if(e.target.closest('#kClear')){await saveKid({goal:null},'Back to the class goal.');return}
+});
+$('gdetail').addEventListener('change',async e=>{
+  const op=e.target.dataset&&e.target.dataset.kop;if(!op)return;
+  const c=curClass(),p=S.players[GSel];if(!c||!p||viewingOther())return;
+  const root=$('kset'),mul=root.querySelector('[data-kop=mul]').checked,div=root.querySelector('[data-kop=div]').checked;
+  if(!mul&&!div){e.target.checked=true;$('kMsg').textContent='Keep at least one on: multiplication or division.';return}
+  const cs=c.settings||{},clsMul=cs.multiplication!==false,clsDiv=!!cs.division;
+  await saveKid({multiplication:mul===clsMul?null:mul,division:div===clsDiv?null:div},'Saved.');
 });
 function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
 // whole-class minimum

@@ -6,7 +6,7 @@ const base = { maxTable: 12, division: false, sound: true, goal: { tables: [3], 
 
 describe('settings for one child', () => {
   it('follows the class until the teacher sets something for that child', () => {
-    expect(kidOf(base, 'a')).toEqual({ division: null, goal: null });
+    expect(kidOf(base, 'a')).toEqual({ multiplication: null, division: null, goal: null });
     expect(effectiveSettings(base, 'a')).toEqual(base);
   });
 
@@ -30,7 +30,7 @@ describe('settings for one child', () => {
   it('null goes back to the class setting, and empty entries are cleaned away', () => {
     let s = withKid(base, 'a', { division: true, goal: { tables: [4], rounds: 2 } });
     s = withKid(s, 'a', { division: null });
-    expect(kidOf(s, 'a')).toEqual({ division: null, goal: { tables: [4], rounds: 2 } });
+    expect(kidOf(s, 'a')).toEqual({ multiplication: null, division: null, goal: { tables: [4], rounds: 2 } });
     s = withKid(s, 'a', { goal: null });
     expect(s.kids).toBeUndefined();
     expect(s).toEqual(base);
@@ -65,8 +65,8 @@ describe('teacher screen: settings for one student', () => {
     expect($('grown').hidden).toBe(false);
     expect($('gdetail').hidden).toBe(false);
     expect($('kset')).not.toBeNull();
-    expect($('kset').textContent).toMatch(/Division/); expect($('kset').textContent).toMatch(/Focus tables/);
-    $('kset').querySelector('[data-kdiv="on"]').click(); await settle(100);
+    expect($('kset').textContent).toMatch(/Division/); expect($('kset').textContent).toMatch(/Multiplication/); expect($('kset').textContent).toMatch(/Focus tables/);
+    { const dv = $('kset').querySelector('[data-kop="div"]'); dv.checked = true; dv.dispatchEvent(new Event('change', { bubbles: true })); await settle(100); }
     let cls = (await api.listClasses())[0];
     const ids = Object.keys(cls.settings.kids || {});
     expect(ids.length).toBe(1); expect(cls.settings.kids[ids[0]].division).toBe(true);
@@ -80,5 +80,22 @@ describe('teacher screen: settings for one student', () => {
     cls = (await api.listClasses())[0];
     expect(cls.settings.kids[ids[0]].goal).toBeUndefined();
     await api.teacherSignOut();
+  });
+});
+
+describe('multiplication and division ticks', () => {
+  it('multiplication off + division on gives only division questions; both off is not allowed', () => {
+    const st = (settings) => ({ class: { id: 'c', name: 'C', settings }, me: { id: 'a', name: 'Kid', data: {} }, classmates: [], competitions: [] });
+    g.applyState(st(withKid({ division: false }, 'a', { multiplication: false, division: true })));
+    for (let i = 0; i < 60; i++) expect(g.makeQ(2 + (i % 11), 1 + (i % 12)).text).toMatch(/÷/);
+    g.applyState(st(withKid({ division: false }, 'a', { multiplication: false })));
+    expect(g.S.multiplication).toBe(true);
+    g.applyState(st({ division: true }));
+    const kinds = new Set(Array.from({ length: 200 }, (_, i) => g.makeQ(2 + (i % 11), 1 + (i % 12)).text.includes('÷')));
+    expect(kinds.size).toBe(2);
+  });
+  it('keeps the class value when a tick matches it', () => {
+    const s = withKid({ division: true }, 'a', { multiplication: null, division: null });
+    expect(s.kids).toBeUndefined();
   });
 });

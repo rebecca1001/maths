@@ -78,7 +78,7 @@ export function withStudentMin(settings, id, n) {
 }
 
 // ---------- settings for one child ----------
-// settings.kids = { studentId: { division: true|false, goal: { tables:[2..12], rounds } } }. Missing = the class setting.
+// settings.kids = { studentId: { multiplication: true|false, division: true|false, goal: { tables:[2..12], rounds } } }. Missing = the class setting.
 // Only teachers can change these. Pure functions, so they can be tested.
 const cleanGoal = (g) => {
   if (!g || !Array.isArray(g.tables)) return null;
@@ -88,15 +88,18 @@ const cleanGoal = (g) => {
 };
 export function kidOf(settings, id) {
   const k = settings && settings.kids && Object.prototype.hasOwnProperty.call(settings.kids, id) ? settings.kids[id] : null;
-  return { division: k && typeof k.division === 'boolean' ? k.division : null, goal: k ? cleanGoal(k.goal) : null };
+  const b = (v) => (typeof v === 'boolean' ? v : null);
+  return { multiplication: k ? b(k.multiplication) : null, division: k ? b(k.division) : null, goal: k ? cleanGoal(k.goal) : null };
 }
 // patch: { division: true|false|null, goal: {tables,rounds}|null } (null = back to the class setting; leave a key out to keep it)
 export function withKid(settings, id, patch) {
   const cur = kidOf(settings, id), next = { ...cur };
+  if ('multiplication' in patch) next.multiplication = typeof patch.multiplication === 'boolean' ? patch.multiplication : null;
   if ('division' in patch) next.division = typeof patch.division === 'boolean' ? patch.division : null;
   if ('goal' in patch) next.goal = cleanGoal(patch.goal);
   const kids = { ...((settings && settings.kids) || {}) };
   const entry = {};
+  if (next.multiplication != null) entry.multiplication = next.multiplication;
   if (next.division != null) entry.division = next.division;
   if (next.goal) entry.goal = next.goal;
   if (Object.keys(entry).length) kids[id] = entry; else delete kids[id];
@@ -108,6 +111,7 @@ export function withKid(settings, id, patch) {
 export function effectiveSettings(settings, id) {
   const k = kidOf(settings, id), out = { ...(settings || {}) };
   if (k.division != null) out.division = k.division;
+  if (k.multiplication != null) out.multiplication = k.multiplication;
   if (k.goal) out.goal = k.goal;
   return out;
 }
