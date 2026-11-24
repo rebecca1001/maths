@@ -6,7 +6,7 @@ const base = { maxTable: 12, division: false, sound: true, goal: { tables: [3], 
 
 describe('settings for one child', () => {
   it('follows the class until the teacher sets something for that child', () => {
-    expect(kidOf(base, 'a')).toEqual({ multiplication: null, division: null, goal: null });
+    expect(kidOf(base, 'a')).toEqual({ multiplication: null, division: null, tables: null, goal: null });
     expect(effectiveSettings(base, 'a')).toEqual(base);
   });
 
@@ -30,7 +30,7 @@ describe('settings for one child', () => {
   it('null goes back to the class setting, and empty entries are cleaned away', () => {
     let s = withKid(base, 'a', { division: true, goal: { tables: [4], rounds: 2 } });
     s = withKid(s, 'a', { division: null });
-    expect(kidOf(s, 'a')).toEqual({ multiplication: null, division: null, goal: { tables: [4], rounds: 2 } });
+    expect(kidOf(s, 'a')).toEqual({ multiplication: null, division: null, tables: null, goal: { tables: [4], rounds: 2 } });
     s = withKid(s, 'a', { goal: null });
     expect(s.kids).toBeUndefined();
     expect(s).toEqual(base);
@@ -57,28 +57,82 @@ import { api } from '../src/api.js';
 const settle = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 const $ = (id) => document.getElementById(id);
 
-describe('teacher screen: settings for one student', () => {
-  it('opening a student shows their settings; division and a focus-table goal save for that student only', async () => {
+describe('teacher screen: Settings pop-up for one student', () => {
+  it('own times tables and Multiplication / Division save for that student only; the class is untouched', async () => {
     Object.keys(localStorage).filter((k) => k !== 'mm.demo.db.v1').forEach((k) => localStorage.removeItem(k));
     await api.teacherSignIn('t@school.ca', 'longpassword1'); history.pushState({}, '', '/?teacher=1');
     await boot(); await settle(150);
     expect($('grown').hidden).toBe(false);
-    expect($('gdetail').hidden).toBe(false);
-    expect($('kset')).not.toBeNull();
-    expect($('kset').textContent).toMatch(/Division/); expect($('kset').textContent).toMatch(/Multiplication/); expect($('kset').textContent).toMatch(/Focus tables/);
-    { const dv = $('kset').querySelector('[data-kop="div"]'); dv.checked = true; dv.dispatchEvent(new Event('change', { bubbles: true })); await settle(100); }
+    expect($('kidModal').hidden).toBe(true);
+    const btn = $('tbl').querySelector('[data-settings]'); const id = btn.dataset.settings;
+    btn.click(); await settle(30);
+    expect($('kidModal').hidden).toBe(false);
+    const t = $('kidCard').textContent;
+    expect(t).toMatch(/Student code/); expect(t).toMatch(/Stars/); expect(t).toMatch(/Leaderboard/); expect(t).toMatch(/Rounds per day/);
+    expect(t).toMatch(/Times tables/); expect(t).toMatch(/Multiplication/); expect(t).toMatch(/Division/); expect(t).toMatch(/Reset to class settings/);
+    expect($('kidCard').querySelectorAll('[data-kt]').length).toBe(11);   // 2 to 12
+    // Division on, tables 2-7 only
+    { const dv = $('kidCard').querySelector('[data-km="div"]'); dv.checked = true; dv.dispatchEvent(new Event('change', { bubbles: true })); }
+    for (const n of [8, 9, 10, 11, 12]) { $('kidCard').querySelector(`[data-kt="${n}"]`).click(); }
+    $('kmSave').click(); await settle(100);
     let cls = (await api.listClasses())[0];
-    const ids = Object.keys(cls.settings.kids || {});
-    expect(ids.length).toBe(1); expect(cls.settings.kids[ids[0]].division).toBe(true);
-    $('kset').querySelector('[data-kt="7"]').click(); await settle(30);
-    { const r = $('kRounds'); r.value = '5'; r.dispatchEvent(new Event('input', { bubbles: true })); await settle(30); }
-    $('kSave').click(); await settle(100);
+    expect(cls.settings.kids[id].division).toBe(true);
+    expect(cls.settings.kids[id].tables).toEqual([2, 3, 4, 5, 6, 7]);
+    expect(cls.settings.division).toBeFalsy();
+    // Cancel changes nothing
+    $('tbl').querySelector(`[data-settings="${id}"]`).click(); await settle(20);
+    $('kidCard').querySelector('[data-kt="2"]').click(); $('kmCancel').click(); await settle(30);
+    expect($('kidModal').hidden).toBe(true);
+    expect((await api.listClasses())[0].settings.kids[id].tables).toEqual([2, 3, 4, 5, 6, 7]);
+    // Escape closes too; Reset returns the student to the class values
+    $('tbl').querySelector(`[data-settings="${id}"]`).click(); await settle(20);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); expect($('kidModal').hidden).toBe(true);
+    $('tbl').querySelector(`[data-settings="${id}"]`).click(); await settle(20);
+    $('kmReset').click(); await settle(100);
     cls = (await api.listClasses())[0];
-    expect(cls.settings.kids[ids[0]].goal).toEqual({ tables: [7], rounds: 5 });
-    expect(cls.settings.goal).toBeUndefined();
-    $('kClear').click(); await settle(100);
-    cls = (await api.listClasses())[0];
-    expect(cls.settings.kids[ids[0]].goal).toBeUndefined();
+    expect(cls.settings.kids).toBeUndefined();
+    await api.teacherSignOut();
+  });
+  it('class settings: tables 2-12 and Multiplication / Division are separate; at least one of each is kept', async () => {
+    await api.teacherSignIn('t@school.ca', 'longpassword1'); history.pushState({}, '', '/?teacher=1');
+    await boot(); await settle(150);
+    const chips = $('setTables').querySelectorAll('[data-ct]'); expect(chips.length).toBe(11);
+    // Division only
+    $('setDiv').checked = true; $('setDiv').dispatchEvent(new Event('change')); $('setMul').checked = false; $('setMul').dispatchEvent(new Event('change'));
+    // cannot turn both off
+    $('setDiv').checked = false; $('setDiv').dispatchEvent(new Event('change'));
+    expect($('setDiv').checked).toBe(true);
+    // tables 3 and 4 only
+    [...chips].filter((c) => !['3', '4'].includes(c.dataset.ct)).forEach((c) => c.click());
+    $('setTables').querySelector('[data-ct="3"]').click(); $('setTables').querySelector('[data-ct="4"]').click(); // would leave none: refused
+    expect($('setTables').querySelectorAll('.on').length).toBe(1);
+    $('saveClass').click(); await settle(100);
+    const st = (await api.listClasses())[0].settings;
+    expect(st.multiplication).toBe(false); expect(st.division).toBe(true); expect(st.tables.length).toBe(1);
+    expect(g.ALL).toEqual(st.tables);
+    await api.teacherSignOut();
+  });
+});
+
+describe('students list: search, A to Z, Show all, class total', () => {
+  it('starts at 10, search finds one, Show all reveals the rest, total covers everyone', async () => {
+    await api.teacherSignIn('t@school.ca', 'longpassword1'); history.pushState({}, '', '/?teacher=1');
+    await boot(); await settle(150);
+    const c = (await api.listClasses())[0];
+    const rows = Array.from({ length: 30 }, (_, i) => ({ first: 'Kid' + String.fromCharCode(65 + (i % 26)) + i, last: 'Zed', name: 'Space ' + i }));
+    await api.addSchoolStudents(c.id, rows, false);
+    history.pushState({}, '', '/?teacher=1'); await boot(); await settle(150);
+    const n = g.S.order.length; expect(n).toBeGreaterThanOrEqual(30);
+    expect($('tbl').querySelectorAll('tbody tr[data-id]').length).toBe(10);
+    expect($('stuFoot').textContent).toMatch(new RegExp(`Showing 10 of ${n} students`));
+    const names = [...$('tbl').querySelectorAll('tbody .who b')].map((x) => x.textContent);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })));
+    $('stuSearch').value = 'KidB1'; $('stuSearch').dispatchEvent(new Event('input', { bubbles: true }));
+    expect($('tbl').querySelectorAll('tbody tr[data-id]').length).toBe(1);
+    $('stuSearch').value = ''; $('stuSearch').dispatchEvent(new Event('input', { bubbles: true }));
+    $('showAll').click();
+    expect($('tbl').querySelectorAll('tbody tr[data-id]').length).toBe(n);
+    expect($('classTotal').textContent).toMatch(/^\d+ rounds?$/);
     await api.teacherSignOut();
   });
 });

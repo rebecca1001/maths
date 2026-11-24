@@ -284,69 +284,78 @@
       <div class="ttitle"><span id="gWho"></span><h1 id="gTitle">Class</h1></div>
       <div class="row"><button class="btn" id="gSuperBtn" hidden>All schools</button><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="grownBack">Sign out</button></div>
     </div>
-    <div class="card classbar">
+    <div class="card classbar pickbar" id="pickbar" hidden>
       <div class="row" style="align-items:center">
-        <span class="row" id="gSchoolWrap" hidden style="align-items:center"><label class="muted" for="gSchool">School</label><select id="gSchool"></select></span>
-        <label class="muted" for="gClass">Class</label>
-        <select id="gClass"></select>
-        <button class="btn" id="gRenameClass">Rename</button>
-        <button class="btn" id="gNewClass">+ New class</button>
-        <span class="classcode">Class code <b class="num" id="gCode"></b></span>
+        <span class="row" id="gSchoolWrap" hidden style="align-items:center"><label for="gSchool"><b>School</b></label><select id="gSchool"></select></span>
+        <label class="muted" for="gClass">Class</label><select id="gClass"></select>
       </div>
     </div>
-    <div class="ttabs" id="gTabs" role="tablist">
-      <button role="tab" data-gtab="students" class="on">Students</button>
-      <button role="tab" data-gtab="goal">Weekly goal</button>
-      <button role="tab" data-gtab="help">Needs help</button>
-      <button role="tab" data-gtab="settings">Settings</button>
-    </div>
-
-    <div class="gpane" data-gpane="students">
-      <div class="kpis" id="kpis"></div>
-      <div class="card pcard"><div class="spread"><h2>Class progress</h2><span class="note">Last 10 weeks</span></div><div id="gProgress"></div></div>
-      <div class="card addcard">
-        <h2>Add students</h2>
-        <label class="muted small" for="addNames">Paste your class list, one student per line: school emails, or names (“Joshua Franklin” or “Franklin, Joshua”), or copy the name columns straight from a spreadsheet. Type names as you like: Create usernames turns “Joshua Franklin” into franklin.joshua for you. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</label>
-        <textarea id="addNames" rows="5" placeholder="franklin.joshua@sd54.bc.ca&#10;Ava Smith&#10;Lee, Noah"></textarea>
-        <div class="row"><button class="btn primary" id="addStudent">Create usernames</button><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Create usernames</button></div>
+    <div class="tsteps">
+      <div class="card tstep" id="step1">
+        <div class="stephead"><span class="stepno" aria-hidden="true">1</span><div><h2>Add your students</h2><p class="muted small">Type a name and add it. To add a whole class, paste a list with one name per line.</p></div></div>
+        <label class="flab" for="addNames">Student name</label>
+        <div class="addrow"><textarea id="addNames" rows="1" placeholder="Ava Smith" aria-describedby="addHelp"></textarea><button class="btn primary" id="addStudent">Add student</button></div>
+        <p class="muted small" id="addHelp">Names like “Ava Smith”, “Smith, Ava” or school emails all work. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</p>
+        <div class="row"><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Create usernames</button></div>
         <div id="addReview" hidden></div>
         <div id="unameReview" hidden></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
         <div class="codecards" id="codecards" hidden></div>
       </div>
-      <div class="card">
-        <div class="spread"><h2>Students</h2><span class="note">Tap a student for details and their own minimum</span></div>
-        <div class="tbl-wrap"><table class="tbl" id="tbl"></table></div>
-      </div>
-      <div class="card" id="gdetail"></div>
-    </div>
 
-    <div class="gpane" data-gpane="goal" hidden><div class="card" id="goalCard"></div></div>
-    <div class="gpane" data-gpane="help" hidden><div id="helpBox"></div></div>
-    <div class="gpane" data-gpane="comp" hidden><div id="compPane"></div></div>
-    <div class="gpane" data-gpane="settings" hidden>
-      <div class="card setcard">
-        <h2>Class settings</h2>
-        <label>Class name <input id="setName" maxlength="80"></label>
-        <label id="setTeacherRow" hidden>Teacher <select id="setTeacher"></select></label>
-        <label>Tables up to <select id="setMax"><option value="10">10 × 10 (BC curriculum)</option><option value="12">12 × 12</option></select></label>
-        <label class="chk"><input type="checkbox" id="setDiv"> Mix in division</label>
-        <label class="chk"><input type="checkbox" id="setSound"> Game sounds</label>
+      <div class="card tstep" id="step2">
+        <div class="stephead"><span class="stepno" aria-hidden="true">2</span><div><h2>Your students</h2><p class="muted small">See who has been playing today.</p></div></div>
+        <p class="note okline" id="allOk" hidden>Everyone's on track.</p>
+        <label class="flab" for="stuSearch">Search students</label>
+        <input type="text" id="stuSearch" placeholder="Type a name" autocomplete="off">
+        <div class="tbl-wrap"><table class="tbl plain stutbl" id="tbl"></table></div>
+        <div class="stufoot" id="stuFoot"></div>
+        <div class="stutotal"><b>Class total today</b><b class="num" id="classTotal">0 rounds</b></div>
+      </div>
+
+      <div class="card tstep" id="step3">
+        <div class="stephead"><span class="stepno" aria-hidden="true">3</span><div><h2>Class settings</h2><p class="muted small">These apply to every student. To change one student, open their Settings in step 2.</p></div></div>
+        <div class="fgrid">
+          <div><label class="flab" for="setName">Class name</label><input type="text" id="setName" maxlength="80"></div>
+          <div><label class="flab" for="setTeacherName">Teacher name</label><input type="text" id="setTeacherName" readonly><select id="setTeacher" hidden aria-label="Teacher"></select></div>
+        </div>
+        <div><span class="flab" id="rdLab">How many rounds should each student play each day?</span>
+          <div class="stepper" role="group" aria-labelledby="rdLab"><button type="button" class="btn sq" id="rdMinus" aria-label="One fewer round">−</button><input type="number" id="rdVal" inputmode="numeric" min="0" max="30" step="1" aria-label="Rounds per student, per day"><button type="button" class="btn sq" id="rdPlus" aria-label="One more round">+</button><span class="muted small" id="rdHint">rounds per student, per day</span></div></div>
+        <div><span class="flab" id="ttLab">Times tables</span><div class="tchips" id="setTables" role="group" aria-labelledby="ttLab"></div></div>
+        <div><span class="flab" id="qtLab">Question types</span><div class="kchecks" role="group" aria-labelledby="qtLab"><label class="kcheck"><input type="checkbox" id="setMul"> Multiplication</label><label class="kcheck"><input type="checkbox" id="setDiv"> Division</label></div></div>
+        <div class="row"><button class="btn primary" id="saveClass">Save class settings</button></div>
         <p class="note" id="setMsg" aria-live="polite"></p>
-        <hr>
-        <button class="btn danger" id="gArchive">Archive this class</button>
-        <p class="muted small">Archived classes can't log in, and are deleted after 12 months.</p>
       </div>
-      <div class="card setcard">
-        <h2>Your account</h2>
-        <p class="muted small">Signed in as <b id="acctEmail"></b></p>
-        <form class="row realrow" id="acctPassForm"><label for="acctPass">New password</label><input id="acctPass" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"><button class="btn" type="submit">Change password</button></form>
-        <div class="row"><button class="btn" id="acctOut">Sign out</button><button class="btn danger" id="acctDelete">Delete my account</button></div>
-        <p class="muted small">Deleting your account removes your login straight away. If you are the only teacher at your school, it also deletes the school, its classes and all student data. Otherwise your classes stay with the school for another teacher.</p>
-        <p class="note" id="acctMsg" aria-live="polite"></p>
-      </div>
+
+      <details class="card tstep more" id="more">
+        <summary><h2>More</h2><span class="muted small">Classes, login cards, progress, account</span></summary>
+        <div class="moreinner">
+          <section class="msec"><h3>Classes</h3>
+            <div class="row" style="align-items:center">
+              <button class="btn" id="gRenameClass">Rename</button><button class="btn" id="gNewClass">+ New class</button>
+              <span class="classcode">Class code <b class="num" id="gCode"></b></span>
+            </div></section>
+          <section class="msec"><h3>Class progress</h3><p class="muted small">Last 10 weeks</p><div id="gProgress"></div></section>
+          <section class="msec"><h3>Progress by student</h3><p class="muted small">Last played, days played (7 days), rounds, accuracy, speed, stars and trend for every student.</p><div class="tbl-wrap"><table class="tbl plain" id="ptbl"></table></div></section>
+          <section class="msec"><h3>Who needs help</h3><div id="helpBox"></div></section>
+          <section class="msec"><h3>Student details</h3>
+            <label class="flab" for="gdPick">Student</label><select id="gdPick"></select>
+            <div id="gdetail" class="gdbox"></div></section>
+          <section class="msec setcard"><h3>Class options</h3>
+            <label class="chk"><input type="checkbox" id="setSound"> Game sounds</label>
+            <hr><button class="btn danger" id="gArchive">Archive this class</button>
+            <p class="muted small">Archived classes can't log in, and are deleted after 12 months.</p></section>
+          <section class="msec setcard"><h3>Your account</h3>
+            <p class="muted small">Signed in as <b id="acctEmail"></b></p>
+            <form class="row realrow" id="acctPassForm"><label for="acctPass">New password</label><input id="acctPass" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"><button class="btn" type="submit">Change password</button></form>
+            <div class="row"><button class="btn" id="acctOut">Sign out</button><button class="btn danger" id="acctDelete">Delete my account</button></div>
+            <p class="muted small">Deleting your account removes your login straight away. If you are the only teacher at your school, it also deletes the school, its classes and all student data. Otherwise your classes stay with the school for another teacher.</p>
+            <p class="note" id="acctMsg" aria-live="polite"></p></section>
+        </div>
+      </details>
     </div>
+    <div class="gpane" data-gpane="comp" hidden><div id="compPane"></div></div>
   </section>
 
   <!-- SCHOOL (admins) -->
@@ -461,6 +470,7 @@
     <button class="go ovbtn" id="helpClose" type="button">Got it</button>
   </div>
 </div>
+<div class="modal" id="kidModal" hidden><div class="mcard" id="kidCard" role="dialog" aria-modal="true" aria-labelledby="kmName" tabindex="-1"></div></div>
 <div class="overlay" id="overlay" hidden role="dialog" aria-modal="true" aria-label="Celebration"><div class="ovcard" id="ovcard"></div></div>
 <script type="module" src="/src/main.js"></script>
 </body>

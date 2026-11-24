@@ -29,19 +29,15 @@ export function trend(rounds) {
   return diff >= 1 ? 'up' : diff <= -1 ? 'down' : 'flat';
 }
 
-// A label next to each child's name: Not playing / Needs help / On track / Flying
+// A label next to each child's name: On track or Needs assistance (teacher-only; students never see it)
 export const STATUS = {
-  none: ['Not playing', 'No rounds in the last 7 days'],
-  help: ['Needs help', 'Playing, but under 80% right this week'],
+  help: ['Needs assistance', 'Under 80% right this week, or no rounds in the last 7 days'],
   ok: ['On track', 'Playing and getting most right'],
-  flying: ['Flying', 'Played 3+ days this week, 90%+ right'],
 };
 export function groupOf(rounds, now = Date.now()) {
-  if (!recent(rounds, now).length) return 'none';
+  if (!recent(rounds, now).length) return 'help';
   const acc = accuracy(rounds, now);
-  if (acc != null && acc < 0.8) return 'help';
-  if (daysPlayed(rounds, now) >= 3 && acc >= 0.9) return 'flying';
-  return 'ok';
+  return acc != null && acc < 0.8 ? 'help' : 'ok';
 }
 
 // "Today" only when the last round was on today's calendar date (not just within 24 hours)
@@ -52,10 +48,10 @@ export function lastPlayedLabel(rounds, now = Date.now()) {
   return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days + ' days ago';
 }
 
-// ---------- minimum rounds each time they play ----------
+// ---------- rounds per day (a daily target; stored as settings.minRounds so saved classes keep working) ----------
 // settings.minRounds = the class minimum (0 or missing = off); settings.minFor = { studentId: n } for a different
 // number for one child (0 = no minimum for them). Children can't change class settings, only teachers can.
-export const MAX_MIN = 10;
+export const MAX_MIN = 30;
 const clampMin = (v) => Math.max(0, Math.min(MAX_MIN, Math.round(+v || 0)));
 export function minFor(settings, id) {
   const st = settings || {}, own = st.minFor && Object.prototype.hasOwnProperty.call(st.minFor, id) ? st.minFor[id] : null;
@@ -78,8 +74,16 @@ export function withStudentMin(settings, id, n) {
 }
 
 // ---------- settings for one child ----------
-// settings.kids = { studentId: { multiplication: true|false, division: true|false, goal: { tables:[2..12], rounds } } }. Missing = the class setting.
+// settings.kids = { studentId: { multiplication: true|false, division: true|false, tables:[2..12], goal: { tables:[2..12], rounds } } }. Missing = the class setting.
 // Only teachers can change these. Pure functions, so they can be tested.
+// Times tables in play: a list of 2..12 (class: settings.tables; one child: settings.kids[id].tables). Missing or empty = the class setting.
+export const cleanTables = (t) => (Array.isArray(t) ? [...new Set(t.map(Number).filter((n) => Number.isInteger(n) && n >= 2 && n <= 12))].sort((a, b) => a - b) : []);
+export function classTables(settings) {
+  const own = cleanTables(settings && settings.tables);
+  if (own.length) return own;
+  const mx = Math.min(12, Math.max(5, +(settings && settings.maxTable) || 12));
+  return Array.from({ length: mx - 1 }, (_, i) => i + 2);
+}
 const cleanGoal = (g) => {
   if (!g || !Array.isArray(g.tables)) return null;
   const tables = [...new Set(g.tables.map(Number).filter((t) => t >= 2 && t <= 12))].sort((a, b) => a - b);
@@ -89,18 +93,21 @@ const cleanGoal = (g) => {
 export function kidOf(settings, id) {
   const k = settings && settings.kids && Object.prototype.hasOwnProperty.call(settings.kids, id) ? settings.kids[id] : null;
   const b = (v) => (typeof v === 'boolean' ? v : null);
-  return { multiplication: k ? b(k.multiplication) : null, division: k ? b(k.division) : null, goal: k ? cleanGoal(k.goal) : null };
+  const tb = k ? cleanTables(k.tables) : [];
+  return { multiplication: k ? b(k.multiplication) : null, division: k ? b(k.division) : null, tables: tb.length ? tb : null, goal: k ? cleanGoal(k.goal) : null };
 }
 // patch: { division: true|false|null, goal: {tables,rounds}|null } (null = back to the class setting; leave a key out to keep it)
 export function withKid(settings, id, patch) {
   const cur = kidOf(settings, id), next = { ...cur };
   if ('multiplication' in patch) next.multiplication = typeof patch.multiplication === 'boolean' ? patch.multiplication : null;
   if ('division' in patch) next.division = typeof patch.division === 'boolean' ? patch.division : null;
+  if ('tables' in patch) { const t = cleanTables(patch.tables); next.tables = t.length ? t : null; }
   if ('goal' in patch) next.goal = cleanGoal(patch.goal);
   const kids = { ...((settings && settings.kids) || {}) };
   const entry = {};
   if (next.multiplication != null) entry.multiplication = next.multiplication;
   if (next.division != null) entry.division = next.division;
+  if (next.tables) entry.tables = next.tables;
   if (next.goal) entry.goal = next.goal;
   if (Object.keys(entry).length) kids[id] = entry; else delete kids[id];
   const out = { ...(settings || {}), kids };
@@ -112,6 +119,7 @@ export function effectiveSettings(settings, id) {
   const k = kidOf(settings, id), out = { ...(settings || {}) };
   if (k.division != null) out.division = k.division;
   if (k.multiplication != null) out.multiplication = k.multiplication;
+  if (k.tables) out.tables = k.tables;
   if (k.goal) out.goal = k.goal;
   return out;
 }

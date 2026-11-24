@@ -17,7 +17,7 @@ describe('minimum rounds each time they play', () => {
     st = withClassMin(st, 4); expect(minFor(st, 'a')).toBe(5); expect(minFor(st, 'c')).toBe(4); // class change keeps own numbers
     st = withStudentMin(st, 'a', null); st = withStudentMin(st, 'b', null); expect(minFor(st, 'a')).toBe(4); expect(st.minFor).toBeUndefined();
     expect(minFor({}, 'x')).toBe(0); expect(minFor(null, 'x')).toBe(0);
-    expect(minFor(withClassMin({}, 99), 'x')).toBe(10); expect(minFor(withClassMin({}, -2), 'x')).toBe(0);
+    expect(minFor(withClassMin({}, 99), 'x')).toBe(30); expect(minFor(withClassMin({}, -2), 'x')).toBe(0);
   });
   it('counts only today\'s rounds', () => expect(roundsToday([r(0, 1, 1), r(0, 1, 1), r(1, 1, 1), r(3, 1, 1)], NOW)).toBe(2));
 });
@@ -81,41 +81,51 @@ describe('screens (demo mode)', () => {
     expect(document.getElementById('school').hidden).toBe(false);
     expect(document.getElementById('grown').hidden).toBe(true);
   });
-  it('teacher view: no group cards; class minimum, Today column, own minimum per student', async () => {
+  it('teacher page: three steps in order, list columns, rounds per day (class and one student)', async () => {
     const err = vi.spyOn(console, 'error');
     await api.teacherSignIn('t@demo.ca', 'password123');
     history.pushState({}, '', '/?teacher=1'); await boot(); await new Promise((res) => setTimeout(res, 60));
-    expect(document.getElementById('grown').hidden).toBe(false);
-    const k = document.getElementById('kpis');
-    expect(k.querySelector('[data-group]')).toBeNull();
-    expect(k.textContent).not.toMatch(/Not playing|Flying|On track/);
-    expect(document.getElementById('exportCsv')).toBeNull();
-    expect(document.querySelector('[data-gtab="comp"]')).toBeNull();
-    const head = document.querySelector('#tbl thead').textContent;
-    expect(head).toMatch(/Today/); expect(head).not.toMatch(/Group/);
-    // whole class: 3 rounds
-    const sel = document.getElementById('minClass'); sel.value = '3'; sel.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise((res) => setTimeout(res, 30));
-    const cls = (await api.listClasses())[0];
-    expect(cls.settings.minRounds).toBe(3);
-    expect(document.querySelector('#kpis .mintoday').textContent).toMatch(/of \d+/);
-    expect(document.querySelectorAll('#tbl .mincell').length).toBeGreaterThan(0);
-    // one student: 5 rounds
-    document.querySelector('#tbl tbody tr[data-id]').click(); await new Promise((res) => setTimeout(res, 10));
-    const id = document.querySelector('#tbl tbody tr.sel').dataset.id;
-    const one = document.getElementById('gdMin'); one.value = '5'; one.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise((res) => setTimeout(res, 30));
-    expect((await api.listClasses())[0].settings.minFor[id]).toBe(5);
-    expect(document.querySelector(`#tbl tr[data-id="${id}"] .mincell`).textContent).toMatch(/\/ 5/);
-    expect(document.getElementById('kpis').textContent).toMatch(/1 student has their own number/);
-    // back to the class number
-    const again = document.getElementById('gdMin'); again.value = 'class'; again.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise((res) => setTimeout(res, 30));
-    expect((await api.listClasses())[0].settings.minFor).toBeUndefined();
-    // the owner gets a school picker; their own school is marked and nothing is view-only
-    expect(document.getElementById('gSchoolWrap').hidden).toBe(false);
-    expect(document.getElementById('gSchool').textContent).toMatch(/\(yours\)/);
-    expect(document.getElementById('grown').classList.contains('viewonly')).toBe(false);
+    const $ = (id) => document.getElementById(id);
+    expect($('grown').hidden).toBe(false);
+    // order: add students, then the list, then class settings, then More
+    const order = ['step1', 'step2', 'step3', 'more'].map((id) => $(id));
+    order.forEach((el, i) => { if (i) expect(order[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
+    expect(document.querySelector('[data-gtab]')).toBeNull();            // no tabs, no weekly goal
+    expect($('goalCard')).toBeNull();
+    expect($('step1').contains($('showCards'))).toBe(true);              // Print login cards sits in step 1
+    expect($('more').contains($('showCards'))).toBe(false);
+    const head = $('tbl').querySelector('thead').textContent;
+    expect(head).toMatch(/Student/); expect(head).toMatch(/Status/); expect(head).toMatch(/Rounds today/); expect(head).not.toMatch(/Accuracy|Days|Trend/);
+    // only two status words, ever
+    const words = new Set([...$('tbl').querySelectorAll('.stag')].map((x) => x.textContent));
+    for (const w of words) expect(['On track', 'Needs assistance']).toContain(w);
+    // whole class: rounds per day, saved with the button, loads again next time
+    expect(Number($('rdVal').value)).toBe(10);                           // default 10 the first time
+    $('rdPlus').click(); $('rdPlus').click(); $('saveClass').click();
+    await new Promise((res) => setTimeout(res, 40));
+    let cls = (await api.listClasses())[0];
+    expect(cls.settings.minRounds).toBe(12);
+    await boot(); await new Promise((res) => setTimeout(res, 60));
+    expect(Number($('rdVal').value)).toBe(12);                           // the saved number loads
+    // one student: open Settings, own number, save, then reset to the class values
+    $('tbl').querySelector('[data-settings]').click(); await new Promise((res) => setTimeout(res, 10));
+    expect($('kidModal').hidden).toBe(false);
+    const id = $('tbl').querySelector('[data-settings]').dataset.settings;
+    expect($('kmHint').textContent).toBe('same as class');
+    $('kmMinus').click(); $('kmMinus').click();
+    expect($('kmHint').textContent).toBe('own number');
+    $('kmSave').click(); await new Promise((res) => setTimeout(res, 40));
+    expect($('kidModal').hidden).toBe(true);
+    expect((await api.listClasses())[0].settings.minFor[id]).toBe(10);
+    $('tbl').querySelector(`[data-settings="${id}"]`).click(); await new Promise((res) => setTimeout(res, 10));
+    $('kmReset').click(); await new Promise((res) => setTimeout(res, 40));
+    cls = (await api.listClasses())[0];
+    expect(cls.settings.minFor).toBeUndefined(); expect(cls.settings.kids).toBeUndefined();
+    expect($('gSchoolWrap').hidden).toBe(false);                         // the super admin's school dropdown
+    expect($('pickbar').hidden).toBe(false);
+    expect($('gSchool').options.length).toBeGreaterThan(0);
+    expect($('ptbl').querySelector('thead').textContent).toMatch(/Accuracy.*Stars earned.*Trend/);
+    expect($('grown').classList.contains('viewonly')).toBe(false);
     expect(err).not.toHaveBeenCalled();
     history.pushState({}, '', '/');
   });
@@ -199,11 +209,12 @@ describe('streak message on a day with no school', () => {
 import { groupOf as _groupOf } from '../src/dashboard.js';
 describe('status label', () => {
   const now = Date.now(), r = (daysAgo, c, n) => ({ d: now - daysAgo * 864e5, c, n, len: 60 });
-  it('not playing / needs help / on track / flying', () => {
-    expect(_groupOf([], now)).toBe('none');
+  it('only On track or Needs assistance: under 80% right, or nothing played in 7 days, needs assistance', () => {
+    expect(_groupOf([], now)).toBe('help');
+    expect(_groupOf([r(9, 10, 10)], now)).toBe('help');                  // last played over a week ago
     expect(_groupOf([r(1, 5, 10)], now)).toBe('help');
     expect(_groupOf([r(1, 9, 10)], now)).toBe('ok');
-    expect(_groupOf([r(0, 10, 10), r(1, 10, 10), r(2, 10, 10)], now)).toBe('flying');
+    expect(_groupOf([r(0, 10, 10), r(1, 10, 10), r(2, 10, 10)], now)).toBe('ok');
   });
 });
 
