@@ -284,6 +284,12 @@
       <div class="ttitle"><span id="gWho"></span><h1 id="gTitle">Class</h1></div>
       <div class="row"><button class="btn" id="gSuperBtn" hidden>All schools</button><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="grownBack">Sign out</button></div>
     </div>
+    <div class="card classbar pickbar" id="pickbar" hidden>
+      <div class="row" style="align-items:center">
+        <span class="row" id="gSchoolWrap" hidden style="align-items:center"><label for="gSchool"><b>School</b></label><select id="gSchool"></select></span>
+        <label class="muted" for="gClass">Class</label><select id="gClass"></select>
+      </div>
+    </div>
     <div class="tsteps">
       <div class="card tstep" id="step1">
         <div class="stephead"><span class="stepno" aria-hidden="true">1</span><div><h2>Add your students</h2><p class="muted small">Type a name and add it. To add a whole class, paste a list with one name per line.</p></div></div>
@@ -326,8 +332,6 @@
         <div class="moreinner">
           <section class="msec"><h3>Classes</h3>
             <div class="row" style="align-items:center">
-              <span class="row" id="gSchoolWrap" hidden style="align-items:center"><label class="muted" for="gSchool">School</label><select id="gSchool"></select></span>
-              <label class="muted" for="gClass">Class</label><select id="gClass"></select>
               <button class="btn" id="gRenameClass">Rename</button><button class="btn" id="gNewClass">+ New class</button>
               <span class="classcode">Class code <b class="num" id="gCode"></b></span>
             </div></section>
@@ -335,6 +339,7 @@
             <div class="row"><button class="btn" id="showCards">Print login cards</button></div>
             <div class="codecards" id="codecards" hidden></div></section>
           <section class="msec"><h3>Class progress</h3><p class="muted small">Last 10 weeks</p><div id="gProgress"></div></section>
+          <section class="msec"><h3>Progress by student</h3><p class="muted small">Last played, days played (7 days), rounds, accuracy, speed, stars and trend for every student.</p><div class="tbl-wrap"><table class="tbl plain" id="ptbl"></table></div></section>
           <section class="msec"><h3>Who needs help</h3><div id="helpBox"></div></section>
           <section class="msec"><h3>Student details</h3>
             <label class="flab" for="gdPick">Student</label><select id="gdPick"></select>

@@ -975,6 +975,7 @@ function loginCell(p){
   if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
   return `<b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
 }
+const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 const nameOf=p=>p.realName||p.name;
 const byName=(a,b)=>nameOf(a).localeCompare(nameOf(b),undefined,{sensitivity:'base'});
 const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="stag s-${g}" title="${STATUS[g][1]}">${STATUS[g][0]}</span>`};
@@ -986,7 +987,16 @@ function renderGrown(){
   updateGiveAll();
   $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
   renderStudentList(players,now);
+  renderProgressTable(players,now);
   renderDetailPick(players);
+}
+// More > Progress by student: the full numbers (what the super admin reads when looking at any school)
+function renderProgressTable(players,now){
+  const stats=(TEACH&&TEACH.stats)||{};
+  if(!players.length){$('ptbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet.</td></tr></tbody>';return}
+  $('ptbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th></tr></thead><tbody>`+
+    [...players].sort(byName).map(p=>{const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
+      return `<tr><td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td><td>${statusTag(p,now)}</td><td>${lastPlayed(p)}</td><td class="r">${daysIn7(p,st,now)}</td><td class="r">${st.rounds_total!=null?st.rounds_total:p.rounds.length}</td><td class="r">${a==null?'—':Math.round(a*100)+'%'}</td><td class="r">${cpm==null?'—':cpm.toFixed(0)}</td><td class="r">${st.stars_total!=null?fmtN(st.stars_total):'—'}</td><td>${tr?`<span class="trend t-${tr}" title="${TREND[tr][1]}">${TREND[tr][0]}</span>`:'<span class="muted">—</span>'}</td></tr>`}).join('')+'</tbody>';
 }
 // Step 2: search, A to Z, first 10 then Show all. "Class total today" always counts everyone.
 function renderStudentList(players,now){
@@ -1339,7 +1349,7 @@ function renderOwnerEmpty(){
   renderSchoolPicker();const vs=(TEACH.schools||[]).find(x=>x.id===viewSchool());
   $('gWho').textContent=`Owner view · ${vs?vs.name:'School'} · view only`;$('gTitle').textContent='No classes yet';$('gClass').innerHTML='';$('gCode').textContent='—';
   $('gProgress').innerHTML='';$('tbl').innerHTML='<tbody><tr><td class="muted">This school has no classes yet.</td></tr></tbody>';$('gdetail').hidden=true;
-  $('gSchoolBtn').hidden=true;show('grown');
+  $('gSchoolBtn').hidden=true;$('pickbar').hidden=false;show('grown');
 }
 $('gSchool').onchange=async()=>{TEACH.viewSchool=$('gSchool').value===ownSchool()?null:$('gSchool').value;setLocal({ownerSchool:TEACH.viewSchool});TEACH.classId=null;TEACH_TAB='students';await loadClasses()};
 function renderTeacherBar(){
@@ -1352,6 +1362,8 @@ function renderTeacherBar(){
   $('gWho').textContent=other?`Owner view · ${vs?vs.name:'School'} · view only`:t?`${t.name}${t.school?' · '+t.school.name:''}`:'';
   $('gSchoolBtn').hidden=!isAdmin()||other;$('gSuperBtn').hidden=!TEACH.super;
   renderSchoolPicker();
+  $('pickbar').hidden=!(TEACH.super||TEACH.classes.length>1);
+  if(other)$('more').open=true;
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};

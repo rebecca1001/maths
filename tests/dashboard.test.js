@@ -119,7 +119,10 @@ describe('screens (demo mode)', () => {
     $('kmReset').click(); await new Promise((res) => setTimeout(res, 40));
     cls = (await api.listClasses())[0];
     expect(cls.settings.minFor).toBeUndefined(); expect(cls.settings.kids).toBeUndefined();
-    expect($('gSchoolWrap').hidden).toBe(false);
+    expect($('gSchoolWrap').hidden).toBe(false);                         // the super admin's school dropdown
+    expect($('pickbar').hidden).toBe(false);
+    expect($('gSchool').options.length).toBeGreaterThan(0);
+    expect($('ptbl').querySelector('thead').textContent).toMatch(/Accuracy.*Stars earned.*Trend/);
     expect($('grown').classList.contains('viewonly')).toBe(false);
     expect(err).not.toHaveBeenCalled();
     history.pushState({}, '', '/');
