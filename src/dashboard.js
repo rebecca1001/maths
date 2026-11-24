@@ -29,15 +29,35 @@ export function trend(rounds) {
   return diff >= 1 ? 'up' : diff <= -1 ? 'down' : 'flat';
 }
 
-// A label next to each child's name: On track or Needs assistance (teacher-only; students never see it)
+// A label next to each child's name (teacher-only; students never see it): On track, or Needs assistance with the reason(s).
+// Judged over THIS WEEK (Monday to Sunday), never over today, so a day off or a Monday does not flag anyone.
+//   Low accuracy: very few answers right this week (needs enough answers to judge). Kept low on purpose:
+//                 a child who finds maths hard but plays plenty of rounds is on track, because the effort is there.
+//   Low activity: far fewer rounds this week than the daily target x school days already finished this week.
 export const STATUS = {
-  help: ['Needs assistance', 'Under 80% right this week, or no rounds in the last 7 days'],
-  ok: ['On track', 'Playing and getting most right'],
+  help: ['Needs assistance', 'Very low accuracy or very few rounds this week'],
+  ok: ['On track', 'Playing enough and getting a fair share right this week'],
 };
-export function groupOf(rounds, now = Date.now()) {
-  if (!recent(rounds, now).length) return 'help';
-  const acc = accuracy(rounds, now);
-  return acc != null && acc < 0.8 ? 'help' : 'ok';
+export const REASON = { accuracy: 'Low accuracy', activity: 'Low activity' };
+export const LOW_ACCURACY = 0.6;      // under 60% right this week...
+export const MIN_ANSWERS = 30;        // ...once they have answered at least this many
+export const ACTIVITY_SHARE = 0.5;    // fewer than half the expected rounds so far this week
+export const DEFAULT_TARGET = 10;     // rounds per day, when the teacher has not set one
+const mondayOf = (now) => { const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+export const weekRounds = (rounds, now = Date.now()) => (rounds || []).filter((r) => r && r.d >= mondayOf(now) && r.d <= now + DAY);
+export const roundsThisWeek = (rounds, now = Date.now()) => weekRounds(rounds, now).length;
+// School days (Monday to Friday) already finished this week, not counting today: Monday 0 ... Friday 4, then 5 at the weekend
+export const schoolDaysDone = (now = Date.now()) => Math.min(5, (new Date(now).getDay() + 6) % 7);
+export function statusReasons(rounds, now = Date.now(), target = DEFAULT_TARGET) {
+  const wr = weekRounds(rounds, now), out = [];
+  const answered = wr.reduce((n, r) => n + (r.n || 0), 0), right = wr.reduce((n, r) => n + (r.c || 0), 0);
+  if (answered >= MIN_ANSWERS && right / answered < LOW_ACCURACY) out.push('accuracy');
+  const expected = (+target || DEFAULT_TARGET) * schoolDaysDone(now);
+  if (expected > 0 && wr.length < Math.ceil(expected * ACTIVITY_SHARE)) out.push('activity');
+  return out;
+}
+export function groupOf(rounds, now = Date.now(), target = DEFAULT_TARGET) {
+  return statusReasons(rounds, now, target).length ? 'help' : 'ok';
 }
 
 // "Today" only when the last round was on today's calendar date (not just within 24 hours)

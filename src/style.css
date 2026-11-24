@@ -919,3 +919,4 @@ body.modalopen{overflow:hidden}
 @media print{#grown .pickbar,#grown #step2,#grown #step3,#grown #more,#grown .ttop{display:none!important}
 #grown #step1>*:not(#codecards){display:none!important}#grown #step1{border:0;padding:0;background:none}
 #grown #codecards{display:grid!important;grid-template-columns:repeat(3,1fr)}}
+.sreason{display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-top:3px}

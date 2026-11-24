@@ -95,7 +95,7 @@ describe('screens (demo mode)', () => {
     expect($('step1').contains($('showCards'))).toBe(true);              // Print login cards sits in step 1
     expect($('more').contains($('showCards'))).toBe(false);
     const head = $('tbl').querySelector('thead').textContent;
-    expect(head).toMatch(/Student/); expect(head).toMatch(/Status/); expect(head).toMatch(/Rounds today/); expect(head).not.toMatch(/Accuracy|Days|Trend/);
+    expect(head).toMatch(/Student/); expect(head).toMatch(/Status/); expect(head).toMatch(/Rounds today/); expect(head).toMatch(/Rounds this week/); expect(head).not.toMatch(/Accuracy|Days|Trend/);
     // only two status words, ever
     const words = new Set([...$('tbl').querySelectorAll('.stag')].map((x) => x.textContent));
     for (const w of words) expect(['On track', 'Needs assistance']).toContain(w);
@@ -207,16 +207,39 @@ describe('streak message on a day with no school', () => {
 });
 
 import { groupOf as _groupOf } from '../src/dashboard.js';
-describe('status label', () => {
-  const now = Date.now(), r = (daysAgo, c, n) => ({ d: now - daysAgo * 864e5, c, n, len: 60 });
-  it('only On track or Needs assistance: under 80% right, or nothing played in 7 days, needs assistance', () => {
-    expect(_groupOf([], now)).toBe('help');
-    expect(_groupOf([r(9, 10, 10)], now)).toBe('help');                  // last played over a week ago
-    expect(_groupOf([r(1, 5, 10)], now)).toBe('help');
-    expect(_groupOf([r(1, 9, 10)], now)).toBe('ok');
-    expect(_groupOf([r(0, 10, 10), r(1, 10, 10), r(2, 10, 10)], now)).toBe('ok');
+import { statusReasons as _reasons, roundsThisWeek as _week, schoolDaysDone as _done } from '../src/dashboard.js';
+describe('status label: judged over the week, never over today', () => {
+  const fri = new Date(2026, 10, 20, 15).getTime(), mon = new Date(2026, 10, 23, 9).getTime(), sat = new Date(2026, 10, 21, 10).getTime();
+  const day = (now, back, h = 10) => { const d = new Date(now); d.setDate(d.getDate() - back); d.setHours(h, 0, 0, 0); return d.getTime(); };
+  const round = (d, c, n = 20) => ({ d, c, n, len: 60 });
+  const busy = (now, c, n, rounds = 24) => Array.from({ length: rounds }, (_, i) => round(day(now, i % 4), c, n));
+  it('counts school days finished this week, not today', () => {
+    expect(_done(mon)).toBe(0); expect(_done(fri)).toBe(4); expect(_done(sat)).toBe(5);
+  });
+  it('rounds this week start on Monday', () => {
+    const rs = [round(day(fri, 4), 10), round(day(fri, 1), 10), round(day(fri, 6), 10)];   // Mon, Thu, last Sunday
+    expect(_week(rs, fri)).toBe(2);
+  });
+  it('a Monday, or a student who simply was not in school today, is never flagged', () => {
+    expect(groupOfX([], mon)).toBe('ok');
+    expect(groupOfX(busy(fri, 18, 20), fri)).toBe('ok');                     // played Mon-Thu, nothing today
+  });
+  it('low activity: far fewer rounds than the daily target x finished school days', () => {
+    expect(_reasons([], fri)).toEqual(['activity']);                          // nothing all week by Friday
+    expect(_reasons([round(day(fri, 3), 18)], fri)).toEqual(['activity']);   // 1 round against 40 expected
+    expect(_reasons(busy(fri, 18, 20, 24), fri)).toEqual([]);                // 24 of 40 expected: enough
+    expect(_reasons([round(day(fri, 3), 18), round(day(fri, 2), 18)], fri, 1)).toEqual([]);   // a target of 1 a day: 2 of 4 expected is enough
+  });
+  it('low accuracy: very few right over enough answers; a weaker child who plays a lot is on track', () => {
+    expect(_reasons(busy(fri, 8, 20, 24), fri)).toEqual(['accuracy']);       // 40% right over 480 answers
+    expect(_reasons(busy(fri, 13, 20, 24), fri)).toEqual([]);                // 65% right and playing plenty: on track
+    expect(_reasons([round(day(fri, 1), 2, 10), round(day(fri, 2), 2, 10)], fri, 1)).toEqual([]);   // only 20 answers: too few to judge
+  });
+  it('both reasons can apply', () => {
+    expect(_reasons([round(day(fri, 3), 2, 30)], fri)).toEqual(['accuracy', 'activity']);
   });
 });
+const groupOfX = (rounds, now) => _groupOf(rounds, now);
 
 import { lastPlayedLabel } from '../src/dashboard.js';
 describe('last played label', () => {

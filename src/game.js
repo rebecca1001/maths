@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { lastPlayedLabel, STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, kidOf, withKid, effectiveSettings, classTables, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { lastPlayedLabel, STATUS, REASON, statusReasons, roundsThisWeek, DEFAULT_TARGET, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, kidOf, withKid, effectiveSettings, classTables, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 import { parseRoster, swapNames, usernameFromName } from './usernames.js';
@@ -978,7 +978,9 @@ function loginCell(p){
 const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
 const nameOf=p=>p.realName||p.name;
 const byName=(a,b)=>nameOf(a).localeCompare(nameOf(b),undefined,{sensitivity:'base'});
-const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="stag s-${g}" title="${STATUS[g][1]}">${STATUS[g][0]}</span>`};
+const targetFor=p=>{const cs=curClass()&&curClass().settings;return minFor(cs,p.id)||DEFAULT_TARGET};
+const groupFor=(p,now)=>groupOf(p.rounds,now,targetFor(p));
+const statusTag=(p,now)=>{const rs=statusReasons(p.rounds,now,targetFor(p)),g=rs.length?'help':'ok';return `<span class="stag s-${g}" title="${STATUS[g][1]}">${STATUS[g][0]}</span>${rs.length?`<span class="sreason">${rs.map(r=>REASON[r]).join(' · ')}</span>`:''}`};
 const curPlayers=()=>S.order.map(id=>S.players[id]);
 const clampR=v=>Math.max(0,Math.min(MAX_MIN,Math.round(+v||0)));
 const LIST_START=10;let SEARCH='',SHOW_ALL=false;
@@ -1002,13 +1004,13 @@ function renderProgressTable(players,now){
 function renderStudentList(players,now){
   const total=players.reduce((n,p)=>n+roundsToday(p.rounds,now),0);
   $('classTotal').textContent=`${total} round${total===1?'':'s'}`;
-  $('allOk').hidden=!players.length||players.some(p=>groupOf(p.rounds,now)==='help');
+  $('allOk').hidden=!players.length||players.some(p=>groupFor(p,now)==='help');
   if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Add them in step 1.</td></tr></tbody>';$('stuFoot').innerHTML='';return}
   const q=SEARCH.trim().toLowerCase(),sorted=[...players].sort(byName);
   const hits=q?sorted.filter(p=>`${p.realName||''} ${p.name}`.toLowerCase().includes(q)):sorted;
   const shown=SHOW_ALL||q?hits:hits.slice(0,LIST_START);
-  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds today</th><th><span class="sr">Settings</span></th></tr></thead><tbody>`+
-    (shown.length?shown.map(p=>`<tr data-id="${p.id}"><td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td><td>${statusTag(p,now)}</td><td class="r"><b class="num">${roundsToday(p.rounds,now)}</b></td><td class="r"><button type="button" class="btn" data-settings="${p.id}" aria-label="Settings for ${esc(nameOf(p))}">Settings</button></td></tr>`).join(''):'<tr><td colspan="4" class="muted">No student matches that name.</td></tr>')+'</tbody>';
+  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds today</th><th class="r">Rounds this week</th><th><span class="sr">Settings</span></th></tr></thead><tbody>`+
+    (shown.length?shown.map(p=>`<tr data-id="${p.id}"><td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td><td>${statusTag(p,now)}</td><td class="r"><b class="num">${roundsToday(p.rounds,now)}</b></td><td class="r"><b class="num">${roundsThisWeek(p.rounds,now)}</b></td><td class="r"><button type="button" class="btn" data-settings="${p.id}" aria-label="Settings for ${esc(nameOf(p))}">Settings</button></td></tr>`).join(''):'<tr><td colspan="5" class="muted">No student matches that name.</td></tr>')+'</tbody>';
   $('stuFoot').innerHTML=`<span class="muted small">Showing ${shown.length} of ${players.length} students</span>`+(!SHOW_ALL&&!q&&hits.length>LIST_START?`<button type="button" class="btn" id="showAll">Show all ${players.length}</button>`:'');
 }
 $('stuSearch').addEventListener('input',e=>{SEARCH=e.target.value;renderStudentList(curPlayers(),Date.now())});
