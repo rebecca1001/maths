@@ -1056,14 +1056,14 @@ let KID=null,KID_FROM=null;
 const weekStarsOf=q=>q.rounds.filter(r=>r.d>=weekStart()).reduce((n,r)=>n+roundStars(r),0);
 function kidClass(){const cs=(curClass()&&curClass().settings)||{};return {cs,rounds:cs.minRounds==null?10:clampR(cs.minRounds),tables:classTables(cs),mul:cs.multiplication!==false,div:!!cs.division}}
 function openKid(id){
-  const c=curClass(),p=S.players[id];if(!c||!p||viewingOther())return;
+  const c=curClass(),p=S.players[id];if(!c||!p)return;
   const cs=c.settings||{},k=kidOf(cs,id);
   KID={id,rounds:hasOwnMin(cs,id)?minFor(cs,id):null,tables:k.tables?[...k.tables]:null,mul:k.multiplication,div:k.division,msg:''};
   KID_FROM=document.activeElement;renderKid();$('kidModal').hidden=false;document.body.classList.add('modalopen');$('kidCard').focus();
 }
 function closeKid(){KID=null;$('kidModal').hidden=true;document.body.classList.remove('modalopen');if(KID_FROM&&KID_FROM.focus&&document.contains(KID_FROM))KID_FROM.focus();KID_FROM=null}
 function renderKid(){
-  const p=S.players[KID.id],cl=kidClass(),now=Date.now();
+  const p=S.players[KID.id],cl=kidClass(),now=Date.now(),ro=viewingOther(),dis=ro?' disabled':'';
   const rounds=KID.rounds==null?cl.rounds:KID.rounds,tables=KID.tables||cl.tables,mul=KID.mul==null?cl.mul:KID.mul,div=KID.div==null?cl.div:KID.div;
   const stats=(TEACH&&TEACH.stats)||{},st=stats[p.id]||{},stars=st.stars_total!=null?st.stars_total:p.rounds.reduce((n,r)=>n+roundStars(r),0);
   const ranked=curPlayers().map(q=>({id:q.id,s:weekStarsOf(q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s),rank=ranked.findIndex(x=>x.id===p.id)+1,top=rank>0&&rank<=10;
@@ -1074,14 +1074,14 @@ function renderKid(){
       <div class="mtile"><span class="label">Stars</span><b class="num mbig">${fmtN(stars)}</b></div>
       <div class="mtile wide"><span class="label">Leaderboard</span><b class="num mbig">${top?'#'+rank:'—'}</b><span class="muted small">${top?'This week, in your class':'Shows once they reach the top 10'}</span></div>
     </div>
-    <div><span class="flab" id="kmRL">Rounds per day</span><div class="stepper" role="group" aria-labelledby="kmRL"><button type="button" class="btn sq" id="kmMinus" aria-label="One fewer round">−</button><input type="number" id="kmVal" inputmode="numeric" min="0" max="${MAX_MIN}" step="1" value="${rounds}" aria-label="Rounds per day"><button type="button" class="btn sq" id="kmPlus" aria-label="One more round">+</button><span class="muted small" id="kmHint">${KID.rounds==null?'same as class':'own number'}</span></div></div>
-    <div><span class="flab" id="kmTL">Times tables</span><div class="tchips" role="group" aria-labelledby="kmTL">${[2,3,4,5,6,7,8,9,10,11,12].map(t=>`<button type="button" class="tchip ${tables.includes(t)?'on':''}" data-kt="${t}" aria-pressed="${tables.includes(t)}">${t}</button>`).join('')}</div></div>
-    <div><span class="flab" id="kmQL">Question types</span><div class="kchecks" role="group" aria-labelledby="kmQL"><label class="kcheck"><input type="checkbox" data-km="mul" ${mul?'checked':''}> Multiplication</label><label class="kcheck"><input type="checkbox" data-km="div" ${div?'checked':''}> Division</label></div></div>
+    <div><span class="flab" id="kmRL">Rounds per day</span><div class="stepper" role="group" aria-labelledby="kmRL"><button type="button" class="btn sq" id="kmMinus" aria-label="One fewer round"${dis}>−</button><input type="number" id="kmVal" inputmode="numeric" min="0" max="${MAX_MIN}" step="1" value="${rounds}" aria-label="Rounds per day"${dis}><button type="button" class="btn sq" id="kmPlus" aria-label="One more round"${dis}>+</button><span class="muted small" id="kmHint">${KID.rounds==null?'same as class':'own number'}</span></div></div>
+    <div><span class="flab" id="kmTL">Times tables</span><div class="tchips" role="group" aria-labelledby="kmTL">${[2,3,4,5,6,7,8,9,10,11,12].map(t=>`<button type="button" class="tchip ${tables.includes(t)?'on':''}" data-kt="${t}" aria-pressed="${tables.includes(t)}"${dis}>${t}</button>`).join('')}</div></div>
+    <div><span class="flab" id="kmQL">Question types</span><div class="kchecks" role="group" aria-labelledby="kmQL"><label class="kcheck"><input type="checkbox" data-km="mul" ${mul?'checked':''}${dis}> Multiplication</label><label class="kcheck"><input type="checkbox" data-km="div" ${div?'checked':''}${dis}> Division</label></div></div>
     <p class="note" id="kmMsg" role="status" aria-live="polite">${esc(KID.msg||'')}</p>
-    <div class="mfoot"><button type="button" class="btn primary" id="kmSave">Save</button><button type="button" class="btn" id="kmCancel">Cancel</button><button type="button" class="linkbtn" id="kmReset">Reset to class settings</button></div>`;
+    <div class="mfoot">${ro?'<button type="button" class="btn" id="kmCancel">Close</button><span class="muted small">View only: this is another school\'s class.</span>':'<button type="button" class="btn primary" id="kmSave">Save</button><button type="button" class="btn" id="kmCancel">Cancel</button><button type="button" class="linkbtn" id="kmReset">Reset to class settings</button>'}</div>`;
 }
 async function saveKid(reset){
-  const c=curClass(),p=S.players[KID.id],cl=kidClass();if(!c||!p)return;
+  const c=curClass(),p=S.players[KID.id],cl=kidClass();if(!c||!p||viewingOther())return;
   let st=c.settings||{};
   const own=reset||KID.rounds==null||KID.rounds===cl.rounds?null:KID.rounds;
   st=withStudentMin(st,p.id,own);
@@ -1112,6 +1112,7 @@ $('kidCard').addEventListener('change',e=>{
 $('kidCard').addEventListener('input',e=>{if(!KID||e.target.id!=='kmVal')return;KID.rounds=clampR(e.target.value);$('kmHint').textContent='own number'});
 $('kidModal').addEventListener('click',e=>{if(e.target===$('kidModal'))closeKid()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&KID)closeKid()});
+$('gAcctBtn').onclick=()=>{const p=$('acctPanel'),open=p.hidden;p.hidden=!open;$('gAcctBtn').setAttribute('aria-expanded',String(open));if(open){$('acctEmail').textContent=(TEACH&&TEACH.info&&TEACH.info.email)||'';p.scrollIntoView({behavior:'smooth',block:'nearest'})}};
 $('grownBack').onclick=$('sOut').onclick=$('acctOut').onclick=async()=>{await api.teacherSignOut();setLocal({teacher:false});TEACH=null;toLogin()};
 
 // ---------- celebration pop-ups (rank ups, new badges, shop unboxing) ----------
@@ -1342,7 +1343,7 @@ async function loadClassStudents(){REVIEW=null;renderReview();
 }
 function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
 function renderSchoolPicker(){
-  const w=$('gSchoolWrap'),other=viewingOther();$('grown').classList.toggle('viewonly',other);
+  const w=$('gSchoolWrap'),other=viewingOther();$('grown').classList.toggle('viewonly',other);$('step1').inert=other;$('step3').inert=other;
   if(other&&['goal','settings','comp'].includes(TEACH_TAB))TEACH_TAB='students';
   w.hidden=!TEACH.super||!(TEACH.schools||[]).length;if(w.hidden)return;
   $('gSchool').innerHTML=TEACH.schools.map(x=>`<option value="${x.id}" ${x.id===viewSchool()?'selected':''}>${esc(x.name)}${x.id===ownSchool()?' (yours)':''}</option>`).join('');
@@ -1365,7 +1366,6 @@ function renderTeacherBar(){
   $('gSchoolBtn').hidden=!isAdmin()||other;$('gSuperBtn').hidden=!TEACH.super;
   renderSchoolPicker();
   $('pickbar').hidden=!(TEACH.super||TEACH.classes.length>1);
-  if(other)$('more').open=true;
   $('addMsg').textContent='';
 }
 $('gClass').onchange=async()=>{TEACH.classId=$('gClass').value;await loadClassStudents()};
