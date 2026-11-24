@@ -92,6 +92,8 @@ describe('screens (demo mode)', () => {
     order.forEach((el, i) => { if (i) expect(order[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
     expect(document.querySelector('[data-gtab]')).toBeNull();            // no tabs, no weekly goal
     expect($('goalCard')).toBeNull();
+    expect($('step1').contains($('showCards'))).toBe(true);              // Print login cards sits in step 1
+    expect($('more').contains($('showCards'))).toBe(false);
     const head = $('tbl').querySelector('thead').textContent;
     expect(head).toMatch(/Student/); expect(head).toMatch(/Status/); expect(head).toMatch(/Rounds today/); expect(head).not.toMatch(/Accuracy|Days|Trend/);
     // only two status words, ever

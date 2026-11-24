@@ -296,11 +296,12 @@
         <label class="flab" for="addNames">Student name</label>
         <div class="addrow"><textarea id="addNames" rows="1" placeholder="Ava Smith" aria-describedby="addHelp"></textarea><button class="btn primary" id="addStudent">Add student</button></div>
         <p class="muted small" id="addHelp">Names like “Ava Smith”, “Smith, Ava” or school emails all work. Each student gets a username, a 4-digit code and a space name. You'll check the list before anything is saved.</p>
-        <div class="row"><button class="btn" id="giveAll" hidden>Create usernames</button></div>
+        <div class="row"><button class="btn" id="showCards">Print login cards</button><button class="btn" id="giveAll" hidden>Create usernames</button></div>
         <div id="addReview" hidden></div>
         <div id="unameReview" hidden></div>
         <p class="muted small">Real names are only shown to teachers at your school. Students only ever see space names, in the game and on the Top 10.</p>
         <p class="note" id="addMsg" aria-live="polite"></p>
+        <div class="codecards" id="codecards" hidden></div>
       </div>
 
       <div class="card tstep" id="step2">
@@ -335,9 +336,6 @@
               <button class="btn" id="gRenameClass">Rename</button><button class="btn" id="gNewClass">+ New class</button>
               <span class="classcode">Class code <b class="num" id="gCode"></b></span>
             </div></section>
-          <section class="msec"><h3>Login cards</h3>
-            <div class="row"><button class="btn" id="showCards">Print login cards</button></div>
-            <div class="codecards" id="codecards" hidden></div></section>
           <section class="msec"><h3>Class progress</h3><p class="muted small">Last 10 weeks</p><div id="gProgress"></div></section>
           <section class="msec"><h3>Progress by student</h3><p class="muted small">Last played, days played (7 days), rounds, accuracy, speed, stars and trend for every student.</p><div class="tbl-wrap"><table class="tbl plain" id="ptbl"></table></div></section>
           <section class="msec"><h3>Who needs help</h3><div id="helpBox"></div></section>

@@ -916,3 +916,6 @@ body.modalopen{overflow:hidden}
 .pickbar{max-width:760px;width:100%;margin-inline:auto}
 #ptbl{min-width:720px}
 #grown:not(.viewonly) #more{}
+@media print{#grown .pickbar,#grown #step2,#grown #step3,#grown #more,#grown .ttop{display:none!important}
+#grown #step1>*:not(#codecards){display:none!important}#grown #step1{border:0;padding:0;background:none}
+#grown #codecards{display:grid!important;grid-template-columns:repeat(3,1fr)}}
