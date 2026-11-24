@@ -919,4 +919,4 @@ body.modalopen{overflow:hidden}
 #grown #step1>*:not(#codecards){display:none!important}#grown #acctPanel{display:none!important}#grown #step1{border:0;padding:0;background:none}
 #grown #codecards{display:grid!important;grid-template-columns:repeat(3,1fr)}}
 .sreason{display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-top:3px}
-#grown.viewonly #step1,#grown.viewonly #step3{opacity:.7}
+#grown.viewonly #step1>*,#grown.viewonly #step3>*{opacity:.7}
