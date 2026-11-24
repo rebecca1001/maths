@@ -1,7 +1,7 @@
 // MathWizz game: screens, questions, scoring, shop, battles and the teacher dashboard.
 import { api, randomPin } from './api.js';
 import { rowsFromPlayers, series as pSeries, chartHTML, miniHTML, cellsHTML } from './progress.js';
-import { lastPlayedLabel, STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, kidOf, withKid, effectiveSettings, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
+import { lastPlayedLabel, STATUS, groupOf, MAX_MIN, minFor, hasOwnMin, roundsToday, withClassMin, withStudentMin, kidOf, withKid, effectiveSettings, classTables, daysPlayed, accuracy as accOf, correctPerMin, trend as trendOf } from './dashboard.js';
 import { pilotRows, pilotHeadline, weeklyText, weekLabel, shortDay } from './pilot.js';
 import { KINDS, PAID_PLANS, PLAN_NAMES, unit as cUnit, fmtNum, studentView, whenText, shortDate, lastDay, dayStr, PRESETS, PRIZES, TIMEFRAMES, niceNumber, suggestTargets } from './competitions.js';
 import { parseRoster, swapNames, usernameFromName } from './usernames.js';
@@ -62,8 +62,8 @@ function flushSave(){
 window.addEventListener('pagehide',()=>{if(saveTimer)flushSave()});
 const P=()=>S.players[S.current];
 function applySettings(st){
-  st=st||{};const mx=Math.min(12,Math.max(5,+st.maxTable||12));
-  ALL=Array.from({length:mx-1},(_,i)=>i+2);
+  st=st||{};
+  ALL=classTables(st);
   S.muted=st.sound===false;S.division=!!st.division;S.multiplication=st.multiplication!==false||!st.division; // multiplication is on unless a teacher turned it off; never both off
   const g=st.goal;let goal=null;if(g&&Array.isArray(g.tables)){const tables=g.tables.map(Number).filter(t=>t>=2&&t<=12),rounds=Math.max(0,Math.min(50,+g.rounds||0));if(tables.length||rounds)goal={tables,rounds}}S.goal=goal;S.settings=st;
 }
@@ -975,65 +975,58 @@ function loginCell(p){
   if(p.username)return `<span class="uname">${esc(p.username)}</span><b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
   return `<b class="num pin">${esc(p.pin||'')}</b> <button class="linkbtn" data-newpin="${p.id}">New code</button>`;
 }
-const minOpts=(sel,first)=>(first?[first]:[]).concat(Array.from({length:MAX_MIN+1},(_,i)=>[String(i),i?`${i} round${i>1?'s':''}`:'No minimum'])).map(([v,l])=>`<option value="${v}" ${String(sel)===v?'selected':''}>${l}</option>`).join('');
-// Today column: "2 / 3 ✓" against this child's minimum
-function todayCell(p,cs,now){
-  const n=roundsToday(p.rounds,now),m=minFor(cs,p.id),own=hasOwnMin(cs,p.id);
-  if(!m)return n?`<span class="num">${n}</span>`:'<span class="muted">—</span>';
-  return `<span class="mincell ${n>=m?'ok':n?'part':'none'}" title="${own?'Own minimum':'Class minimum'}: ${m}"><b class="num">${Math.min(n,m)} / ${m}</b>${n>=m?' ✓':''}${own?'<small>own</small>':''}</span>`;
-}
-// Where the four cards were: one number for the class, and how many reached it today
-function renderMinPanel(players,now){
-  const c=curClass(),cs=c&&c.settings,m=+(cs&&cs.minRounds)||0;
-  const withMin=players.filter(p=>minFor(cs,p.id)>0),done=withMin.filter(p=>roundsToday(p.rounds,now)>=minFor(cs,p.id)).length;
-  const own=players.filter(p=>hasOwnMin(cs,p.id)).length;
-  $('kpis').innerHTML=`<div class="minpanel">
-    <label class="minset" for="minClass"><span class="label">Minimum rounds each time they play</span>
-      <span class="row" style="align-items:center;gap:10px"><select id="minClass" ${viewingOther()?'disabled':''}>${minOpts(m)}</select><span class="muted small">for the whole class${own?` · ${own} student${own>1?'s have':' has'} their own number`:''}</span></span></label>
-    ${withMin.length?`<div class="mintoday"><span class="label">Today</span><b class="num">${done}<small> of ${withMin.length}</small></b><span class="muted small">played their minimum</span></div>`:''}
-    <p class="note" id="minMsg" aria-live="polite" style="background:none;padding:0;margin:0"></p></div>`;
-}
+const nameOf=p=>p.realName||p.name;
+const byName=(a,b)=>nameOf(a).localeCompare(nameOf(b),undefined,{sensitivity:'base'});
 const statusTag=(p,now)=>{const g=groupOf(p.rounds,now);return `<span class="stag s-${g}" title="${STATUS[g][1]}">${STATUS[g][0]}</span>`};
-const TREND={up:['↑','Getting faster'],down:['↓','Slower lately'],flat:['→','About the same']};
+const curPlayers=()=>S.order.map(id=>S.players[id]);
+const clampR=v=>Math.max(0,Math.min(MAX_MIN,Math.round(+v||0)));
+const LIST_START=10;let SEARCH='',SHOW_ALL=false;
 function renderGrown(){
-  const now=Date.now(),players=S.order.map(id=>S.players[id]),stats=(TEACH&&TEACH.stats)||{};
+  const now=Date.now(),players=curPlayers();
   updateGiveAll();
-  renderMinPanel(players,now);
-
   $('gProgress').innerHTML=chartHTML(pSeries(rowsFromPlayers(players)));
-  if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Add them above, then print their login cards.</td></tr></tbody>';$('gdetail').hidden=true;return}
-  const rows=players.map(p=>({p}));
-  if(!GSel||!S.players[GSel])GSel=players[0].id;
-  const cs=curClass()&&curClass().settings;
-  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Today</th><th>Last played</th><th class="r">Days (7 days)</th><th class="r">Rounds (all)</th><th class="r">Accuracy</th><th class="r">Correct / min</th><th class="r">Stars earned</th><th>Trend</th><th>Login</th></tr></thead><tbody>`+
-    (rows.length?rows.map(({p})=>{
-      const st=stats[p.id]||{},a=accOf(p.rounds,now),cpm=correctPerMin(p.rounds,now),tr=trendOf(p.rounds);
-      return `<tr data-id="${p.id}" tabindex="0" class="${p.id===GSel?'sel':''}">
-        <td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}${statusTag(p,now)}</span></td>
-        <td>${todayCell(p,cs,now)}</td>
-        <td>${lastPlayed(p)}</td>
-        <td class="r">${daysIn7(p,st,now)}</td>
-        <td class="r">${st.rounds_total!=null?st.rounds_total:p.rounds.length}</td>
-        <td class="r">${a==null?'—':Math.round(a*100)+'%'}</td>
-        <td class="r">${cpm==null?'—':cpm.toFixed(0)}</td>
-        <td class="r">${st.stars_total!=null?fmtN(st.stars_total):'—'}</td>
-        <td>${tr?`<span class="trend t-${tr}" title="${TREND[tr][1]}">${TREND[tr][0]}</span>`:'<span class="muted">—</span>'}</td>
-        <td>${loginCell(p)}</td>
-      </tr>`}).join(''):'')+'</tbody>';
+  renderStudentList(players,now);
+  renderDetailPick(players);
+}
+// Step 2: search, A to Z, first 10 then Show all. "Class total today" always counts everyone.
+function renderStudentList(players,now){
+  const total=players.reduce((n,p)=>n+roundsToday(p.rounds,now),0);
+  $('classTotal').textContent=`${total} round${total===1?'':'s'}`;
+  $('allOk').hidden=!players.length||players.some(p=>groupOf(p.rounds,now)==='help');
+  if(!players.length){$('tbl').innerHTML='<tbody><tr><td class="muted">No students in this class yet. Add them in step 1.</td></tr></tbody>';$('stuFoot').innerHTML='';return}
+  const q=SEARCH.trim().toLowerCase(),sorted=[...players].sort(byName);
+  const hits=q?sorted.filter(p=>`${p.realName||''} ${p.name}`.toLowerCase().includes(q)):sorted;
+  const shown=SHOW_ALL||q?hits:hits.slice(0,LIST_START);
+  $('tbl').innerHTML=`<thead><tr><th>Student</th><th>Status</th><th class="r">Rounds today</th><th><span class="sr">Settings</span></th></tr></thead><tbody>`+
+    (shown.length?shown.map(p=>`<tr data-id="${p.id}"><td><span class="stu">${avatar(p.skin,26)}${whoHTML(p)}</span></td><td>${statusTag(p,now)}</td><td class="r"><b class="num">${roundsToday(p.rounds,now)}</b></td><td class="r"><button type="button" class="btn" data-settings="${p.id}" aria-label="Settings for ${esc(nameOf(p))}">Settings</button></td></tr>`).join(''):'<tr><td colspan="4" class="muted">No student matches that name.</td></tr>')+'</tbody>';
+  $('stuFoot').innerHTML=`<span class="muted small">Showing ${shown.length} of ${players.length} students</span>`+(!SHOW_ALL&&!q&&hits.length>LIST_START?`<button type="button" class="btn" id="showAll">Show all ${players.length}</button>`:'');
+}
+$('stuSearch').addEventListener('input',e=>{SEARCH=e.target.value;renderStudentList(curPlayers(),Date.now())});
+$('stuFoot').addEventListener('click',e=>{if(e.target.closest('#showAll')){SHOW_ALL=true;renderStudentList(curPlayers(),Date.now())}});
+$('tbl').addEventListener('click',e=>{const b=e.target.closest('[data-settings]');if(b)openKid(b.dataset.settings)});
 
-  const p=S.players[GSel],ti=tierIndex(statusSecs(p));$('gdetail').hidden=false;
+// More > Student details: the old detail card (real name, username, codes, heat map, remove), minus the settings that now live in the pop-up
+function renderDetailPick(players){
+  const sorted=[...players].sort(byName);
+  if(!GSel||!S.players[GSel])GSel=sorted[0]?sorted[0].id:null;
+  $('gdPick').innerHTML=sorted.map(p=>`<option value="${p.id}" ${p.id===GSel?'selected':''}>${esc(nameOf(p))}</option>`).join('');
+  $('gdPick').disabled=!sorted.length;
+  renderDetail();
+}
+$('gdPick').onchange=()=>{GSel=$('gdPick').value;renderDetail()};
+function renderDetail(){
+  const p=S.players[GSel],box=$('gdetail');
+  if(!p){box.innerHTML='<p class="muted">No students yet.</p>';return}
+  const ti=tierIndex(statusSecs(p));
   const bars=ALL.map(t=>{const s=tableScore(p,t),lv=s==null?0:Math.min(4,Math.max(1,Math.round(s)));
     return `<span class="num" style="font-weight:800">${t}×</span><span class="tbar"><i style="width:${s==null?0:(s/4*100).toFixed(0)}%;background:var(--h${lv})"></i></span><span class="muted">${LEVELS[lv]}</span>`}).join('');
   const mx=ALL.at(-1);let hm='<div class="h">×</div>';for(let b=1;b<=mx;b++)hm+=`<div class="h">${b}</div>`;
   for(let a=1;a<=mx;a++){hm+=`<div class="h">${a}</div>`;for(let b=1;b<=mx;b++)hm+=`<div class="cell l${level(p.facts[a+','+b])}" title="${a} × ${b}"></div>`}
   const recent=p.rounds.slice(-6).reverse();
-  $('gdetail').innerHTML=`
+  box.innerHTML=`
     <form class="row realrow" id="gdRealForm"><label for="gdReal">Real name</label><input id="gdReal" maxlength="80" placeholder="Only teachers see this" value="${esc(p.realName||'')}"><button class="btn" type="submit">Save</button></form>
     ${p.username?`<p class="note gdlogin">Logs in with <b>${esc(p.username)}</b> · code <b class="num">${esc(p.pin||'')}</b> (the same code works with the class code login)</p>`
       :`<form class="row realrow" id="gdEmailForm"><label for="gdEmail">Username</label><input id="gdEmail" maxlength="120" autocapitalize="none" spellcheck="false" placeholder="${esc(suggestUsername(p))}" value="${esc(suggestUsername(p))}"><button class="btn" type="submit">Give a username</button></form><p class="muted small">Same student, so their stars and history stay. Their 4-digit code keeps working too.</p>`}
-    ${(()=>{const cs=curClass()&&curClass().settings,cm=+(cs&&cs.minRounds)||0,own=hasOwnMin(cs,p.id),td=roundsToday(p.rounds);
-      return `<form class="row realrow" id="gdMinForm"><label for="gdMin">Minimum rounds</label><select id="gdMin">${minOpts(own?String(minFor(cs,p.id)):'class',['class',`Same as class (${cm?cm+' round'+(cm>1?'s':''):'none'})`])}</select><span class="muted small">Today: ${td} round${td===1?'':'s'}</span></form>`})()}
-    ${kidSettingsHTML(p)}
     <div class="row" id="gdActions" style="justify-content:flex-end"><button class="btn" id="gdNewCode">Give a new code</button><button class="btn danger" id="gdRemove">Remove student</button></div>
     <p class="note" id="gdMsg" aria-live="polite" style="background:none;padding:0"></p>
     <div class="kid-head">${avatar(p.skin,56)}<div style="min-width:0"><h2>${esc(p.realName||p.name)}</h2><span class="muted">${p.realName?'Space name '+esc(p.name)+' · ':''}${ti<0?'No status yet':TIERS[ti].name+' · '+statusSecs(p).toFixed(1)+' s per answer'} · login code <b class="num">${esc(p.pin)}</b></span></div></div>
@@ -1044,63 +1037,69 @@ function renderGrown(){
     </div>
     <div class="gd-col"><span class="label">Recent rounds</span>${recent.length?`<div class="rr">${recent.map(r=>`<span>${new Date(r.d).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}</span><span><b>${r.c}</b> <span class="muted">/ ${r.n}</span></span><span class="muted">${r.len/60} min</span><span class="muted">${r.c?(r.ms/1000).toFixed(1)+' s':'—'}</span>`).join('')}</div>`:'<p class="muted">No rounds yet.</p>'}</div>`;
 }
-// Settings for this child only: division, focus tables and a weekly rounds goal. Anything left alone follows the class.
-let kidDraft=null;
-function kidSettingsHTML(p){
-  const c=curClass(),cs=(c&&c.settings)||{},k=kidOf(cs,p.id),ro=viewingOther();
-  if(!kidDraft||kidDraft.id!==p.id){const g=k.goal||{tables:[],rounds:0};kidDraft={id:p.id,tables:[...g.tables],rounds:g.rounds||0}}
-  const classDiv=!!cs.division,classMul=cs.multiplication!==false,eff=effectiveSettings(cs,p.id),mulOn=eff.multiplication!==false,divOn=!!eff.division;
-  const nm=esc(p.realName||p.name),box=(op,l,on)=>`<label class="kcheck"><input type="checkbox" data-kop="${op}" ${on?'checked':''} ${ro?'disabled':''}> ${l}</label>`;
-  const classG=cs.goal&&cs.goal.tables&&cs.goal.tables.length?cs.goal.tables.map(t=>t+'×').join(' '):'none';
-  return `<div class="card kset" id="kset"><h3>Settings for ${nm}</h3>
-    <p class="muted small">Only ${nm} gets these. Anything you leave alone follows the class. They apply the next time ${nm} opens the game.</p>
-    <span class="label">Questions ${k.multiplication==null&&k.division==null?`<span class="muted small">(class: multiplication ${classMul?'yes':'no'}, division ${classDiv?'yes':'no'})</span>`:''}</span>
-    <div class="kchecks">${box('mul','Multiplication',mulOn)}${box('div','Division',divOn)}</div>
-    <span class="label">Focus tables ${k.goal?'':`<span class="muted small">(class: ${classG})</span>`}</span>
-    <div class="tchips">${ALL.map(t=>`<button type="button" class="tchip ${kidDraft.tables.includes(t)?'on':''}" data-kt="${t}" ${ro?'disabled':''}>${t}×</button>`).join('')}</div>
-    <span class="label">Goal: rounds this week</span>
-    <div class="row" style="align-items:center;gap:10px"><input type="number" id="kRounds" inputmode="numeric" min="0" max="50" step="1" placeholder="0" value="${kidDraft.rounds||''}" ${ro?'disabled':''} style="width:6.5rem" aria-label="Rounds this week"><span class="muted small">rounds this week (leave empty for no goal)</span></div>
-    ${ro?'':`<div class="row"><button type="button" class="btn primary" id="kSave">Save for ${nm}</button>${k.goal?'<button type="button" class="btn" id="kClear">Use the class goal</button>':''}</div>`}
-    <p class="note" id="kMsg" aria-live="polite" style="background:none;padding:0"></p></div>`;
+
+// ---------- the student's Settings pop-up ----------
+// KID is the draft. null = "same as class" for that setting, so anything left alone keeps following the class.
+let KID=null,KID_FROM=null;
+const weekStarsOf=q=>q.rounds.filter(r=>r.d>=weekStart()).reduce((n,r)=>n+roundStars(r),0);
+function kidClass(){const cs=(curClass()&&curClass().settings)||{};return {cs,rounds:cs.minRounds==null?10:clampR(cs.minRounds),tables:classTables(cs),mul:cs.multiplication!==false,div:!!cs.division}}
+function openKid(id){
+  const c=curClass(),p=S.players[id];if(!c||!p||viewingOther())return;
+  const cs=c.settings||{},k=kidOf(cs,id);
+  KID={id,rounds:hasOwnMin(cs,id)?minFor(cs,id):null,tables:k.tables?[...k.tables]:null,mul:k.multiplication,div:k.division,msg:''};
+  KID_FROM=document.activeElement;renderKid();$('kidModal').hidden=false;document.body.classList.add('modalopen');$('kidCard').focus();
 }
-async function saveKid(patch,msg){
-  const c=curClass(),p=S.players[GSel];if(!c||!p||viewingOther())return;
-  try{c.settings=withKid(c.settings,p.id,patch);await api.updateClass(c.id,{settings:c.settings});kidDraft=null;renderGrown();const m=$('kMsg');if(m)m.textContent=msg}
-  catch(err){const m=$('kMsg');if(m)m.textContent='Could not save: '+err.message}
+function closeKid(){KID=null;$('kidModal').hidden=true;document.body.classList.remove('modalopen');if(KID_FROM&&KID_FROM.focus&&document.contains(KID_FROM))KID_FROM.focus();KID_FROM=null}
+function renderKid(){
+  const p=S.players[KID.id],cl=kidClass(),now=Date.now();
+  const rounds=KID.rounds==null?cl.rounds:KID.rounds,tables=KID.tables||cl.tables,mul=KID.mul==null?cl.mul:KID.mul,div=KID.div==null?cl.div:KID.div;
+  const stats=(TEACH&&TEACH.stats)||{},st=stats[p.id]||{},stars=st.stars_total!=null?st.stars_total:p.rounds.reduce((n,r)=>n+roundStars(r),0);
+  const ranked=curPlayers().map(q=>({id:q.id,s:weekStarsOf(q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s),rank=ranked.findIndex(x=>x.id===p.id)+1,top=rank>0&&rank<=10;
+  $('kidCard').innerHTML=`<div class="mhead"><h2 id="kmName">${esc(nameOf(p))}</h2><button type="button" class="btn sq" id="kmClose" aria-label="Close">×</button></div>
+    <div>${statusTag(p,now)}</div>
+    <div class="mtiles">
+      <div class="mtile"><span class="label">Student code</span><b class="num mbig">${esc(p.pin||'')}</b>${p.username?`<span class="muted small">${esc(p.username)}</span>`:''}<button type="button" class="btn" id="kmCopy">Copy code</button></div>
+      <div class="mtile"><span class="label">Stars</span><b class="num mbig">${fmtN(stars)}</b></div>
+      <div class="mtile wide"><span class="label">Leaderboard</span><b class="num mbig">${top?'#'+rank:'—'}</b><span class="muted small">${top?'This week, in your class':'Shows once they reach the top 10'}</span></div>
+    </div>
+    <div><span class="flab" id="kmRL">Rounds per day</span><div class="stepper" role="group" aria-labelledby="kmRL"><button type="button" class="btn sq" id="kmMinus" aria-label="One fewer round">−</button><input type="number" id="kmVal" inputmode="numeric" min="0" max="${MAX_MIN}" step="1" value="${rounds}" aria-label="Rounds per day"><button type="button" class="btn sq" id="kmPlus" aria-label="One more round">+</button><span class="muted small" id="kmHint">${KID.rounds==null?'same as class':'own number'}</span></div></div>
+    <div><span class="flab" id="kmTL">Times tables</span><div class="tchips" role="group" aria-labelledby="kmTL">${[2,3,4,5,6,7,8,9,10,11,12].map(t=>`<button type="button" class="tchip ${tables.includes(t)?'on':''}" data-kt="${t}" aria-pressed="${tables.includes(t)}">${t}</button>`).join('')}</div></div>
+    <div><span class="flab" id="kmQL">Question types</span><div class="kchecks" role="group" aria-labelledby="kmQL"><label class="kcheck"><input type="checkbox" data-km="mul" ${mul?'checked':''}> Multiplication</label><label class="kcheck"><input type="checkbox" data-km="div" ${div?'checked':''}> Division</label></div></div>
+    <p class="note" id="kmMsg" role="status" aria-live="polite">${esc(KID.msg||'')}</p>
+    <div class="mfoot"><button type="button" class="btn primary" id="kmSave">Save</button><button type="button" class="btn" id="kmCancel">Cancel</button><button type="button" class="linkbtn" id="kmReset">Reset to class settings</button></div>`;
 }
-$('gdetail').addEventListener('click',async e=>{
-  const t=e.target.closest('[data-kt]');
-  if(t&&kidDraft){const n=+t.dataset.kt,i=kidDraft.tables.indexOf(n);i>=0?kidDraft.tables.splice(i,1):kidDraft.tables.push(n);kidDraft.tables.sort((a,b)=>a-b);const keep={...kidDraft};renderGrown();kidDraft=keep;return}
-  if(e.target.closest('#kSave')&&kidDraft){await saveKid({goal:{tables:kidDraft.tables,rounds:kidDraft.rounds}},'Saved.');return}
-  if(e.target.closest('#kClear')){await saveKid({goal:null},'Back to the class goal.');return}
-});
-$('gdetail').addEventListener('change',async e=>{
-  const op=e.target.dataset&&e.target.dataset.kop;if(!op)return;
-  const c=curClass(),p=S.players[GSel];if(!c||!p||viewingOther())return;
-  const root=$('kset'),mul=root.querySelector('[data-kop=mul]').checked,div=root.querySelector('[data-kop=div]').checked;
-  if(!mul&&!div){e.target.checked=true;$('kMsg').textContent='Keep at least one on: multiplication or division.';return}
-  const cs=c.settings||{},clsMul=cs.multiplication!==false,clsDiv=!!cs.division;
-  await saveKid({multiplication:mul===clsMul?null:mul,division:div===clsDiv?null:div},'Saved.');
-});
-$('gdetail').addEventListener('input',e=>{
-  if(e.target.id!=='kRounds'||!kidDraft)return;
-  const n=Math.round(+e.target.value);kidDraft.rounds=Math.max(0,Math.min(50,Number.isFinite(n)?n:0));
-});
-function selectStudent(tr){GSel=tr.dataset.id;renderGrown();$('gdetail').scrollIntoView({behavior:'smooth',block:'start'})}
-// whole-class minimum
-$('kpis').addEventListener('change',async e=>{
-  if(e.target.id!=='minClass'||viewingOther())return;const c=curClass();if(!c)return;
-  c.settings=withClassMin(c.settings,e.target.value);await saveMin(c,'minMsg');
-});
-async function saveMin(c,msgId){
-  try{await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);renderGrown();if($(msgId))$(msgId).textContent='Saved. Students see it the next time they open the game.'}
-  catch(err){if($(msgId))$(msgId).textContent='Could not save: '+err.message}
+async function saveKid(reset){
+  const c=curClass(),p=S.players[KID.id],cl=kidClass();if(!c||!p)return;
+  let st=c.settings||{};
+  const own=reset||KID.rounds==null||KID.rounds===cl.rounds?null:KID.rounds;
+  st=withStudentMin(st,p.id,own);
+  st=withKid(st,p.id,reset?{tables:null,multiplication:null,division:null}:{tables:KID.tables,multiplication:KID.mul,division:KID.div});
+  try{await api.updateClass(c.id,{settings:st});c.settings=st;closeKid();renderGrown()}
+  catch(err){KID.msg='Could not save: '+err.message;renderKid()}
 }
-$('tbl').addEventListener('click',async e=>{
-  const nb=e.target.closest('[data-newpin]');
-  if(nb){const p=S.players[nb.dataset.newpin];nb.disabled=true;try{p.pin=await api.newPin(p.id);renderGrown();if(!$('codecards').hidden)renderCodeCards();$('addMsg').textContent=`New code for ${p.name}: ${p.pin}`}catch(err){nb.disabled=false;alert('Could not make a new code: '+err.message)}return}
-  const tr=e.target.closest('tr[data-id]');if(tr)selectStudent(tr)});
-$('tbl').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-id]');if(tr){e.preventDefault();selectStudent(tr)}}});
+$('kidCard').addEventListener('click',async e=>{
+  if(!KID)return;const t=e.target.closest('button');if(!t)return;
+  const cl=kidClass();
+  if(t.id==='kmClose'||t.id==='kmCancel'){closeKid();return}
+  if(t.id==='kmSave'){await saveKid(false);return}
+  if(t.id==='kmReset'){await saveKid(true);return}
+  if(t.id==='kmCopy'){const p=S.players[KID.id];try{await navigator.clipboard.writeText(String(p.pin||''));t.textContent='Copied!'}catch(err){t.textContent='Copy failed'}setTimeout(()=>{if(t.isConnected)t.textContent='Copy code'},1500);return}
+  if(t.id==='kmMinus'||t.id==='kmPlus'){const cur=KID.rounds==null?cl.rounds:KID.rounds;KID.rounds=clampR(cur+(t.id==='kmPlus'?1:-1));$('kmVal').value=KID.rounds;$('kmHint').textContent='own number';return}
+  if(t.dataset.kt){
+    const n=+t.dataset.kt,base=[...(KID.tables||cl.tables)],i=base.indexOf(n);
+    if(i>=0)base.splice(i,1);else base.push(n);base.sort((a,b)=>a-b);
+    if(!base.length){KID.msg='Keep at least one times table on.';renderKid();$('kidCard').querySelector(`[data-kt="${n}"]`).focus();return}
+    KID.msg='';KID.tables=base.join()===cl.tables.join()?null:base;renderKid();$('kidCard').querySelector(`[data-kt="${n}"]`).focus();return}
+});
+$('kidCard').addEventListener('change',e=>{
+  if(!KID||!e.target.dataset||!e.target.dataset.km)return;const cl=kidClass(),root=$('kidCard');
+  const mul=root.querySelector('[data-km=mul]').checked,div=root.querySelector('[data-km=div]').checked;
+  if(!mul&&!div){e.target.checked=true;$('kmMsg').textContent='Keep at least one on: multiplication or division.';return}
+  KID.msg='';KID.mul=mul===cl.mul?null:mul;KID.div=div===cl.div?null:div;
+});
+$('kidCard').addEventListener('input',e=>{if(!KID||e.target.id!=='kmVal')return;KID.rounds=clampR(e.target.value);$('kmHint').textContent='own number'});
+$('kidModal').addEventListener('click',e=>{if(e.target===$('kidModal'))closeKid()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&KID)closeKid()});
 $('grownBack').onclick=$('sOut').onclick=$('acctOut').onclick=async()=>{await api.teacherSignOut();setLocal({teacher:false});TEACH=null;toLogin()};
 
 // ---------- celebration pop-ups (rank ups, new badges, shop unboxing) ----------
@@ -1327,7 +1326,7 @@ async function loadClassStudents(){REVIEW=null;renderReview();
   TEACH.stats={};if(cs&&Array.isArray(cs.students))cs.students.forEach(x=>{TEACH.stats[x.id]=x});
   S={players:{},order:[],current:null,showBoard:true,muted:true,goal:S.goal};
   list.forEach(st=>{S.players[st.id]=fixPlayer({...newPlayerData(),...st.data,id:st.id,name:st.name,pin:st.pin,username:st.username||'',realName:st.real_name||''});S.order.push(st.id)});
-  sortStudents();GSel=null;renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
+  sortStudents();GSel=null;SEARCH='';SHOW_ALL=false;$('stuSearch').value='';renderTeacherBar();renderGrown();renderGTab();if(!$('codecards').hidden)renderCodeCards();
 }
 function sortStudents(){S.order.sort((a,b)=>{const A=S.players[a],B=S.players[b];return (!A.realName)-(!B.realName)||(A.realName||'').localeCompare(B.realName||'')})}
 function renderSchoolPicker(){
@@ -1339,7 +1338,7 @@ function renderSchoolPicker(){
 function renderOwnerEmpty(){
   renderSchoolPicker();const vs=(TEACH.schools||[]).find(x=>x.id===viewSchool());
   $('gWho').textContent=`Owner view · ${vs?vs.name:'School'} · view only`;$('gTitle').textContent='No classes yet';$('gClass').innerHTML='';$('gCode').textContent='—';
-  $('kpis').innerHTML='';$('gProgress').innerHTML='';$('tbl').innerHTML='<tbody><tr><td class="muted">This school has no classes yet.</td></tr></tbody>';$('gdetail').hidden=true;
+  $('gProgress').innerHTML='';$('tbl').innerHTML='<tbody><tr><td class="muted">This school has no classes yet.</td></tr></tbody>';$('gdetail').hidden=true;
   $('gSchoolBtn').hidden=true;show('grown');
 }
 $('gSchool').onchange=async()=>{TEACH.viewSchool=$('gSchool').value===ownSchool()?null:$('gSchool').value;setLocal({ownerSchool:TEACH.viewSchool});TEACH.classId=null;TEACH_TAB='students';await loadClasses()};
@@ -1371,39 +1370,8 @@ $('gNewClass').onclick=async()=>{
   const name=prompt('Name for the new class (for example "Grade 5 Ravens")');if(!name||!name.trim())return;
   const c=await api.createClass(name.trim().slice(0,80));TEACH.all.push(c);TEACH.classes=visibleClasses();TEACH.classId=c.id;await loadClassStudents();
 };
-// ----- tabs -----
-$('gTabs').addEventListener('click',e=>{const b=e.target.closest('[data-gtab]');if(!b)return;TEACH_TAB=b.dataset.gtab;renderGTab()});
-function renderGTab(){
-  document.querySelectorAll('#gTabs [data-gtab]').forEach(b=>{b.classList.toggle('on',b.dataset.gtab===TEACH_TAB);b.setAttribute('aria-selected',b.dataset.gtab===TEACH_TAB)});
-  document.querySelectorAll('#grown [data-gpane]').forEach(p=>p.hidden=p.dataset.gpane!==TEACH_TAB);
-  if(TEACH_TAB==='goal')renderGoal();else if(TEACH_TAB==='help')renderHelp();else if(TEACH_TAB==='comp')renderComp();else if(TEACH_TAB==='settings')renderSettings();
-}
-// ----- weekly goal -----
-let goalDraft=null;
-function renderGoal(){
-  const c=curClass(),g=(c.settings||{}).goal||{tables:[],rounds:5};
-  if(!goalDraft||goalDraft.cid!==c.id)goalDraft={cid:c.id,tables:[...(g.tables||[])],rounds:g.rounds||5};
-  const players=S.order.map(id=>S.players[id]),set=(c.settings||{}).goal;
-  const N=set&&set.rounds||0,done=players.filter(p=>N&&goalRounds(p)>=N).length;
-  $('goalCard').innerHTML=`<h2>This week's goal</h2>
-    <p class="muted small">Choose times tables to focus on and how many rounds each student should play this week (Monday to Sunday). Students see the goal on their home screen and get more questions from these tables. It starts again every Monday.</p>
-    <span class="label">Focus tables</span>
-    <div class="tchips">${ALL.map(t=>`<button class="tchip ${goalDraft.tables.includes(t)?'on':''}" data-gt="${t}">${t}×</button>`).join('')}</div>
-    <span class="label">Rounds this week</span>
-    <div class="tchips">${[3,5,7,10].map(n=>`<button class="tchip ${goalDraft.rounds===n?'on':''}" data-gr="${n}">${n}</button>`).join('')}</div>
-    <div class="row"><button class="btn primary" id="goalSave">${set?'Update goal':'Set goal'}</button>${set?'<button class="btn" id="goalClear">Clear goal</button>':''}</div>
-    <p class="note" id="goalMsg" aria-live="polite"></p>
-    ${set?`<hr><div class="spread"><h3>Progress this week</h3><b>${done} of ${players.length} done</b></div>
-    <div class="glist">${players.map(p=>{const n=goalRounds(p),ok=n>=N;return `<div class="gitem ${ok?'ok':''}">${avatar(p.skin,28)}<span class="gname">${whoHTML(p)}</span><span class="gbar"><i style="width:${Math.min(100,n/N*100).toFixed(0)}%"></i></span><span class="gnum num">${Math.min(n,N)}/${N}${ok?' ✓':''}</span></div>`}).join('')||'<p class="muted">No students yet.</p>'}</div>`:''}`;
-}
-$('goalCard').addEventListener('click',async e=>{
-  const t=e.target.closest('[data-gt]'),r=e.target.closest('[data-gr]');
-  if(t){const n=+t.dataset.gt,i=goalDraft.tables.indexOf(n);i>=0?goalDraft.tables.splice(i,1):goalDraft.tables.push(n);goalDraft.tables.sort((a,b)=>a-b);renderGoal();return}
-  if(r){goalDraft.rounds=+r.dataset.gr;renderGoal();return}
-  const c=curClass();
-  if(e.target.closest('#goalSave')){c.settings={...c.settings,goal:{tables:goalDraft.tables,rounds:goalDraft.rounds}};await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);renderGoal();$('goalMsg').textContent='Saved. Students will see it next time they open the game.';return}
-  if(e.target.closest('#goalClear')){const st={...c.settings};delete st.goal;c.settings=st;goalDraft=null;await api.updateClass(c.id,{settings:st});applySettings(st);renderGoal();return}
-});
+// ----- the page has no tabs: step 3 and the More section render when a class loads -----
+function renderGTab(){renderSettings();renderHelp()}
 // ----- needs help -----
 function trickyFacts(p,n){
   return Object.entries(p.facts).map(([k,f])=>{const miss=f.r.filter(x=>!x).length/Math.max(1,f.r.length),m=med(f.t)||9000;return {k,miss,m,lv:level(f)}})
@@ -1546,19 +1514,42 @@ $('compPane').addEventListener('submit',async e=>{
   CMP.draft=null;await renderComp(true);
 });
 // ----- settings -----
+// Step 3 keeps a draft (CD) until "Save class settings"
+let CD=null;
 function renderSettings(){
   const c=curClass(),st=c.settings||{};
-  $('setName').value=c.name;$('setMax').value=String(st.maxTable||12);$('setDiv').checked=!!st.division;$('setSound').checked=st.sound!==false;
-  $('setTeacherRow').hidden=!isAdmin();
-  if(isAdmin())$('setTeacher').innerHTML=`<option value="">No teacher</option>`+(TEACH.teachers||[]).map(t=>`<option value="${t.id}" ${t.id===c.teacher_id?'selected':''}>${esc(t.name)}</option>`).join('');
+  if(!CD||CD.cid!==c.id)CD={cid:c.id,rounds:st.minRounds==null?10:clampR(st.minRounds),tables:classTables(st),mul:st.multiplication!==false,div:!!st.division};
+  $('setName').value=c.name;$('setSound').checked=st.sound!==false;
+  const t=TEACH.info&&TEACH.info.teacher;$('setTeacherName').value=(t&&t.name)||'';$('setTeacherName').hidden=isAdmin();$('setTeacher').hidden=!isAdmin();
+  if(isAdmin())$('setTeacher').innerHTML=`<option value="">No teacher</option>`+(TEACH.teachers||[]).map(x=>`<option value="${x.id}" ${x.id===c.teacher_id?'selected':''}>${esc(x.name)}</option>`).join('');
+  $('rdVal').value=CD.rounds;$('rdHint').textContent=CD.rounds?'rounds per student, per day':'rounds per student, per day (0 = no daily target)';
+  $('setTables').innerHTML=[2,3,4,5,6,7,8,9,10,11,12].map(n=>`<button type="button" class="tchip ${CD.tables.includes(n)?'on':''}" data-ct="${n}" aria-pressed="${CD.tables.includes(n)}">${n}</button>`).join('');
+  $('setMul').checked=CD.mul;$('setDiv').checked=CD.div;
   $('setMsg').textContent='';$('acctEmail').textContent=TEACH.info.email||'';$('acctMsg').textContent='';
 }
-async function saveSettings(){
-  const c=curClass();c.settings={...c.settings,maxTable:+$('setMax').value,division:$('setDiv').checked,sound:$('setSound').checked,battles:false};
-  await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings);$('setMsg').textContent='Saved.';
-}
-['setMax','setDiv','setSound'].forEach(id=>$(id).onchange=saveSettings);
-$('setName').onchange=async()=>{const c=curClass(),n=$('setName').value.trim().slice(0,80);if(!n)return;c.name=n;await api.updateClass(c.id,{name:n});renderTeacherBar();$('setMsg').textContent='Saved.'};
+function setRounds(n){CD.rounds=clampR(n);$('rdVal').value=CD.rounds;$('rdHint').textContent=CD.rounds?'rounds per student, per day':'rounds per student, per day (0 = no daily target)'}
+$('rdMinus').onclick=()=>setRounds(CD.rounds-1);$('rdPlus').onclick=()=>setRounds(CD.rounds+1);
+$('rdVal').addEventListener('input',e=>{if(e.target.value!=='')CD.rounds=clampR(e.target.value)});
+$('rdVal').addEventListener('change',()=>setRounds($('rdVal').value));
+$('setTables').addEventListener('click',e=>{
+  const b=e.target.closest('[data-ct]');if(!b)return;const n=+b.dataset.ct,i=CD.tables.indexOf(n);
+  if(i>=0&&CD.tables.length===1){$('setMsg').textContent='Keep at least one times table on.';return}
+  i>=0?CD.tables.splice(i,1):CD.tables.push(n);CD.tables.sort((a,b)=>a-b);$('setMsg').textContent='';
+  b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',String(i<0));
+});
+['setMul','setDiv'].forEach(id=>$(id).onchange=()=>{
+  const mul=$('setMul').checked,div=$('setDiv').checked;
+  if(!mul&&!div){$(id).checked=true;$('setMsg').textContent='Keep at least one on: multiplication or division.';return}
+  CD.mul=mul;CD.div=div;$('setMsg').textContent='';
+});
+$('saveClass').onclick=async()=>{
+  const c=curClass();if(!c||viewingOther())return;
+  const name=$('setName').value.trim().slice(0,80)||c.name;
+  const settings={...c.settings,minRounds:CD.rounds,tables:[...CD.tables],multiplication:CD.mul,division:CD.div,sound:$('setSound').checked,battles:false};
+  try{await api.updateClass(c.id,name!==c.name?{name,settings}:{settings});c.settings=settings;c.name=name;applySettings(settings);renderTeacherBar();renderGrown();$('setMsg').textContent='Saved. Students see it the next time they open the game.'}
+  catch(err){$('setMsg').textContent='Could not save: '+err.message}
+};
+$('setSound').onchange=async()=>{const c=curClass();if(!c||viewingOther())return;c.settings={...c.settings,sound:$('setSound').checked};await api.updateClass(c.id,{settings:c.settings});applySettings(c.settings)};
 $('setTeacher').onchange=async()=>{const c=curClass(),tid=$('setTeacher').value||null;c.teacher_id=tid;await api.updateClass(c.id,{teacher_id:tid});renderTeacherBar();$('setMsg').textContent=`Saved. ${tid?teacherName(tid)+' can now see this class.':''}`};
 $('gArchive').onclick=async()=>{
   const c=curClass();if(!confirm(`Archive ${c.name}? Students in it can no longer log in. Archived classes are deleted after 12 months.`))return;
@@ -1574,7 +1565,7 @@ let REVIEW=null; // { rows, res } while the teacher checks the list
 function suggestUsername(p){const w=String(p.realName||'').trim().split(/\s+/).filter(Boolean);return w.length>1?usernameFromName(w.slice(0,-1).join(' '),w.at(-1)):''}
 const SKIP_WHY={already_added:'already has a login at your school, so skipped',no_name:'no name found, so skipped',bad_email:"not an email we can use, so skipped"};
 function renderReview(){
-  const box=$('addReview');if(!REVIEW){box.hidden=true;box.innerHTML='';$('addStudent').textContent='Create usernames';return}
+  const box=$('addReview');if(!REVIEW){box.hidden=true;box.innerHTML='';$('addStudent').textContent='Add student';return}
   const {rows,res}=REVIEW,byRow={};res.added.forEach(a=>byRow[a.row]={ok:true,...a});res.skipped.forEach(x=>byRow[x.row]={ok:false,...x});
   const n=res.added.length,anyNames=rows.some(r=>!r.email);
   box.hidden=false;
@@ -1592,6 +1583,7 @@ async function checkList(rows){
   if(!res||res.error){$('addMsg').textContent='Could not check the list: '+((res&&res.error)||'no reply');return}
   $('addMsg').textContent='';REVIEW={rows,res};renderReview();
 }
+$('addNames').addEventListener('input',e=>{const a=e.target;a.style.height='auto';a.style.height=Math.min(a.scrollHeight,180)+'px'});
 $('addStudent').onclick=()=>{
   const rows=parseRoster($('addNames').value);
   if(!rows.length){$('addMsg').textContent='Paste at least one student first, one per line.';$('addNames').focus();return}
@@ -1612,10 +1604,6 @@ $('addReview').addEventListener('click',async e=>{
     $('addNames').value='';
     $('addMsg').textContent=`Added ${r.added.length} student${r.added.length===1?'':'s'}. Next: tap Print login cards and hand them out.`+(r.skipped.length?` ${r.skipped.length} skipped.`:'');
   }catch(err){$('addMsg').textContent='Could not add students: '+err.message;btn.disabled=false}
-});
-$('gdetail').addEventListener('change',async e=>{
-  if(e.target.id!=='gdMin'||viewingOther())return;const c=curClass(),p=S.players[GSel];if(!c||!p)return;
-  c.settings=withStudentMin(c.settings,p.id,e.target.value==='class'?null:e.target.value);await saveMin(c,'gdMsg');
 });
 $('gdetail').addEventListener('submit',async e=>{
   if(e.target.closest('#gdEmailForm')){e.preventDefault();const p=S.players[GSel];if(!p)return;
@@ -2075,7 +2063,7 @@ export const __test = {
   level, weakWeight, statusSecs, tierIndex, pb, tableScore, weekStart, dayKey, dayStart, weekKey, missedSchoolDays,
   streakInfo, bumpStreak, restoreStreak, STREAK_PRICE, STREAK_BUYBACK_DAYS, isSchoolDay, streakFromRounds, streakHTML, nextSchoolDay, scoreRound, gameStars, roundStars, boardStars, migrateStars, fixPlayer, newPlayerData,
   applySettings, applyState, csvCell, esc, med, acc, pick, makeQ, afterAnswer, challengeShare, facts, grewFact, newFactWeight,
-  kidSettingsHTML, checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
+  checkBadges, BADGES, record, knowsTable, focusOf, weekAcc, trickyFacts, goalBoost, spaceName, TIERS, ORDER,
   setTab, progressData, renderProgress, renderCompBox, renderMinBox, setComps(v) { COMPS = v; }, renderBoard, setBoardScope(v) { boardScope = v; },
   get S() { return S; }, get ALL() { return ALL; }, get G() { return G; },
   rowsFromPlayers, pSeries,
