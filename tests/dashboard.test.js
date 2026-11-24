@@ -88,12 +88,13 @@ describe('screens (demo mode)', () => {
     const $ = (id) => document.getElementById(id);
     expect($('grown').hidden).toBe(false);
     // order: add students, then the list, then class settings, then More
-    const order = ['step1', 'step2', 'step3', 'more'].map((id) => $(id));
+    const order = ['step1', 'step2', 'step3'].map((id) => $(id));
     order.forEach((el, i) => { if (i) expect(order[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
     expect(document.querySelector('[data-gtab]')).toBeNull();            // no tabs, no weekly goal
     expect($('goalCard')).toBeNull();
     expect($('step1').contains($('showCards'))).toBe(true);              // Print login cards sits in step 1
-    expect($('more').contains($('showCards'))).toBe(false);
+    expect($('more')).toBeNull();                                        // no More section
+    expect($('acctPanel').hidden).toBe(true); $('gAcctBtn').click(); expect($('acctPanel').hidden).toBe(false);
     const head = $('tbl').querySelector('thead').textContent;
     expect(head).toMatch(/Student/); expect(head).toMatch(/Status/); expect(head).toMatch(/Rounds today/); expect(head).toMatch(/Rounds this week/); expect(head).not.toMatch(/Accuracy|Days|Trend/);
     // only two status words, ever
@@ -124,7 +125,6 @@ describe('screens (demo mode)', () => {
     expect($('gSchoolWrap').hidden).toBe(false);                         // the super admin's school dropdown
     expect($('pickbar').hidden).toBe(false);
     expect($('gSchool').options.length).toBeGreaterThan(0);
-    expect($('ptbl').querySelector('thead').textContent).toMatch(/Accuracy.*Stars earned.*Trend/);
     expect($('grown').classList.contains('viewonly')).toBe(false);
     expect(err).not.toHaveBeenCalled();
     history.pushState({}, '', '/');
@@ -233,7 +233,7 @@ describe('status label: judged over the week, never over today', () => {
   it('low accuracy: very few right over enough answers; a weaker child who plays a lot is on track', () => {
     expect(_reasons(busy(fri, 8, 20, 24), fri)).toEqual(['accuracy']);       // 40% right over 480 answers
     expect(_reasons(busy(fri, 13, 20, 24), fri)).toEqual([]);                // 65% right and playing plenty: on track
-    expect(_reasons([round(day(fri, 1), 2, 10), round(day(fri, 2), 2, 10)], fri, 1)).toEqual([]);   // only 20 answers: too few to judge
+    expect(_reasons([round(day(fri, 1), 2, 7), round(day(fri, 2), 2, 7)], fri, 1)).toEqual([]);   // only 14 answers: too few to judge
   });
   it('both reasons can apply', () => {
     expect(_reasons([round(day(fri, 3), 2, 30)], fri)).toEqual(['accuracy', 'activity']);

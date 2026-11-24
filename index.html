@@ -282,7 +282,7 @@
   <section class="screen" id="grown" hidden>
     <div class="ttop">
       <div class="ttitle"><span id="gWho"></span><h1 id="gTitle">Class</h1></div>
-      <div class="row"><button class="btn" id="gSuperBtn" hidden>All schools</button><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="grownBack">Sign out</button></div>
+      <div class="row"><button class="btn" id="gSuperBtn" hidden>All schools</button><button class="btn" id="gSchoolBtn" hidden>School</button><button class="btn" id="gAcctBtn" aria-expanded="false">Account</button><button class="btn" id="grownBack">Sign out</button></div>
     </div>
     <div class="card classbar pickbar" id="pickbar" hidden>
       <div class="row" style="align-items:center">
@@ -328,9 +328,16 @@
         <p class="note" id="setMsg" aria-live="polite"></p>
       </div>
 
-      <details class="card tstep more" id="more">
-        <summary><h2>More</h2><span class="muted small">Classes, login cards, progress, account</span></summary>
-        <div class="moreinner">
+      <div class="card tstep" id="acctPanel" hidden>
+        <div class="stephead"><div><h2>Your account</h2></div></div>
+        <p class="muted small">Signed in as <b id="acctEmail"></b></p>
+        <form class="row realrow" id="acctPassForm"><label for="acctPass">New password</label><input id="acctPass" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"><button class="btn" type="submit">Change password</button></form>
+        <div class="row"><button class="btn" id="acctOut">Sign out</button><button class="btn danger" id="acctDelete">Delete my account</button></div>
+        <p class="muted small">Deleting your account removes your login straight away. If you are the only teacher at your school, it also deletes the school, its classes and all student data. Otherwise your classes stay with the school for another teacher.</p>
+        <p class="note" id="acctMsg" aria-live="polite"></p>
+      </div>
+      <!-- Parked: no longer shown on the teacher page (kept so the code behind them still runs). Bring back under a settings tab if wanted. -->
+      <div id="parked" hidden>
           <section class="msec"><h3>Classes</h3>
             <div class="row" style="align-items:center">
               <button class="btn" id="gRenameClass">Rename</button><button class="btn" id="gNewClass">+ New class</button>
@@ -346,14 +353,7 @@
             <label class="chk"><input type="checkbox" id="setSound"> Game sounds</label>
             <hr><button class="btn danger" id="gArchive">Archive this class</button>
             <p class="muted small">Archived classes can't log in, and are deleted after 12 months.</p></section>
-          <section class="msec setcard"><h3>Your account</h3>
-            <p class="muted small">Signed in as <b id="acctEmail"></b></p>
-            <form class="row realrow" id="acctPassForm"><label for="acctPass">New password</label><input id="acctPass" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"><button class="btn" type="submit">Change password</button></form>
-            <div class="row"><button class="btn" id="acctOut">Sign out</button><button class="btn danger" id="acctDelete">Delete my account</button></div>
-            <p class="muted small">Deleting your account removes your login straight away. If you are the only teacher at your school, it also deletes the school, its classes and all student data. Otherwise your classes stay with the school for another teacher.</p>
-            <p class="note" id="acctMsg" aria-live="polite"></p></section>
         </div>
-      </details>
     </div>
     <div class="gpane" data-gpane="comp" hidden><div id="compPane"></div></div>
   </section>

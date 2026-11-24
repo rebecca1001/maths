@@ -40,7 +40,7 @@ export const STATUS = {
 };
 export const REASON = { accuracy: 'Low accuracy', activity: 'Low activity' };
 export const LOW_ACCURACY = 0.6;      // under 60% right this week...
-export const MIN_ANSWERS = 30;        // ...once they have answered at least this many
+export const MIN_ANSWERS = 15;        // ...once they have answered at least this many (about one round)
 export const ACTIVITY_SHARE = 0.5;    // fewer than half the expected rounds so far this week
 export const DEFAULT_TARGET = 10;     // rounds per day, when the teacher has not set one
 const mondayOf = (now) => { const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };

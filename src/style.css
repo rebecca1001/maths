@@ -911,12 +911,12 @@ body.modalopen{overflow:hidden}
 .mbig{font-family:var(--display);font-size:1.6rem;line-height:1.1;letter-spacing:.04em}
 .mfoot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
 .mfoot .linkbtn{margin-left:auto;color:var(--accent);text-decoration:underline;font-weight:800}
-#grown.viewonly #step1,#grown.viewonly #step3,#grown.viewonly [data-settings]{display:none!important}
 
 .pickbar{max-width:760px;width:100%;margin-inline:auto}
 #ptbl{min-width:720px}
 #grown:not(.viewonly) #more{}
 @media print{#grown .pickbar,#grown #step2,#grown #step3,#grown #more,#grown .ttop{display:none!important}
-#grown #step1>*:not(#codecards){display:none!important}#grown #step1{border:0;padding:0;background:none}
+#grown #step1>*:not(#codecards){display:none!important}#grown #acctPanel{display:none!important}#grown #step1{border:0;padding:0;background:none}
 #grown #codecards{display:grid!important;grid-template-columns:repeat(3,1fr)}}
 .sreason{display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-top:3px}
+#grown.viewonly #step1,#grown.viewonly #step3{opacity:.7}
